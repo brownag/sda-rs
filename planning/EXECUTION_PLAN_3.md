@@ -151,7 +151,7 @@ Dependencies: 3.1.1 → 3.2.1 → {3.3.1, 3.3.2} → 3.4.1 → 3.5.1 → 3.6.1. 
 - **Spec:** Distinguish an explicit configured geometry-column override from a geometry column merely discovered on another table. Add a narrow `SpatialCapability` accessor for override provenance without changing initialization behavior. If `mupolygon` metadata is missing and there is no explicit override, reject the mukey TVF with a structured error rather than selecting another layer. Add unit and integration coverage using a GeoPackage with one non-`mupolygon` geometry layer, both with and without an explicit override. When `mupolygon` metadata exists, use its discovered SRS. If metadata is absent but an explicit override exists, use the overridden column and preserve the existing SRID 4326 fallback, per the user's decision.
 - **Do not touch:** `src/routes.rs`, `src/transpiler/mod.rs`, `planning/*` except this task's micro-plan.
 - **Grep anchors:** `SpatialCapability`, `geometry_override`, `effective_geometry_column`, `MukeyTarget`, `geometry_metadata_for_table("mupolygon")`, `mukey_rewrite_uses_mupolygon_metadata_not_first_geometry_row`.
-- **Acceptance:** `cargo test spatial::`; `cargo test transpiler::spatial::`; `cargo test --test sda_mvp`; `cargo fmt --check`; `git diff --check`.
+- **Acceptance:** `cargo test spatial::`; `cargo test transpiler::spatial::`; `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_mvp`; `cargo fmt --check`; `git diff --check`.
 
 #### Task 3.6.1 — Use shared-cache in-memory test databases (G24)
 

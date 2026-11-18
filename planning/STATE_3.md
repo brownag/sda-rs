@@ -103,7 +103,7 @@ Wave-boundary verification: waves 1–4 — passed. Latest serial run: `cargo fm
 - Changed `src/transpiler/spatial.rs`: reject missing `mupolygon` metadata absent override; override selects column, metadata supplies SRS, absent metadata with override retains 4326.
 - Changed `tests/sda_mvp.rs`: added route regression with a sole non-`mupolygon` metadata row.
 - `cargo test spatial::`: 18 passed, 0 failed; `cargo test transpiler::spatial::`: 11 passed, 0 failed.
-- `cargo test --test sda_mvp`: 5 passed, 0 failed.
+- `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_mvp`: 5 passed, 0 failed.
 - `cargo fmt --check`: passed; `git diff --check`: passed.
 - Initial route-test attempt failed because no spatial extension was configured; regression now uses `SDA_TEST_SPATIALITE` as the existing live spatial test does, and the targeted rerun passed.
 - Deviations: none to scope or precedence. Full suite not run as instructed.
