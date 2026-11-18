@@ -12,13 +12,13 @@ Plan: `planning/EXECUTION_PLAN_5.md`. Active goal: explicit and tested SQLite se
 - `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test`: passed (52 unit + 11 integration tests; 0 failures). Live SpatiaLite tests executed.
 - Live SpatiaLite extension path: `/usr/lib/x86_64-linux-gnu/mod_spatialite.so`; configured live tests executed.
 - Accepted ADRs 0001–0006 remain in force; no supersession authorized.
-- Plan 6 artifacts are present as untracked user work and are intentionally untouched.
+- Plan 6 artifacts were committed separately as `9cc9873` while this orchestration was active; Plan 5 did not edit them.
 
 ## Wave board
 
 | Wave | Tasks | Status | Code commit |
 |---|---|---|---|
-| 1 | 5.1.1 Persistent-state authorizer | pending | — |
+| 1 | 5.1.1 Persistent-state authorizer | done | `50b9f34`, `7283746` |
 | 2 | 5.2.1 Extension lifecycle; 5.2.2 test UDF flags | pending | — |
 | 3 | 5.3.1 SQLite/row limits; 5.3.2 serialized-output cap | pending | — |
 
@@ -35,3 +35,13 @@ Plan: `planning/EXECUTION_PLAN_5.md`. Active goal: explicit and tested SQLite se
 ## Task reports
 
 <!-- Workers append "## {{id}}" sections below, max 15 lines each. -->
+
+## 5.1.1
+- **Status:** complete.
+- **Files:** `Cargo.toml`; `src/executor/sqlite.rs`; `docs/security/sqlite-execution-policy.md`; `tests/security_contract.rs`.
+- **Commits:** `50b9f34` authorizer policy; `7283746` executor transaction lifecycle and regression coverage.
+- **Targeted tests:** `cargo test --test security_contract` — 3 passed; `cargo test executor::sqlite::tests` — 8 passed.
+- **Wave checks:** fmt and diff checks passed; configured full suite — 52 unit + 14 integration tests passed, 0 failed; live SpatiaLite tests executed.
+- **Coverage:** persistent UPDATE denied without side effects; temp create/populate/read and successful batch commit work; failed batch rolls back; user BEGIN/COMMIT rejected.
+- **Deviation:** full suite exposed stale persistent-write unit expectations and denied automatic rollback; escalated and fixed within task scope. Dependency versions unchanged.
+- **Gotcha:** authorizer is suspended only for synchronous executor-owned commit/rollback and restored afterward; submitted transaction-control SQL remains denied.
