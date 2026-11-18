@@ -104,7 +104,7 @@ Dependencies: 3.1.1 → 3.2.1 → {3.3.1, 3.3.2} → 3.4.1 → 3.5.1 → 3.6.1. 
 - **Spec:** Give each recognized `#temp` table a generated SQLite temporary name that cannot shadow a persistent table. Rewrite references to that same `#name` within the batch to its generated name. Preserve session lifetime and existing unknown hash-table behavior. Add a regression with a persistent `sample` table proving `SELECT COUNT(*) FROM sample` continues to read the persistent table after `SELECT ... INTO #sample`; also verify an explicit `#sample` reference reads the temporary table. Cover `CREATE TABLE #x` followed by `INSERT INTO #x` as required by G17's exit criteria.
 - **Do not touch:** `src/routes.rs`, `src/spatial.rs`, `src/transpiler/vars.rs`, `src/transpiler/spatial.rs`, `tests/sda_mvp.rs`, `planning/*` except this task's micro-plan.
 - **Grep anchors:** `fn rewrite`, `known.insert`, `CREATE TEMP TABLE`, `executes_multiple_statements_and_keeps_temp_tables_in_session`.
-- **Acceptance:** `cargo test temp_tables::`; `cargo test executor::`; `cargo test transpiler::folds_variables_and_select_into_batch`; `cargo fmt --check`; `git diff --check`.
+- **Acceptance:** `cargo test temp_tables::`; `cargo test executor::`; `cargo test folds_variables_and_select_into_batch`; `cargo fmt --check`; `git diff --check`.
 
 #### Task 3.3.1 — Correct batch variable declarations (G18)
 
