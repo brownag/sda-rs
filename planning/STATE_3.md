@@ -43,3 +43,14 @@ Wave-boundary verification: wave 1 — passed. `cargo fmt --check` passed; `SDA_
 - `git diff --check`: passed.
 - Existing temp-table session test passed in the executor run. Deviations: none; full suite not run (orchestrator-owned).
 - Wave-boundary integration commit on `feature/sqlite-mvp`: `1a3b62d`; serial full-suite verification passed.
+
+## 3.2.1
+- Status: complete; implementation commit `73a7415` (`fix(transpiler): isolate temporary table names`).
+- Planning TODO commit: `3b7c001` (`docs(planning): add temp table isolation micro-plan`).
+- Changed `src/transpiler/temp_tables.rs`: per-batch `#name` mapping to reserved `__sda_temp_<pid>_<counter>` names; rewrites SELECT INTO, CREATE TABLE, table references, and INSERT targets. Added CREATE/INSERT and updated mapping unit tests.
+- Changed `src/executor/sqlite.rs`: added persistent-`sample` regression proving unprefixed lookup remains persistent and `#sample` reads the temp table.
+- `cargo test temp_tables::`: 3 passed, 0 failed (39 filtered).
+- `cargo test executor::`: 8 passed, 0 failed (34 filtered); includes existing temp table session test and new collision regression.
+- `cargo fmt --check`: passed. `git diff --check`: passed.
+- Red run: initial `cargo test temp_tables::` failed because INSERT target is represented outside the AST traversal's table nodes; added explicit `Expression::Insert` target rewrite, then targeted tests passed.
+- Deviations: none. Full suite not run (orchestrator-owned).
