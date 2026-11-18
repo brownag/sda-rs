@@ -1,6 +1,7 @@
 pub mod config;
 pub mod executor;
 pub mod result;
+pub mod serializer;
 pub mod transpiler;
 
 use axum::{http::StatusCode, routing::post, Router};
