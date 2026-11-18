@@ -112,3 +112,12 @@ Wave-boundary verification: waves 1–5 — passed. Latest serial run: `cargo fm
 - Addendum: the orchestrator's serial full-suite check failed because the regression expected HTTP 500; `TranspilerError::Rejected` correctly maps to HTTP 400. Corrected the assertion in commit `1bb4aaa` (`test(routes): expect rejection as bad request`).
 - `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_mvp router_rejects_mukey_tvf_without_mupolygon_metadata_or_override`: 1 passed, 0 failed. `cargo fmt --check` and `git diff --check`: passed. No full suite run in worker.
 - Wave-boundary serial full suite after correcting the route status assertion: 52 unit + 5 integration passed, 0 failed; `cargo fmt --check` passed.
+
+## 3.6.1
+- Status: complete; implementation commit `35c0401` (`test(sqlite): use shared-cache in-memory databases`).
+- Planning TODO commits: `722520a` (micro-plan), `551cb92` (completed plan).
+- Changed `src/routes.rs` test setup and `tests/sda_mvp.rs` test setup only; migrated temporary-file DB tests, including the G20 route regression, to unique shared-cache URIs with live holder connections.
+- `cargo test routes::`: 4 passed, 0 failed (48 filtered).
+- `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_mvp`: 5 passed, 0 failed.
+- Initial `cargo fmt --check` reported formatting differences; applied `cargo fmt`, then `cargo fmt --check` passed. `git diff --check` passed.
+- Deviations: none. Full suite not run as instructed.
