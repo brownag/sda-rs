@@ -25,7 +25,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 | 1 | 6.1.1 Spatial SQL contract; 6.1.2 SDA_Get inventory | done | `b90bd8b`, `366a02a` |
 | 2 | 6.2.1 GeoPackageBinary decoder | done | `e2eb5c2` |
 | 3 | 6.3.1 Active-client intersection TVFs | done | `4d4aa0a` |
-| 4 | 6.4.1, 6.4.2, and 6.4.3 | blocked | — |
+| 4 | 6.4.1–6.4.3 diagnostic attempts; 6.4.4 implementation | in progress | — |
 | 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | pending | — |
 | 6 | 6.6.1 Other feature-layer intersection TVFs | pending | — |
 | 7 | 6.7.1 Scalar key-to-WKT TVFs | pending | — |
@@ -113,3 +113,8 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Outcome:** this run matches the later successful WGS84 observation but does not explain the earlier three WGS84 empty results. The Web-Mercator result is consistent with the known mixed-SRID defect. No behavior was changed.
 - **Checks/preservation:** temporary reporting was removed; hashes of the four existing implementation files match their pre-instrumentation values; `git diff --check` passed. Existing four-file diff remains uncommitted.
 - **Next action:** await user direction; all downstream waves remain gated on Wave 4 completion.
+
+## 6.4.4
+- **Status:** user-authorized implementation continuation; micro-planning.
+- **Scope:** finish the four remaining area-symbol/status-map intersection variants, fix the confirmed Web-Mercator CRS mismatch, and retain the WGS84 expected result without claiming the earlier inconsistent responses are explained.
+- **Authorization:** user approved proceeding with the confirmed Web-Mercator fix and remaining Wave 4 work while preserving the WGS84 assertion.
