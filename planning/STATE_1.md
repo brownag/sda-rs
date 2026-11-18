@@ -17,7 +17,7 @@ Plan: `planning/EXECUTION_PLAN_1.md`
 |---|---|---|
 | 1 | 1.1.1 | done |
 | 2 | 1.2.1 | done |
-| 3 | 1.2.2 | pending |
+| 3 | 1.2.2 | done |
 | 4 | 1.3.1, 1.3.2 | pending |
 | 5 | 1.4.1, 1.4.2 | pending |
 | 6 | 1.5.1 | pending |
@@ -58,3 +58,4 @@ Plan: `planning/EXECUTION_PLAN_1.md`
 - SQLite dialect pipeline handles bracket identifiers, TOP, IIF, STRING_AGG; AST pass maps ISNULL to COALESCE.
 - Planning report and implementation commits are separate; no remote actions.
 - Deviations: none.
+- Orchestrator wave-boundary verification: `cargo fmt --check` passed; `cargo test` passed (9 passed, 0 failed; binary/doc suites 0 tests).
