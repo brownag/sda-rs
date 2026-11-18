@@ -27,7 +27,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 | 3 | 6.3.1 Active-client intersection TVFs | done | `4d4aa0a` |
 | 4 | 6.4.1–6.4.3 diagnostic attempts; 6.4.4 implementation; 6.4.5 regression correction | done | `8a54496`, `d4d867b` |
 | 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | done | `84e0138` |
-| 6 | 6.6.1 Other feature-layer intersection TVFs | pending | — |
+| 6 | 6.6.1 Other feature-layer intersection TVFs | in progress | — |
 | 7 | 6.7.1 Scalar key-to-WKT TVFs | pending | — |
 | 8 | 6.8.1 Table-input WKT TVFs/macros | pending | — |
 | 9 | 6.9.1 soilDB/Iowa integration harness | pending | — |
@@ -145,4 +145,5 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Acceptance:** first configured contract attempt stopped at the no-match assertion because it expected a column header. Following evidence review and user authorization, expected no-match body was corrected to `{}`; `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract` passed (1 test, both new CRS cases included).
 - **Checks:** `cargo fmt --check` and `git diff --check` passed.
 - **Code commit:** `84e0138` (`feat(spatial): add Mupolygonkey intersection TVFs`).
+- **Boundary suite:** configured full `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed (61 unit tests, 20 integration tests, 0 failures).
 - **Next:** Wave 6 may begin.
