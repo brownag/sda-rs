@@ -29,8 +29,8 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 | 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | done | `84e0138` |
 | 6 | 6.6.1 implementation; 6.6.2 diagnosis; 6.6.3 fixture correction; 6.6.4 format and boundary verification | done | `9c23a78` |
 | 7 | 6.7.1 One-key WKT TVFs; 6.7.2 compile recovery; 6.7.3 HTTP 500 diagnostic; 6.7.4 generated SQLite diagnosis / evidence-led fix | done; configured boundary suite passed | `23dea36` |
-| 8 | 6.8.1 Table-input WKT TVFs/macros | blocked on first configured contract assertion; implementation uncommitted | — |
-| 9 | 6.9.1 soilDB/Iowa integration harness | blocked on Waves 7–8 | — |
+| 8 | 6.8.1 Table-input WKT TVFs/macros | done; configured full suite passed | `f5e9541` |
+| 9 | 6.9.1 soilDB/Iowa integration harness | plan drafted; awaiting approval | — |
 
 ## Orchestration decisions and hazards
 
@@ -212,10 +212,17 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Disposition:** Wave 7 implementation verified and committed; configured full suite passed the boundary gate. Wave 8 may proceed after its task plan is approved; Wave 9 remains gated on Wave 8.
 
 ## 6.8.1
-- **Status:** blocked on first configured contract assertion; implementation diff uncommitted.
-- **Changes attempted:** added preprocessing for `DeclareIntTable`, `DeclareVarcharTable`, and `DeclareVarchar255Table`; mapped table-variable references through existing request-local temp-table names; marked `CREATE TABLE #name` as temporary; added table-input WKT rewrites for eight catalog functions, an AST-generation unit test, and configured contract cases.
-- **Acceptance:** `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract` failed at the first table-input Areasymbol assertion. Actual response contained separate headings `["areasymbol","AreasymbolWkt84"]` and the expected WKT. The new expected string mistakenly encoded headings as one value `["areasymbol,AreasymbolWkt84"]`.
-- **Disposition:** stopped at first failure per approved task; no retry, format/diff checks, or implementation commit. Preserve current Wave 8 diff. Wave 9 remains gated.
+- **Status:** complete; implementation commit `f5e9541`.
+- **Implementation:** added pre-parse macro expansion for `DeclareIntTable`, `DeclareVarcharTable`, and `DeclareVarchar255Table`; table variables map through generated request-local temp names. `CREATE TABLE #name` generates temporary tables. Added eight table-input WKT rewrites with exact catalog output columns, key joins, and WGS84/Web-Mercator transforms.
+- **Tests:** configured contract exercises all eight functions, populated and empty table inputs, exact output columns/WKT; unit coverage checks macro expansion and request-temp-table mapping. Existing rollback/isolation tests remain unchanged.
+- **Acceptance:** configured contract passed; configured full suite passed (64 unit tests and all integration/doc targets). `cargo fmt --check` and `git diff --check` passed. `cargo clippy --all-targets` exited successfully with two warnings: existing `needless_question_mark` and `collapsible_if`.
+- **Note:** an initial failure was only a test expected-string heading typo; the next exposed duplicate fixture data. Both fixture-only issues were corrected, and the final configured acceptance passed.
+- **Disposition:** Wave 8 verified and committed. Wave 9 is now eligible for task planning; no Iowa or external repository/data was accessed.
+
+## 6.9.1
+- **Status:** task plan drafted; awaiting approval. No harness code or external data access.
+- **Plan:** `planning/tasks/6.9.1.todo.md`; Wave 8 prerequisite is verified via `f5e9541`.
+- **Safety:** the soilDB checkout and Iowa GeoPackage remain read-only. The harness is opt-in, uses a temporary R library and ephemeral loopback port, and is excluded from ordinary Cargo tests/CI.
 
 ## Scalar mukey WKT follow-up
 - **Correction:** direct key equality and acceptance of literal/NULL AST variants. Test fixture includes a distinct `mukey = '11'` row, separate from `mupolygonkey = 11`.
