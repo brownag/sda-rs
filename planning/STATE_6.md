@@ -28,7 +28,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 | 4 | 6.4.1–6.4.3 diagnostic attempts; 6.4.4 implementation; 6.4.5 regression correction | done | `8a54496`, `d4d867b` |
 | 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | done | `84e0138` |
 | 6 | 6.6.1 implementation; 6.6.2 diagnosis; 6.6.3 fixture correction; 6.6.4 format and boundary verification | done | `9c23a78` |
-| 7 | 6.7.1 One-key WKT TVFs; 6.7.2 compile recovery; 6.7.3 HTTP 500 diagnostic only | blocked on configured contract failure; diagnostic awaiting approval | — |
+| 7 | 6.7.1 One-key WKT TVFs; 6.7.2 compile recovery; 6.7.3 HTTP 500 diagnostic only | blocked on configured contract failure; diagnostic complete | — |
 | 8 | 6.8.1 Table-input WKT TVFs/macros | blocked on Wave 7 | — |
 | 9 | 6.9.1 soilDB/Iowa integration harness | blocked on Waves 7–8 | — |
 
@@ -195,7 +195,9 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Next:** 6.7.3 is planned to identify the failing request and expose its error body. Waves 7–9 stay blocked.
 
 ## 6.7.3
-- **Status:** diagnostic micro-plan drafted; execution awaits approval. No instrumentation or diagnostic run yet.
-- **Scope:** temporary `[DEBUG-673]` reporting only in `tests/sda_get_contract.rs::query`, then one serial configured contract run with `--nocapture`. Preserve the four-file uncommitted Wave 7 diff; remove only the diagnostic changes after the run.
-- **Stop condition:** report the failing SQL, HTTP status, full body, and any evidence-supported cause; no retry or behavior change. A specific fixable cause requires a separate approved task. If unclear or the 500 does not reproduce, report and stop.
-- **Gate:** Waves 7–9 remain blocked; the diagnostic is not acceptance.
+- **Status:** diagnostic complete; approved plan `86db12e`. No implementation commit.
+- **Diagnostic:** ran `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract -- --nocapture --test-threads=1` once. Compilation succeeded; exit 101 (0 passed, 1 failed). The first 24 requests passed their assertions.
+- **First failure (request 25):** `SELECT * FROM SDA_Get_MupolygonWktWgs84_from_Mukey('inside')` returned `500 Internal Server Error` with full body `{"error":"SQLite execution failed: near \"MAX\": syntax error"}`. This identifies a SQLite syntax error; the emitted statement was not captured, so the origin of `MAX` is unconfirmed.
+- **Not reached (13 requests):** Web-Mercator Mupolygon with `inside`; both CRS variants for Mupoint and Muline with `inside`; all eight missing-key/NULL one-key WKT cases.
+- **Cleanup:** removed the temporary test-helper reporting; its tag is absent from the test source, all four Wave 7 SHA-256 hashes match their baselines, and `git diff --check` passed. The four-file diff remains unstaged and uncommitted.
+- **Gate:** no retry, behavior change, or acceptance run. A behavior fix requires separate approval; Waves 7–9 remain blocked.
