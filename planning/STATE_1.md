@@ -94,3 +94,12 @@ Plan: `planning/EXECUTION_PLAN_1.md`
 - `cargo test transpiler::`: 9 passed; `cargo fmt --check` and `git diff --check` passed.
 - Unsupported forms reject: multi-item/unequal SET, assignments to undeclared vars, non-sole SELECT variable assignment, unbound vars, and non-`#temp` SELECT INTO.
 - No remote actions; pre-existing `target/` preserved.
+
+## 1.4.2
+- Status: implemented and verified on `feature/sqlite-mvp`.
+- Scope: `src/spatial.rs`, `src/lib.rs`, `src/routes.rs`, `src/executor/mod.rs`, `src/executor/sqlite.rs`, and `Cargo.toml` solely to enable rusqlite's existing `load_extension` feature; no new dependency or version change.
+- Per-request blocking executor loads a configured extension under `LoadExtensionGuard`, verifies `spatialite_version()`, discovers optional `gpkg_geometry_columns` table/column/SRS metadata, and exposes `SpatialCapability` + effective geometry-column override.
+- Plain SQLite remains valid with unavailable spatial capability and absent GeoPackage metadata. `require_spatial()` returns a typed unavailable error.
+- `cargo test spatial::`: 3 passed; `cargo test routes::`: 2 passed; `cargo fmt --check`: passed; `git diff --check`: passed.
+- SpatiaLite availability: no `mod_spatialite` extension found; only `libspatialite.so` shared library present, so extension smoke test was not applicable. Missing-extension behavior is covered deterministically.
+- No AOI/UDF rewrites, transpiler/serializer changes, or remote actions. Existing untracked `target/` preserved.
