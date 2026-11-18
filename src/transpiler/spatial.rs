@@ -1,0 +1,360 @@
+use polyglot_sql::{
+    expressions::{Expression, Function, Literal},
+    traversal::{transform_all, ExpressionWalk},
+    Dialect, DialectType,
+};
+
+use crate::spatial::SpatialCapability;
+
+use super::TranspilerError;
+
+const MUKEY_FUNCTION: &str = "SDA_Get_Mukey_from_intersection_with_WktWgs84";
+
+pub(super) fn normalize_static_calls(sql: &str) -> String {
+    let needle = "geometry::STGeomFromText";
+    let mut output = String::with_capacity(sql.len());
+    let mut index = 0;
+    let mut quoted = false;
+    let bytes = sql.as_bytes();
+    while index < bytes.len() {
+        if bytes[index] == b'\'' {
+            output.push('\'');
+            index += 1;
+            if quoted && index < bytes.len() && bytes[index] == b'\'' {
+                output.push('\'');
+                index += 1;
+            } else {
+                quoted = !quoted;
+            }
+            continue;
+        }
+        if !quoted
+            && sql[index..]
+                .get(..needle.len())
+                .is_some_and(|part| part.eq_ignore_ascii_case(needle))
+        {
+            output.push_str("geometry.STGeomFromText");
+            index += needle.len();
+        } else {
+            let ch = sql[index..].chars().next().unwrap();
+            output.push(ch);
+            index += ch.len_utf8();
+        }
+    }
+    output
+}
+
+pub(super) fn rewrite(
+    statements: Vec<Expression>,
+    capability: &SpatialCapability,
+) -> Result<Vec<Expression>, TranspilerError> {
+    let mut output = Vec::with_capacity(statements.len());
+    for statement in statements {
+        let spatial_statement = statement.dfs().any(is_spatial_expression);
+        if statement.dfs().any(|node| matches!(node, Expression::Function(function) if function.name.eq_ignore_ascii_case(MUKEY_FUNCTION)))
+            && capability.geometry_metadata().is_some_and(|metadata| !metadata.table_name.eq_ignore_ascii_case("mupolygon"))
+        {
+            return Err(TranspilerError::Rejected(
+                "mukey TVF requires geometry metadata for mupolygon".into(),
+            ));
+        }
+        let geometry_column = if spatial_statement {
+            capability.effective_geometry_column().ok_or_else(|| {
+                TranspilerError::Rejected(
+                    "spatial rewrite requires GeoPackage geometry metadata or a geometry column override"
+                        .into(),
+                )
+            })?
+        } else {
+            "geom"
+        };
+        let statement = transform_all(statement, &|node| expand_tables(node, geometry_column))
+            .map_err(TranspilerError::Generate)?;
+        output.push(
+            transform_all(statement, &|node| rewrite_node(node, geometry_column))
+                .map_err(TranspilerError::Generate)?,
+        );
+    }
+    Ok(output)
+}
+
+fn expand_tables(
+    node: Expression,
+    geometry_column: &str,
+) -> Result<Expression, polyglot_sql::Error> {
+    let Expression::Select(mut select) = node else {
+        return Ok(node);
+    };
+    if select.from.is_none() && select.expressions.len() == 1 {
+        if matches!(&select.expressions[0], Expression::Function(function) if function.name.eq_ignore_ascii_case(MUKEY_FUNCTION))
+        {
+            let derived = expand_source(select.expressions[0].clone(), geometry_column)?;
+            let mut parsed = Dialect::get(DialectType::TSQL).parse("SELECT * FROM placeholder")?;
+            let Expression::Select(mut template) = parsed.remove(0) else {
+                unreachable!()
+            };
+            select.expressions = template.expressions;
+            let mut from = template.from.take().unwrap();
+            from.expressions[0] = derived;
+            select.from = Some(from);
+        }
+    }
+    if let Some(from) = &mut select.from {
+        for source in &mut from.expressions {
+            *source = expand_source(source.clone(), geometry_column)?;
+        }
+    }
+    for join in &mut select.joins {
+        join.this = expand_source(join.this.clone(), geometry_column)?;
+    }
+    Ok(Expression::Select(select))
+}
+
+fn expand_source(
+    source: Expression,
+    geometry_column: &str,
+) -> Result<Expression, polyglot_sql::Error> {
+    let (function, alias) = match &source {
+        Expression::Function(function) if function.name.eq_ignore_ascii_case(MUKEY_FUNCTION) => {
+            (function, None)
+        }
+        Expression::Alias(alias) => match &alias.this {
+            Expression::Function(function)
+                if function.name.eq_ignore_ascii_case(MUKEY_FUNCTION)
+                    && alias.column_aliases.is_empty() =>
+            {
+                (function, Some(alias.alias.clone()))
+            }
+            _ => return Ok(source),
+        },
+        _ => return Ok(source),
+    };
+    if function.args.len() != 1
+        || !matches!(&function.args[0], Expression::Literal(literal) if matches!(literal.as_ref(), Literal::String(_)))
+    {
+        return Err(polyglot_sql::Error::InvalidInput("mukey TVF requires one literal WKT argument; correlated and other expressions are unsupported".into()));
+    }
+    let argument = function.args[0].clone();
+    let mut parsed = Dialect::get(DialectType::TSQL).parse(
+        "SELECT * FROM (SELECT DISTINCT mp.mukey FROM mupolygon AS mp WHERE mp.areasymbol <> 'US' AND ST_Intersects(ST_Transform(GeomFromGPB(mp.__geom__), 4326), GeomFromText(__wkt__, 4326))) AS __sda"
+    )?;
+    let Expression::Select(mut outer) = parsed.remove(0) else {
+        unreachable!()
+    };
+    let mut derived = outer.from.take().unwrap().expressions.remove(0);
+    if let Expression::Subquery(subquery) = &mut derived {
+        if let Some(alias) = alias {
+            subquery.alias = Some(alias);
+        }
+    } else {
+        return Err(polyglot_sql::Error::InvalidInput(
+            "unexpected derived table AST".into(),
+        ));
+    }
+    transform_all(derived, &|node| match node {
+        Expression::Column(mut column) if column.name.name == "__geom__" => {
+            column.name.name = geometry_column.to_owned();
+            column.name.quoted = true;
+            Ok(Expression::Column(column))
+        }
+        Expression::Column(column) if column.name.name == "__wkt__" => Ok(argument.clone()),
+        other => Ok(other),
+    })
+}
+
+fn is_spatial_expression(expression: &Expression) -> bool {
+    match expression {
+        Expression::Function(function) => function.name.eq_ignore_ascii_case(MUKEY_FUNCTION),
+        Expression::MethodCall(call) => {
+            call.method.name.eq_ignore_ascii_case("STIntersects")
+                || call.method.name.eq_ignore_ascii_case("STGeomFromText")
+                || call.method.name.eq_ignore_ascii_case(MUKEY_FUNCTION)
+        }
+        _ => false,
+    }
+}
+
+fn rewrite_node(
+    node: Expression,
+    geometry_column: &str,
+) -> Result<Expression, polyglot_sql::Error> {
+    Ok(match node {
+        Expression::MethodCall(call) if call.method.name.eq_ignore_ascii_case(MUKEY_FUNCTION) => {
+            return Err(polyglot_sql::Error::InvalidInput(
+                "qualified mukey TVF syntax is unsupported".into(),
+            ));
+        }
+        Expression::Function(function) if function.name.eq_ignore_ascii_case(MUKEY_FUNCTION) => {
+            let _ = (function, geometry_column);
+            return Err(polyglot_sql::Error::InvalidInput(
+                "SDA_Get_Mukey_from_intersection_with_WktWgs84 is unsupported in this AST context"
+                    .into(),
+            ));
+        }
+        Expression::Function(mut function)
+            if function
+                .qualified_name
+                .last()
+                .is_some_and(|name| name.name.eq_ignore_ascii_case("STGeomFromText"))
+                || function
+                    .name
+                    .eq_ignore_ascii_case("geometry::STGeomFromText") =>
+        {
+            if function.args.len() != 2 {
+                return Err(polyglot_sql::Error::InvalidInput(
+                    "geometry::STGeomFromText requires WKT and SRID arguments".into(),
+                ));
+            }
+            function.name = "GeomFromText".into();
+            function.qualified_name.clear();
+            Expression::Function(function)
+        }
+        Expression::MethodCall(call) if call.method.name.eq_ignore_ascii_case("STIntersects") => {
+            if call.args.len() != 1 {
+                return Err(polyglot_sql::Error::InvalidInput(
+                    ".STIntersects requires exactly one geometry argument".into(),
+                ));
+            }
+            let wrap = |expression| match &expression {
+                Expression::Column(column)
+                    if column.name.name.eq_ignore_ascii_case(geometry_column) =>
+                {
+                    Expression::Function(Box::new(Function::new("GeomFromGPB", vec![expression])))
+                }
+                _ => expression,
+            };
+            Expression::Function(Box::new(Function::new(
+                "ST_Intersects",
+                vec![wrap(call.this), wrap(call.args.into_iter().next().unwrap())],
+            )))
+        }
+        Expression::MethodCall(call) if call.method.name.eq_ignore_ascii_case("STGeomFromText") => {
+            if call.args.len() != 2 {
+                return Err(polyglot_sql::Error::InvalidInput(
+                    "geometry::STGeomFromText requires WKT and SRID arguments".into(),
+                ));
+            }
+            Expression::Function(Box::new(Function::new("GeomFromText", call.args)))
+        }
+        other => other,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::spatial::initialize;
+    use polyglot_sql::{Dialect, DialectType};
+
+    fn capability() -> SpatialCapability {
+        let connection = rusqlite::Connection::open_in_memory().unwrap();
+        connection.execute_batch(
+            "CREATE TABLE gpkg_geometry_columns (table_name TEXT, column_name TEXT, srs_id INTEGER);
+             INSERT INTO gpkg_geometry_columns VALUES ('mupolygon', 'shape_dynamic', 4326);",
+        ).unwrap();
+        initialize(&connection, None, None).unwrap()
+    }
+
+    #[test]
+    fn rewrites_tvf_in_from_and_in_subquery() {
+        for sql in [
+            "SELECT mukey FROM mapunit WHERE mukey IN (SELECT * FROM SDA_Get_Mukey_from_intersection_with_WktWgs84('POINT(0 0)'))",
+            "SELECT mukey FROM mapunit WHERE mukey IN (SELECT SDA_Get_Mukey_from_intersection_with_WktWgs84('POINT(0 0)'))",
+            "SELECT k.mukey FROM SDA_Get_Mukey_from_intersection_with_WktWgs84('POINT(0 0)') AS k",
+            "SELECT k.mukey FROM mapunit m JOIN SDA_Get_Mukey_from_intersection_with_WktWgs84('POINT(0 0)') k ON k.mukey = m.mukey",
+        ] {
+            let output = crate::transpiler::transpile_with_spatial(sql, Some(&capability())).unwrap();
+            let generated = &output[0];
+            assert!(generated.contains("shape_dynamic"), "{generated}");
+            assert!(generated.contains("GEOMFROMGPB"), "{generated}");
+            assert!(generated.contains("ST_TRANSFORM"), "{generated}");
+            assert!(generated.contains("areasymbol <> 'US'"), "{generated}");
+            assert!(!generated.contains(MUKEY_FUNCTION), "{generated}");
+        }
+    }
+
+    #[test]
+    fn folds_aoi_and_wraps_geopackage_geometry() {
+        let sql = "DECLARE @aoi geometry; SET @aoi = geometry::STGeomFromText('POINT(0 0)', 4326); SELECT mukey FROM mupolygon WHERE shape_dynamic.STIntersects(@aoi) = 1";
+        let output = crate::transpiler::transpile_with_spatial(sql, Some(&capability())).unwrap();
+        assert!(
+            output[0].contains("GEOMFROMGPB(shape_dynamic)"),
+            "{output:?}"
+        );
+        let sql = "SELECT mp.shape_dynamic.STIntersects(geometry::STGeomFromText('POINT(0 0)', 4326)) FROM mupolygon mp";
+        let output = crate::transpiler::transpile_with_spatial(sql, Some(&capability())).unwrap();
+        assert!(
+            output[0].contains("GEOMFROMGPB(mp.shape_dynamic)"),
+            "{output:?}"
+        );
+        assert!(
+            output[0].contains("GEOMFROMTEXT('POINT(0 0)', 4326)"),
+            "{output:?}"
+        );
+        let sql = "DECLARE @aoi geometry; SET @aoi = geometry::STGeomFromText('POINT(0 0)', 4326); SELECT @aoi.STIntersects(shape_dynamic) FROM mupolygon";
+        let output = crate::transpiler::transpile_with_spatial(sql, Some(&capability())).unwrap();
+        assert!(!output[0].contains("@aoi"), "{output:?}");
+        assert!(
+            output[0].contains("GEOMFROMGPB(shape_dynamic)"),
+            "{output:?}"
+        );
+    }
+
+    #[test]
+    fn uses_override_and_rejects_unsupported_arguments() {
+        let connection = rusqlite::Connection::open_in_memory().unwrap();
+        let capability = initialize(&connection, None, Some("override shape")).unwrap();
+        let query = "SELECT * FROM SDA_Get_Mukey_from_intersection_with_WktWgs84('POINT(0 0)')";
+        let output = crate::transpiler::transpile_with_spatial(query, Some(&capability)).unwrap();
+        assert!(output[0].contains("mp.\"override shape\""), "{output:?}");
+        for query in [
+            "SELECT * FROM SDA_Get_Mukey_from_intersection_with_WktWgs84(m.wkt)",
+            "SELECT * FROM SDA_Get_Mukey_from_intersection_with_WktWgs84()",
+        ] {
+            assert!(
+                crate::transpiler::transpile_with_spatial(query, Some(&capability))
+                    .unwrap_err()
+                    .to_string()
+                    .contains("requires one literal WKT")
+            );
+        }
+    }
+
+    #[test]
+    fn parser_ast_rewrites_geometry_constructor_and_intersects_without_runtime_extension() {
+        let ast = Dialect::get(DialectType::TSQL)
+            .parse("SELECT geom.STIntersects(geometry.STGeomFromText('POINT(0 0)', 4326))")
+            .unwrap();
+        let output = rewrite(ast, &capability()).unwrap();
+        let sql = Dialect::get(DialectType::TSQL)
+            .generate(&output[0])
+            .unwrap();
+        assert!(sql.to_ascii_lowercase().contains("st_intersects"), "{sql}");
+        assert!(sql.to_ascii_lowercase().contains("geomfromtext"), "{sql}");
+        assert_eq!(
+            capability().effective_geometry_column(),
+            Some("shape_dynamic")
+        );
+    }
+
+    #[test]
+    fn unsupported_mukey_function_is_explicitly_rejected() {
+        let ast = Dialect::get(DialectType::TSQL)
+            .parse(&format!("SELECT 1 + {MUKEY_FUNCTION}('POINT(0 0)')"))
+            .unwrap();
+        let error = rewrite(ast, &capability()).unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("unsupported in this AST context"));
+    }
+
+    #[test]
+    fn normalizes_static_colon_syntax_but_not_inside_string_literals() {
+        assert_eq!(
+            normalize_static_calls(
+                "SELECT geometry::STGeomFromText('geometry::STGeomFromText', 4326)"
+            ),
+            "SELECT geometry.STGeomFromText('geometry::STGeomFromText', 4326)"
+        );
+    }
+}

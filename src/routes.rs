@@ -85,7 +85,10 @@ pub async fn post(State(state): State<AppState>, request: Request) -> Response {
         query,
         state.spatial_extension,
         state.geometry_column,
-        |_, query| transpiler::transpile(query).map_err(|err| err.to_string()),
+        |capability, query| {
+            transpiler::transpile_with_spatial(query, Some(capability))
+                .map_err(|err| err.to_string())
+        },
     )
     .await
     {

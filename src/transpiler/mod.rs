@@ -1,5 +1,6 @@
 mod normalize;
 mod security;
+mod spatial;
 mod temp_tables;
 mod vars;
 
@@ -29,14 +30,27 @@ impl StdError for TranspilerError {}
 
 /// Parse T-SQL, reject unsafe or unsupported constructs, and generate SQLite SQL.
 pub fn transpile(sql: &str) -> Result<Vec<String>, TranspilerError> {
+    transpile_with_spatial(sql, None)
+}
+
+pub fn transpile_with_spatial(
+    sql: &str,
+    capability: Option<&crate::spatial::SpatialCapability>,
+) -> Result<Vec<String>, TranspilerError> {
+    let sql = spatial::normalize_static_calls(sql);
     let ast = Dialect::get(DialectType::TSQL)
-        .parse(sql)
+        .parse(&sql)
         .map_err(TranspilerError::Parse)?;
     for statement in &ast {
         security::validate(statement)?;
     }
     let statements = vars::fold(ast)?;
     let statements = temp_tables::rewrite(statements)?;
+    let statements = if let Some(capability) = capability {
+        spatial::rewrite(statements, capability)?
+    } else {
+        statements
+    };
     statements
         .into_iter()
         .map(normalize::generate_sqlite)
