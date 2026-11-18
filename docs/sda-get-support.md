@@ -78,14 +78,14 @@ aliases are retained as published (including `AreasymbolWkt84` and
 | `SDA_Get_Sapolygonkey_from_intersection_with_sastatusmap_WktWm` | WKT, EPSG:3857 | `sapolygonkey` | `sapolygon` geometry joined to `sastatusmap` by `areasymbol` | No active direct call found | Supported when both relations and join key exist; configured contract test |
 | `SDA_Get_Mupolygonkey_from_intersection_with_WktWgs84` | WKT, EPSG:4326 | `mupolygonkey` | `mupolygon` geometry and key | No active direct call found | Supported when SpatiaLite, `mupolygonkey`, and `mupolygon` geometry metadata or a supported override are present; configured contract test |
 | `SDA_Get_Mupolygonkey_from_intersection_with_WktWm` | WKT, EPSG:3857 | `mupolygonkey` | `mupolygon` geometry and key | No active direct call found | Supported when SpatiaLite, `mupolygonkey`, and `mupolygon` geometry metadata or a supported override are present; configured contract test |
-| `SDA_Get_Mupointkey_from_intersection_with_WktWgs84` | WKT, EPSG:4326 | `mupointkey` | `mupoint` geometry and key | No active direct call found | Implementable when layer/key exists |
-| `SDA_Get_Mupointkey_from_intersection_with_WktWm` | WKT, EPSG:3857 | `mupointkey` | `mupoint` geometry and key | No active direct call found | Implementable when layer/key exists |
-| `SDA_Get_Mulinekey_from_intersection_with_WktWgs84` | WKT, EPSG:4326 | `mulinekey` | `muline` geometry and key | No active direct call found | Implementable when layer/key exists |
-| `SDA_Get_Mulinekey_from_intersection_with_WktWm` | WKT, EPSG:3857 | `mulinekey` | `muline` geometry and key | No active direct call found | Implementable when layer/key exists |
-| `SDA_Get_Featlinekey_from_intersection_with_WktWgs84` | WKT, EPSG:4326 | `featlinekey` | `featline` geometry and key | No active direct call found | Implementable when layer/key exists |
-| `SDA_Get_Featlinekey_from_intersection_with_WktWm` | WKT, EPSG:3857 | `featlinekey` | `featline` geometry and key | No active direct call found | Implementable when layer/key exists |
-| `SDA_Get_Featpointkey_from_intersection_with_WktWgs84` | WKT, EPSG:4326 | `featpointkey` | `featpoint` geometry and key | No active direct call found | Implementable when layer/key exists |
-| `SDA_Get_Featpointkey_from_intersection_with_WktWm` | WKT, EPSG:3857 | `featpointkey` | `featpoint` geometry and key | No active direct call found | Implementable when layer/key exists |
+| `SDA_Get_Mupointkey_from_intersection_with_WktWgs84` | WKT, EPSG:4326 | `mupointkey` | `mupoint` geometry and key | No active direct call found | Supported when SpatiaLite, `mupointkey`, and `mupoint` geometry metadata or a supported override are present; configured contract test |
+| `SDA_Get_Mupointkey_from_intersection_with_WktWm` | WKT, EPSG:3857 | `mupointkey` | `mupoint` geometry and key | No active direct call found | Supported when SpatiaLite, `mupointkey`, and `mupoint` geometry metadata or a supported override are present; configured contract test |
+| `SDA_Get_Mulinekey_from_intersection_with_WktWgs84` | WKT, EPSG:4326 | `mulinekey` | `muline` geometry and key | No active direct call found | Supported when SpatiaLite, `mulinekey`, and `muline` geometry metadata or a supported override are present; configured contract test |
+| `SDA_Get_Mulinekey_from_intersection_with_WktWm` | WKT, EPSG:3857 | `mulinekey` | `muline` geometry and key | No active direct call found | Supported when SpatiaLite, `mulinekey`, and `muline` geometry metadata or a supported override are present; configured contract test |
+| `SDA_Get_Featlinekey_from_intersection_with_WktWgs84` | WKT, EPSG:4326 | `featlinekey` | `featline` geometry and key | No active direct call found | Supported when SpatiaLite, `featlinekey`, and `featline` geometry metadata or a supported override are present; configured contract test |
+| `SDA_Get_Featlinekey_from_intersection_with_WktWm` | WKT, EPSG:3857 | `featlinekey` | `featline` geometry and key | No active direct call found | Supported when SpatiaLite, `featlinekey`, and `featline` geometry metadata or a supported override are present; configured contract test |
+| `SDA_Get_Featpointkey_from_intersection_with_WktWgs84` | WKT, EPSG:4326 | `featpointkey` | `featpoint` geometry and key | No active direct call found | Supported when SpatiaLite, `featpointkey`, and `featpoint` geometry metadata or a supported override are present; configured contract test |
+| `SDA_Get_Featpointkey_from_intersection_with_WktWm` | WKT, EPSG:3857 | `featpointkey` | `featpoint` geometry and key | No active direct call found | Supported when SpatiaLite, `featpointkey`, and `featpoint` geometry metadata or a supported override are present; configured contract test |
 
 ## Active-use evidence and implementation order
 
@@ -101,11 +101,12 @@ The server implements all four active-client intersection TVFs: mukey and
 sapolygonkey, each with WGS84 and Web-Mercator WKT inputs. It also implements
 the two area-symbol and two status-map sapolygonkey intersection variants.
 `tests/sda_get_contract.rs` executes configured SpatiaLite queries for all four
-active-client variants and all four additional variants; assertions check exact
+active-client variants and all fourteen additional variants; assertions check exact
 result column names, SQLite key types for integer keys, and intersecting
 results. Status-map variants require `sastatusmap.areasymbol` and join it to
 `sapolygon.areasymbol`; duplicate status-map matches are collapsed by the
-distinct key result.
+distinct key result. The eight feature-layer variants use deterministic
+in-memory schemas for their catalog relations and keys.
 `tests/mukey_contract.rs:43-101` retains coverage of the original WGS84 mukey
 query shapes. Geometry layer and CRS metadata are discovered through
 `src/spatial.rs` and the active intersection dispatch in
@@ -116,7 +117,9 @@ The source-data model bounds implementation. `sapolygon` and `mupolygon` are
 the primary layers; `mupoint`, `muline`, `featline`, `featpoint`, and
 `sastatusmap` are conditional on their presence and required key/columns in a
 given GeoPackage. The local Iowa fixture has `featpoint`, but not all catalog
-layers. A missing layer cannot return meaningful geometry results. Intersection
+layers; its `featpoint` schema exposes `featkey`, not the catalog-required
+`featpointkey`, so it does not satisfy that TVF's key prerequisite. A missing
+layer cannot return meaningful geometry results. Intersection
 entries need the matching feature geometry and key; status-map variants also
 need the catalog join relation. WKT-output entries require geometry conversion
 and transformation to the requested CRS. Table-input entries additionally

@@ -65,12 +65,20 @@ async fn active_intersection_tvfs_return_expected_keys_for_both_crs() {
                  table_name TEXT, column_name TEXT, geometry_type_name TEXT,
                  srs_id INTEGER, z TINYINT, m TINYINT
              );
-              INSERT INTO gpkg_geometry_columns VALUES
-                  ('mupolygon', 'mu_shape', 'POLYGON', 4326, 0, 0),
-                   ('sapolygon', 'sa_shape', 'POLYGON', 4326, 0, 0);
-                CREATE TABLE mupolygon(mukey TEXT, mupolygonkey INTEGER, areasymbol TEXT, mu_shape BLOB);
-               CREATE TABLE sapolygon(sapolygonkey INTEGER, areasymbol TEXT, sa_shape BLOB);
-               CREATE TABLE sastatusmap(areasymbol TEXT);
+               INSERT INTO gpkg_geometry_columns VALUES
+                   ('mupolygon', 'mu_shape', 'POLYGON', 4326, 0, 0),
+                    ('sapolygon', 'sa_shape', 'POLYGON', 4326, 0, 0),
+                    ('mupoint', 'mp_shape', 'POINT', 4326, 0, 0),
+                    ('muline', 'ml_shape', 'LINESTRING', 4326, 0, 0),
+                    ('featline', 'fl_shape', 'LINESTRING', 4326, 0, 0),
+                    ('featpoint', 'fp_shape', 'POINT', 4326, 0, 0);
+                 CREATE TABLE mupolygon(mukey TEXT, mupolygonkey INTEGER, areasymbol TEXT, mu_shape BLOB);
+                CREATE TABLE sapolygon(sapolygonkey INTEGER, areasymbol TEXT, sa_shape BLOB);
+                CREATE TABLE mupoint(mupointkey INTEGER, mp_shape BLOB);
+                CREATE TABLE muline(mulinekey INTEGER, ml_shape BLOB);
+                CREATE TABLE featline(featlinekey INTEGER, fl_shape BLOB);
+                CREATE TABLE featpoint(featpointkey INTEGER, fp_shape BLOB);
+                CREATE TABLE sastatusmap(areasymbol TEXT);
              INSERT INTO mupolygon VALUES
                   ('inside', 11, 'CA001', AsGPB(GeomFromText(
                     'POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))', 4326))),
@@ -78,14 +86,22 @@ async fn active_intersection_tvfs_return_expected_keys_for_both_crs() {
                     'POLYGON((9 9, 11 9, 11 11, 9 11, 9 9))', 4326))),
                   ('statgo', 33, 'US', AsGPB(GeomFromText(
                     'POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))', 4326)));
-               INSERT INTO sapolygon VALUES
+                INSERT INTO sapolygon VALUES
                   (101, 'CA001', AsGPB(GeomFromText(
                     'POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))', 4326))),
                    (202, 'CA002', AsGPB(GeomFromText(
                      'POLYGON((9 9, 11 9, 11 11, 9 11, 9 9))', 4326))),
-                   (303, 'CA003', AsGPB(GeomFromText(
-                     'POLYGON((19 19, 21 19, 21 21, 19 21, 19 19))', 4326)));
-               INSERT INTO sastatusmap VALUES ('CA001'), ('CA001'), ('CA002');",
+                    (303, 'CA003', AsGPB(GeomFromText(
+                      'POLYGON((19 19, 21 19, 21 21, 19 21, 19 19))', 4326)));
+                INSERT INTO mupoint VALUES
+                    (401, AsGPB(GeomFromText('POINT(0.5 0.5)', 4326)));
+                INSERT INTO muline VALUES
+                    (501, AsGPB(GeomFromText('LINESTRING(0 0, 1 1)', 4326)));
+                INSERT INTO featline VALUES
+                    (601, AsGPB(GeomFromText('LINESTRING(0 0, 1 1)', 4326)));
+                INSERT INTO featpoint VALUES
+                    (701, AsGPB(GeomFromText('POINT(0.5 0.5)', 4326)));
+                INSERT INTO sastatusmap VALUES ('CA001'), ('CA001'), ('CA002');",
         )
         .unwrap();
     let app = sda_rs::app(sda_rs::config::Config {
@@ -145,8 +161,52 @@ async fn active_intersection_tvfs_return_expected_keys_for_both_crs() {
         (
             "SELECT sapolygonkey, typeof(sapolygonkey) AS key_type FROM \
              SDA_Get_Sapolygonkey_from_intersection_with_sastatusmap_WktWm(\
-               'MULTIPOINT((55659.745 55660.451),(2226389.816 2273030.927))')",
+                'MULTIPOINT((55659.745 55660.451),(2226389.816 2273030.927))')",
             r#"{"Table":[["sapolygonkey","key_type"],["101","integer"]]}"#,
+        ),
+        (
+            "SELECT mupointkey, typeof(mupointkey) AS key_type FROM \
+             SDA_Get_Mupointkey_from_intersection_with_WktWgs84('POINT(0.5 0.5)')",
+            r#"{"Table":[["mupointkey","key_type"],["401","integer"]]}"#,
+        ),
+        (
+            "SELECT mupointkey, typeof(mupointkey) AS key_type FROM \
+             SDA_Get_Mupointkey_from_intersection_with_WktWm(\
+               'POINT(55659.745396636783 55660.451865421521)')",
+            r#"{"Table":[["mupointkey","key_type"],["401","integer"]]}"#,
+        ),
+        (
+            "SELECT mulinekey, typeof(mulinekey) AS key_type FROM \
+             SDA_Get_Mulinekey_from_intersection_with_WktWgs84('POINT(0.5 0.5)')",
+            r#"{"Table":[["mulinekey","key_type"],["501","integer"]]}"#,
+        ),
+        (
+            "SELECT mulinekey, typeof(mulinekey) AS key_type FROM \
+             SDA_Get_Mulinekey_from_intersection_with_WktWm(\
+               'LINESTRING(55659 55000, 55659 56000)')",
+            r#"{"Table":[["mulinekey","key_type"],["501","integer"]]}"#,
+        ),
+        (
+            "SELECT featlinekey, typeof(featlinekey) AS key_type FROM \
+             SDA_Get_Featlinekey_from_intersection_with_WktWgs84('POINT(0.5 0.5)')",
+            r#"{"Table":[["featlinekey","key_type"],["601","integer"]]}"#,
+        ),
+        (
+            "SELECT featlinekey, typeof(featlinekey) AS key_type FROM \
+             SDA_Get_Featlinekey_from_intersection_with_WktWm(\
+               'LINESTRING(55659 55000, 55659 56000)')",
+            r#"{"Table":[["featlinekey","key_type"],["601","integer"]]}"#,
+        ),
+        (
+            "SELECT featpointkey, typeof(featpointkey) AS key_type FROM \
+             SDA_Get_Featpointkey_from_intersection_with_WktWgs84('POINT(0.5 0.5)')",
+            r#"{"Table":[["featpointkey","key_type"],["701","integer"]]}"#,
+        ),
+        (
+            "SELECT featpointkey, typeof(featpointkey) AS key_type FROM \
+             SDA_Get_Featpointkey_from_intersection_with_WktWm(\
+               'POINT(55659.745396636783 55660.451865421521)')",
+            r#"{"Table":[["featpointkey","key_type"],["701","integer"]]}"#,
         ),
     ] {
         assert_eq!(query(&app, sql).await, expected);
@@ -159,6 +219,12 @@ async fn active_intersection_tvfs_return_expected_keys_for_both_crs() {
     ] {
         // The SDA JSON serializer omits result sets with no rows, even when
         // the SQL result has a known column shape.
+        assert_eq!(query(&app, sql).await, "{}");
+    }
+    for sql in [
+        "SELECT featpointkey FROM SDA_Get_Featpointkey_from_intersection_with_WktWgs84('POINT(5 5)')",
+        "SELECT featpointkey FROM SDA_Get_Featpointkey_from_intersection_with_WktWm('POINT(556597.45 557305.257)')",
+    ] {
         assert_eq!(query(&app, sql).await, "{}");
     }
 }

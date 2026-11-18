@@ -16,6 +16,14 @@ const SAPOLYGONKEY_FUNCTION: &str = "SDA_Get_Sapolygonkey_from_intersection_with
 const SAPOLYGONKEY_WM_FUNCTION: &str = "SDA_Get_Sapolygonkey_from_intersection_with_WktWm";
 const AREASYMBOL_FUNCTION: &str = "SDA_Get_Areasymbol_from_intersection_with_WktWgs84";
 const AREASYMBOL_WM_FUNCTION: &str = "SDA_Get_Areasymbol_from_intersection_with_WktWm";
+const MUPOINTKEY_FUNCTION: &str = "SDA_Get_Mupointkey_from_intersection_with_WktWgs84";
+const MUPOINTKEY_WM_FUNCTION: &str = "SDA_Get_Mupointkey_from_intersection_with_WktWm";
+const MULINEKEY_FUNCTION: &str = "SDA_Get_Mulinekey_from_intersection_with_WktWgs84";
+const MULINEKEY_WM_FUNCTION: &str = "SDA_Get_Mulinekey_from_intersection_with_WktWm";
+const FEATLINEKEY_FUNCTION: &str = "SDA_Get_Featlinekey_from_intersection_with_WktWgs84";
+const FEATLINEKEY_WM_FUNCTION: &str = "SDA_Get_Featlinekey_from_intersection_with_WktWm";
+const FEATPOINTKEY_FUNCTION: &str = "SDA_Get_Featpointkey_from_intersection_with_WktWgs84";
+const FEATPOINTKEY_WM_FUNCTION: &str = "SDA_Get_Featpointkey_from_intersection_with_WktWm";
 const SAPOLYGONKEY_STATUS_FUNCTION: &str =
     "SDA_Get_Sapolygonkey_from_intersection_with_sastatusmap_WktWgs84";
 const SAPOLYGONKEY_STATUS_WM_FUNCTION: &str =
@@ -69,6 +77,32 @@ fn intersection_spec(name: &str) -> Option<(&'static str, &'static str, &'static
             AREASYMBOL_WM_FUNCTION,
             "sapolygon",
             "areasymbol",
+            false,
+            3857,
+        ),
+        (MUPOINTKEY_FUNCTION, "mupoint", "mupointkey", false, 4326),
+        (MUPOINTKEY_WM_FUNCTION, "mupoint", "mupointkey", false, 3857),
+        (MULINEKEY_FUNCTION, "muline", "mulinekey", false, 4326),
+        (MULINEKEY_WM_FUNCTION, "muline", "mulinekey", false, 3857),
+        (FEATLINEKEY_FUNCTION, "featline", "featlinekey", false, 4326),
+        (
+            FEATLINEKEY_WM_FUNCTION,
+            "featline",
+            "featlinekey",
+            false,
+            3857,
+        ),
+        (
+            FEATPOINTKEY_FUNCTION,
+            "featpoint",
+            "featpointkey",
+            false,
+            4326,
+        ),
+        (
+            FEATPOINTKEY_WM_FUNCTION,
+            "featpoint",
+            "featpointkey",
             false,
             3857,
         ),
