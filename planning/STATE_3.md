@@ -54,3 +54,7 @@ Wave-boundary verification: wave 1 — passed. `cargo fmt --check` passed; `SDA_
 - `cargo fmt --check`: passed. `git diff --check`: passed.
 - Red run: initial `cargo test temp_tables::` failed because INSERT target is represented outside the AST traversal's table nodes; added explicit `Expression::Insert` target rewrite, then targeted tests passed.
 - Deviations: none. Full suite not run (orchestrator-owned).
+- Addendum: commit `7356810` updates only the existing generated-SQL assertion in `src/transpiler/mod.rs` to check generated-name form and same-name reference.
+- The first full-suite wave check caught this stale literal-name assertion after generated names were introduced.
+- `cargo test transpiler::folds_variables_and_select_into_batch` exited 0 but matched 0 tests; `cargo test folds_variables_and_select_into_batch` ran the focused test: 1 passed, 0 failed.
+- `cargo fmt --check` and `git diff --check` passed for the addendum change.
