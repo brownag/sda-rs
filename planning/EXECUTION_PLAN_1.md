@@ -62,6 +62,7 @@ Build `sda-rs` as a Rust HTTP service that implements a tested, SQLite/GeoPackag
 - 2026-11-17 — Sequence tasks 1.2.1 and 1.2.2 because both require `src/lib.rs` module registration; executor/result registration belongs to 1.2.1 and transpiler registration to 1.2.2.
 - 2026-11-17 — Sequence serializer 1.3.2 before routes 1.3.1 because both require `src/lib.rs`; serializer owns module registration and routes own handler/router wiring.
 - 2026-11-17 — Expand task 1.3.1 to wire the configured SQLite database path from `main.rs` through Axum state to a request-local executor connection; do not leave the runnable service bound to ephemeral in-memory databases.
+- 2026-11-17 — Authorize a test-only `tower` dev-dependency for task 1.3.1 so acceptance tests exercise the Axum router in-process without TCP.
 
 ## DAG and wave table
 
@@ -130,13 +131,13 @@ Dependencies: `1.1.1 -> 1.2.1 -> 1.2.2`; `1.2.1 -> 1.3.2 -> 1.3.1`; `1.2.2 -> 1.
 ### Task 1.3.1 — SDA query request routes
 
 - **Repo:** same.
-- **Files in scope — must edit:** `src/routes.rs`, `src/request.rs`, `src/lib.rs` (app state and route wiring), `src/main.rs` (pass config to app), `src/executor/mod.rs`, `src/executor/sqlite.rs` (configured request-local database path).
+- **Files in scope — must edit:** `src/routes.rs`, `src/request.rs`, `src/lib.rs` (app state and route wiring), `src/main.rs` (pass config to app), `src/executor/mod.rs`, `src/executor/sqlite.rs` (configured request-local database path), `Cargo.toml`, `Cargo.lock` (test-only `tower` dev-dependency for `ServiceExt`).
 - **Can create:** none.
 - **Depends on:** 1.2.1, 1.2.2, 1.3.2 (serializer module/API registered first).
 - **Spec:** Implement `POST /Tabular/post.rest` and `/Tab/post.rest`; parse JSON and `application/x-www-form-urlencoded`; normalize `query`/`QUERY` and `format`/`FORMAT` case-insensitively; invoke transpiler then SQLite executor and serializer, returning structured errors. Pass configured backend path from CLI/environment through `main.rs` and Axum app state to the executor; open a request-local SQLite connection to that path for each request, preserving the `spawn_blocking` boundary. Use a temporary SQLite file fixture to verify configured-path execution; `:memory:` may be used for constant-only handler tests. For `FORMAT=~`, return submitted SQL as `text/plain` without executing it; macro expansion is deferred. Use in-process router tests, not a fixed TCP port.
-- **Do not touch:** config, transpiler, serializer internals, spatial initialization, planning source documents; preserve serializer module registration.
+- **Do not touch:** config, transpiler, serializer internals, spatial initialization, planning source documents; preserve serializer module registration. Do not add runtime dependencies.
 - **Grep anchors:** endpoints and content types in `planning/INITIAL_PROMPT.md` lines 12–20.
-- **Acceptance:** `cargo test routes::`; exercise both endpoints with both body encodings, mixed-case keys, missing query, unsafe-query error, query echo without execution, and a configured temporary SQLite database path. Verify `cargo fmt --check`.
+- **Acceptance:** `cargo test routes::`; exercise both endpoints through `app()` using in-process `Router::oneshot` (no TCP), with both body encodings, mixed-case keys, missing query, unsafe-query error, query echo without execution, and a configured temporary SQLite database path. Verify `cargo fmt --check`.
 
 ### Task 1.3.2 — SDA result serialization
 
