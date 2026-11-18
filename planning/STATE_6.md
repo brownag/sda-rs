@@ -27,7 +27,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 | 3 | 6.3.1 Active-client intersection TVFs | done | `4d4aa0a` |
 | 4 | 6.4.1–6.4.3 diagnostic attempts; 6.4.4 implementation; 6.4.5 regression correction | done | `8a54496`, `d4d867b` |
 | 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | done | `84e0138` |
-| 6 | 6.6.1 Other feature-layer intersection TVFs | in progress | — |
+| 6 | 6.6.1 blocked; 6.6.2 diagnosis/fix | in progress | — |
 | 7 | 6.7.1 Scalar key-to-WKT TVFs | pending | — |
 | 8 | 6.8.1 Table-input WKT TVFs/macros | pending | — |
 | 9 | 6.9.1 soilDB/Iowa integration harness | pending | — |
@@ -147,3 +147,15 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Code commit:** `84e0138` (`feat(spatial): add Mupolygonkey intersection TVFs`).
 - **Boundary suite:** configured full `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed (61 unit tests, 20 integration tests, 0 failures).
 - **Next:** Wave 6 may begin.
+
+## 6.6.1
+- **Status:** blocked; implementation diff preserved uncommitted.
+- **Scope:** attempted generic key intersections for mupoint, muline, featline, and featpoint in WGS84/Web-Mercator.
+- **Acceptance:** configured `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract` stopped at the new Mupoint WGS84 request: expected key `401`, endpoint returned `{}`. No format checks or commit followed.
+- **Schema evidence:** the local Iowa GeoPackage has `featpoint` but lacks required `featpointkey`; it is not evidence of support for that catalog function. No Iowa data was modified.
+- **Preservation:** uncommitted changes remain in `src/transpiler/spatial.rs`, `src/spatial.rs`, `tests/sda_get_contract.rs`, and `docs/sda-get-support.md`.
+- **Next:** task 6.6.2 investigates the request/geometry/SRID/predicate path and only proceeds with an evidence-established correction; downstream waves remain gated.
+
+## 6.6.2
+- **Status:** discovered follow-up task; user requested investigation and fix.
+- **Scope:** diagnose the failed Mupoint WGS84 case and correct its established cause while preserving the 6.6.1 diff.

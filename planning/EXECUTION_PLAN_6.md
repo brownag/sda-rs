@@ -76,12 +76,12 @@ External prerequisite: completed Plan 5/G32.
 | 3 | 6.3.1 | Support the SDA_Get intersection functions used by soilDB's spatial client path first. |
 | 4 | 6.4.1–6.4.3 (blocked/diagnostic); 6.4.4; 6.4.5 | Add area-symbol and soil-survey-polygon intersection/key TVFs; correct the Web-Mercator mismatch and restore Mukey metadata-SRID behavior. |
 | 5 | 6.5.1 | Add mapunit-polygon intersection/key TVFs. |
-| 6 | 6.6.1 | Add other feature-layer intersection/key TVFs where the data model supports them. |
+| 6 | 6.6.1 blocked; 6.6.2 diagnosis/fix | Add other feasible feature-layer intersection/key TVFs; diagnose the failing Mupoint WGS84 case before accepting Wave 6. |
 | 7 | 6.7.1 | Implement feasible scalar key-to-WKT TVFs. |
 | 8 | 6.8.1 | Implement feasible table-input WKT TVFs and input-table macros. |
 | 9 | 6.9.1 | Add and run the opt-in soilDB/Iowa integration harness. |
 
-Dependencies: `6.2.1` depends on `6.1.1`; `6.3.1` depends on `6.1.2` and `6.2.1`; `6.4.1` depends on `6.3.1`; recovery task `6.4.2` also depends on `6.3.1` and takes over the preserved, uncommitted in-scope work from blocked task 6.4.1; diagnostic task `6.4.3` depends on 6.3.1 and the failure evidence from 6.4.1/6.4.2, and is diagnostic-only; implementation task `6.4.4` depends on 6.3.1 and the preserved partial work/diagnostic findings from 6.4.1–6.4.3; regression correction `6.4.5` depends on 6.4.4 and the Wave 4 boundary-test evidence. `6.5.1` depends on completed Wave 4 via 6.4.5; each of `6.6.1`–`6.8.1` depends on the immediately prior implementation wave; `6.9.1` depends on `6.3.1`–`6.8.1`. Every task depends on completed Plan 5/G32. Wave 1 tasks have disjoint output files; all same-module SDA_Get implementation tasks are intentionally sequential.
+Dependencies: `6.2.1` depends on `6.1.1`; `6.3.1` depends on `6.1.2` and `6.2.1`; `6.4.1` depends on `6.3.1`; recovery task `6.4.2` also depends on `6.3.1` and takes over the preserved, uncommitted in-scope work from blocked task 6.4.1; diagnostic task `6.4.3` depends on 6.3.1 and the failure evidence from 6.4.1/6.4.2, and is diagnostic-only; implementation task `6.4.4` depends on 6.3.1 and the preserved partial work/diagnostic findings from 6.4.1–6.4.3; regression correction `6.4.5` depends on 6.4.4 and the Wave 4 boundary-test evidence. `6.5.1` depends on completed Wave 4 via 6.4.5; `6.6.1` depends on 6.5.1 and is blocked by its failing configured acceptance; diagnosis/fix task `6.6.2` depends on 6.6.1 and its failure evidence. `6.7.1` depends on completed Wave 6 via 6.6.2; each of `6.8.1`–`6.9.1` depends on the immediately prior implementation wave. Every task depends on completed Plan 5/G32. Wave 1 tasks have disjoint output files; all same-module SDA_Get implementation tasks are intentionally sequential.
 
 ## Global hazards and execution rules
 
@@ -232,6 +232,18 @@ Dependencies: `6.2.1` depends on `6.1.1`; `6.3.1` depends on `6.1.2` and `6.2.1`
 - **Do not touch:** external package repositories, geometry decoder, serializer, or route/wire behavior.
 - **Grep anchors:** task 6.1.2 support matrix; `src/transpiler/spatial.rs` `rewrite_node`; `src/spatial.rs` spatial function dispatch; `tests/sda_get_contract.rs`.
 - **Acceptance:** `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract`; `cargo fmt --check`; `git diff --check`.
+
+### Task 6.6.2 — Diagnose and correct feature-layer intersection failure
+
+- **ID:** 6.6.2
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Files in scope — must edit:** `src/transpiler/spatial.rs`, `src/spatial.rs`, `tests/sda_get_contract.rs`, `docs/sda-get-support.md`.
+- **Can create:** none; preserve and take over the uncommitted 6.6.1 diff.
+- **Depends on:** 6.5.1 and failure evidence from 6.6.1.
+- **Spec:** Diagnose why `SDA_Get_Mupointkey_from_intersection_with_WktWgs84('POINT(0.5 0.5)')` returned `{}` for a fixture point at `(0.5, 0.5)`, then correct the evidence-established cause. Trace request status/body, generated SQL, chosen geometry column/metadata/SRID, decoded geometry, and predicate result. Preserve existing Mukey, Mupolygonkey, and Wave 4 behavior. Record accurately that Iowa has `featpoint` but lacks catalog-required `featpointkey`; do not claim Iowa support for that variant. Retain only catalog-feasible additions, conditionally supported when required relation, key, geometry metadata, and spatial extension are present. If no cause is established or correction requires out-of-scope changes, stop and report.
+- **Do not touch:** external repositories, geometry decoder, serializer, route/wire behavior, dependencies, Iowa user data, or files outside the four 6.6.1 scope paths.
+- **Grep anchors:** failing assertion in `tests/sda_get_contract.rs`; `IntersectionTarget`, `intersection_spec`, `expand_source` in `src/transpiler/spatial.rs`; table metadata lookup in `src/spatial.rs`; recorded failure in `planning/STATE_6.md`.
+- **Acceptance:** after establishing and correcting the cause, run at most once: `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract`. On failure stop without retry. If it passes, run `cargo fmt --check` and `git diff --check`, report causal evidence and scoped diff before committing.
 
 ### Task 6.7.1 — Implement scalar key-to-WKT TVFs
 
