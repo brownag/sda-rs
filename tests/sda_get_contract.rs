@@ -68,16 +68,16 @@ async fn active_intersection_tvfs_return_expected_keys_for_both_crs() {
               INSERT INTO gpkg_geometry_columns VALUES
                   ('mupolygon', 'mu_shape', 'POLYGON', 4326, 0, 0),
                    ('sapolygon', 'sa_shape', 'POLYGON', 4326, 0, 0);
-               CREATE TABLE mupolygon(mukey TEXT, areasymbol TEXT, mu_shape BLOB);
+                CREATE TABLE mupolygon(mukey TEXT, mupolygonkey INTEGER, areasymbol TEXT, mu_shape BLOB);
                CREATE TABLE sapolygon(sapolygonkey INTEGER, areasymbol TEXT, sa_shape BLOB);
                CREATE TABLE sastatusmap(areasymbol TEXT);
              INSERT INTO mupolygon VALUES
-                 ('inside', 'CA001', AsGPB(GeomFromText(
-                   'POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))', 4326))),
-                 ('outside', 'CA001', AsGPB(GeomFromText(
-                   'POLYGON((9 9, 11 9, 11 11, 9 11, 9 9))', 4326))),
-                 ('statgo', 'US', AsGPB(GeomFromText(
-                   'POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))', 4326)));
+                  ('inside', 11, 'CA001', AsGPB(GeomFromText(
+                    'POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))', 4326))),
+                  ('outside', 22, 'CA001', AsGPB(GeomFromText(
+                    'POLYGON((9 9, 11 9, 11 11, 9 11, 9 9))', 4326))),
+                  ('statgo', 33, 'US', AsGPB(GeomFromText(
+                    'POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))', 4326)));
                INSERT INTO sapolygon VALUES
                   (101, 'CA001', AsGPB(GeomFromText(
                     'POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))', 4326))),
@@ -105,6 +105,16 @@ async fn active_intersection_tvfs_return_expected_keys_for_both_crs() {
             "SELECT mukey, typeof(mukey) AS key_type FROM \
              SDA_Get_Mukey_from_intersection_with_WktWm('POINT(55659.745 55660.451)')",
             r#"{"Table":[["mukey","key_type"],["inside","text"]]}"#,
+        ),
+        (
+            "SELECT mupolygonkey, typeof(mupolygonkey) AS key_type FROM \
+             SDA_Get_Mupolygonkey_from_intersection_with_WktWgs84('POINT(0.5 0.5)')",
+            r#"{"Table":[["mupolygonkey","key_type"],["11","integer"]]}"#,
+        ),
+        (
+            "SELECT mupolygonkey, typeof(mupolygonkey) AS key_type FROM \
+             SDA_Get_Mupolygonkey_from_intersection_with_WktWm('POINT(55659.745 55660.451)')",
+            r#"{"Table":[["mupolygonkey","key_type"],["11","integer"]]}"#,
         ),
         (
             "SELECT sapolygonkey, typeof(sapolygonkey) AS key_type FROM \
@@ -140,5 +150,15 @@ async fn active_intersection_tvfs_return_expected_keys_for_both_crs() {
         ),
     ] {
         assert_eq!(query(&app, sql).await, expected);
+    }
+    for sql in [
+        "SELECT mupolygonkey FROM \
+         SDA_Get_Mupolygonkey_from_intersection_with_WktWgs84('POINT(5 5)')",
+        "SELECT mupolygonkey FROM \
+         SDA_Get_Mupolygonkey_from_intersection_with_WktWm('POINT(556597.45 557305.257)')",
+    ] {
+        // The SDA JSON serializer omits result sets with no rows, even when
+        // the SQL result has a known column shape.
+        assert_eq!(query(&app, sql).await, "{}");
     }
 }

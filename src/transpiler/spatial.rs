@@ -10,6 +10,8 @@ use super::TranspilerError;
 
 const MUKEY_FUNCTION: &str = "SDA_Get_Mukey_from_intersection_with_WktWgs84";
 const MUKEY_WM_FUNCTION: &str = "SDA_Get_Mukey_from_intersection_with_WktWm";
+const MUPOLYGONKEY_FUNCTION: &str = "SDA_Get_Mupolygonkey_from_intersection_with_WktWgs84";
+const MUPOLYGONKEY_WM_FUNCTION: &str = "SDA_Get_Mupolygonkey_from_intersection_with_WktWm";
 const SAPOLYGONKEY_FUNCTION: &str = "SDA_Get_Sapolygonkey_from_intersection_with_WktWgs84";
 const SAPOLYGONKEY_WM_FUNCTION: &str = "SDA_Get_Sapolygonkey_from_intersection_with_WktWm";
 const AREASYMBOL_FUNCTION: &str = "SDA_Get_Areasymbol_from_intersection_with_WktWgs84";
@@ -34,6 +36,20 @@ fn intersection_spec(name: &str) -> Option<(&'static str, &'static str, &'static
     [
         (MUKEY_FUNCTION, "mupolygon", "mukey", false, 4326),
         (MUKEY_WM_FUNCTION, "mupolygon", "mukey", false, 3857),
+        (
+            MUPOLYGONKEY_FUNCTION,
+            "mupolygon",
+            "mupolygonkey",
+            false,
+            4326,
+        ),
+        (
+            MUPOLYGONKEY_WM_FUNCTION,
+            "mupolygon",
+            "mupolygonkey",
+            false,
+            3857,
+        ),
         (
             SAPOLYGONKEY_FUNCTION,
             "sapolygon",
