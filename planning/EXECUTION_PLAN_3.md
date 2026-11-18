@@ -1,19 +1,21 @@
-# Execution Plan 3 — G16: A failed batch commits nothing
+# Execution Plan 3 — SQLite MVP correctness gaps
 
 ## Goal & Scope
 
 ### Goal
 
-Make multi-statement SQL batches atomic. When any statement in a request's batch fails, every write made by earlier statements in that batch is rolled back, the request returns HTTP 500, and the database is unchanged. A successful batch still commits. This is GOALS.md goal `[G16]`, the circled goal, which closes the only data-integrity defect from the 2026-11-17 review.
+Close the outstanding correctness gaps that block the SQLite/GeoPackage MVP: atomic batches (G16), isolated temporary tables (G17), correct variable declaration semantics (G18), scoped spatial metadata failures (G19), safe mukey geometry selection (G20), AST-level spatial constructor rewriting (G22), and shared-cache in-memory integration tests (G24). G16 remains first because it is the data-integrity prerequisite for trusting batch behavior. G1 and broader MVP acceptance work remain a follow-on orchestration after these focused gaps are closed.
 
 ### In scope
 
-- The per-request execution path in `src/executor/sqlite.rs`: wrap statement execution in one transaction with rollback on error.
-- Tests for the failing-batch rollback, the successful-batch commit, and the existing temp-table session behavior.
+- The focused correctness gaps listed above, sequenced by dependency and file overlap.
+- Tests that prove each goal's exit criteria; preserve existing behavior outside those criteria.
 
 ### Out of scope / deferred
 
-- `#temp` name isolation (G17), `DECLARE` substitution (G18), metadata failure scoping (G19), mukey fallback (G20), AST-level `STGeomFromText` (G22). Next plans.
+- End-to-end MVP completion (G1), spatial fixture and suite work (G6/G7), and explicit live-extension acceptance (G23); schedule after the focused correctness tasks in this plan.
+- Native SQLite spatial acceleration (G28), PostgreSQL/PostGIS (G10), the full SDA function catalog (G11), broader CLR spatial methods (G12), general APPLY rewrites (G13), additional SDA modes (G14), and wire comparison against live captures (G15).
+- Spatial module decomposition (G25), dependency-list reconciliation (G26), and pruned commit-history cleanup (G27).
 - Changing error status codes. The existing `ExecutorError::Sqlite` → 500 mapping is kept.
 - Changing the request-local connection lifecycle or the `spawn_blocking` boundary.
 - Nested transactions or savepoints for user-issued `BEGIN`/`COMMIT`. Security guardrails already reject transaction control; this plan does not add a new path for it. (Verify in recon; if user `BEGIN` reaches execution, report and stop.)
@@ -26,7 +28,7 @@ Make multi-statement SQL batches atomic. When any statement in a request's batch
 
 ## Reconnaissance log
 
-- Branch `feature/sqlite-mvp`; working tree clean except untracked `.claude/` (worktree directory, not part of this plan). HEAD `57c7a8f`.
+- Branch `feature/sqlite-mvp`; at plan expansion, HEAD is `35296b8` after integrating wave 1. The main worktree has a user-owned modification to `planning/GOALS.md` and pre-existing untracked `.claude/`; neither is part of this plan.
 - Baseline (plan 2, wave 2 boundary): `cargo fmt --check` passed; `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed (38 unit + 3 integration, 0 failures). Record this as the pre-wave baseline.
 - `src/executor/sqlite.rs` is 232 lines. Anchors:
   - `execute_on` at ~line 132: sequential `connection.prepare` / `execute` / `query` per statement, with no transaction. Autocommit means each statement commits on its own.
@@ -43,16 +45,22 @@ Make multi-statement SQL batches atomic. When any statement in a request's batch
 
 - 2026-11-17 — D3: a failed multi-statement batch rolls back all of its writes (from `planning/GOALS.md`).
 - 2026-11-17 — Track planning artifacts; commit the approved plan with `docs(planning):`, separate from code.
-- 2026-11-17 — G16 is one task in one wave. The change is confined to one function and its tests, so a second task would only add coordination cost.
+- 2026-11-17 — G16 is one task in wave 1. Keep its implementation narrow; the other correctness goals are subsequent waves because they have separate dependencies and file scopes.
 - 2026-11-17 — Rollback is implemented with a transaction around `execute_on`, not by per-statement savepoints. This matches the batch unit and keeps the change small.
+- 2026-11-17 — Extend this orchestration with G17–G20, G22, and G24 after the user noticed the original one-task decomposition omitted the remaining sequenced correctness goals. Keep G1 and broad integration-suite work for a follow-on orchestration.
 
 ## DAG and wave table
 
 | Wave | Tasks | Purpose |
 |---|---|---|
 | 1 | 3.1.1 | Transactional batch execution with rollback, plus tests. |
+| 2 | 3.2.1 | G17: isolate `#temp` names from persistent tables. |
+| 3 | 3.3.1, 3.3.2 | G18 variable declaration semantics; G19 scoped spatial metadata failures. Disjoint files. |
+| 4 | 3.4.1 | G22: rewrite `geometry::STGeomFromText` on the parsed AST. |
+| 5 | 3.5.1 | G20: reject unsafe mukey geometry/SRID fallback. Shares transpiler spatial files with G22, so follows it. |
+| 6 | 3.6.1 | G24: migrate remaining integration tests to unique shared-cache in-memory databases. |
 
-No dependencies. Single task, so no file-disjointness question arises.
+Dependencies: 3.1.1 → 3.2.1 → {3.3.1, 3.3.2} → 3.4.1 → 3.5.1 → 3.6.1. G18 and G19 have independent code/test files and may run in parallel. Other goals are sequenced to avoid known shared-file collisions. GOALS.md lists a cycle between G20 and G6. Per the user's decision, this plan places G20 before G6: G20's metadata rejection is verified at the transpiler and router layers without G6's live spatial fixture; G6 then consumes the established safe target behavior.
 
 ## Global hazards and execution rules
 
@@ -61,11 +69,11 @@ No dependencies. Single task, so no file-disjointness question arises.
 - Commit only on full success. Any `?` inside the transaction scope must drop the transaction uncommitted.
 - Keep `spawn_blocking` as the only blocking boundary.
 - Do not run the full suite in workers. The orchestrator runs `cargo fmt --check` and full `cargo test` serially at the wave boundary.
-- Worktree isolation is used for the single task. No remote Git actions.
+- Use worktree isolation for multi-task waves. No remote Git actions.
 
 ## Task specifications
 
-### Task 3.1.1 — Roll back failed batches
+#### Task 3.1.1 — Roll back failed batches
 
 - **Repo:** `/home/andrew/workspace/sda-rs`
 - **Files in scope — must edit:** `src/executor/sqlite.rs` (transaction and unit tests), `tests/sda_mvp.rs` (router-level rollback test only).
@@ -87,8 +95,74 @@ No dependencies. Single task, so no file-disjointness question arises.
   - `git diff --check`
   - Wave-boundary (orchestrator): `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` serial, all green.
 
+#### Task 3.2.1 — Isolate temporary table names (G17)
+
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Files in scope — must edit:** `src/transpiler/temp_tables.rs`, `src/executor/sqlite.rs` (focused regression test only).
+- **Can create:** none.
+- **Depends on:** 3.1.1.
+- **Spec:** Give each recognized `#temp` table a generated SQLite temporary name that cannot shadow a persistent table. Rewrite references to that same `#name` within the batch to its generated name. Preserve support for `CREATE TABLE #x` / `INSERT INTO #x`, session lifetime, and existing unknown hash-table behavior. Add a regression with a persistent `sample` table proving `SELECT COUNT(*) FROM sample` continues to read the persistent table after `SELECT ... INTO #sample`; also verify an explicit `#sample` reference reads the temporary table.
+- **Do not touch:** `src/routes.rs`, `src/spatial.rs`, `src/transpiler/vars.rs`, `src/transpiler/spatial.rs`, `tests/sda_mvp.rs`, `planning/*` except this task's micro-plan.
+- **Grep anchors:** `fn rewrite`, `known.insert`, `CREATE TEMP TABLE`, `executes_multiple_statements_and_keeps_temp_tables_in_session`.
+- **Acceptance:** `cargo test temp_tables::`; `cargo test executor::`; `cargo fmt --check`; `git diff --check`.
+
+#### Task 3.3.1 — Correct batch variable declarations (G18)
+
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Files in scope — must edit:** `src/transpiler/vars.rs` (implementation and unit tests).
+- **Can create:** none.
+- **Depends on:** G4 (completed in plan 1).
+- **Spec:** Substitute a declared variable's current value into another variable's default at declaration time (`DECLARE @b INT = 5; DECLARE @a INT = @b; SELECT @a` produces 5). Reject unbound variable defaults rather than turning them into NULL, and reject re-declaration instead of silently resetting an existing variable. Preserve established `SET` and select-assignment behavior.
+- **Do not touch:** `src/transpiler/mod.rs`, `src/transpiler/spatial.rs`, `src/routes.rs`, tests outside `vars.rs`, `planning/*` except this task's micro-plan.
+- **Grep anchors:** `fn fold`, `DECLARE`, `folds_declare_set_and_select_assignment_case_insensitively`.
+- **Acceptance:** `cargo test transpiler::vars::`; `cargo fmt --check`; `git diff --check`.
+
+#### Task 3.3.2 — Scope spatial metadata failures (G19)
+
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Files in scope — must edit:** `src/spatial.rs`, `src/routes.rs` (focused regression test only).
+- **Can create:** none.
+- **Depends on:** G5 (completed in plan 1).
+- **Spec:** Malformed or unavailable GeoPackage geometry metadata must not fail ordinary SQL requests such as `SELECT 1`; spatial requests must still return the existing structured metadata/capability error. Keep spatial initialization and error mapping compatible with current callers. Add a route regression covering both ordinary and spatial requests against malformed metadata.
+- **Do not touch:** `src/executor/sqlite.rs`, `src/transpiler/*`, `tests/sda_mvp.rs`, `planning/*` except this task's micro-plan.
+- **Grep anchors:** `pub fn initialize`, `geometry_metadata_for_table`, `spatial_query_without_extension`, `ExecutorError`.
+- **Acceptance:** `cargo test spatial::`; `cargo test routes::`; `cargo fmt --check`; `git diff --check`.
+
+#### Task 3.4.1 — Rewrite spatial constructor calls on the AST (G22)
+
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Files in scope — must edit:** `src/transpiler/spatial.rs` (rewrite and unit tests).
+- **Can create:** none.
+- **Depends on:** G4 (completed in plan 1).
+- **Spec:** Replace textual `geometry::STGeomFromText` normalization with a parsed-AST rewrite applied only to the constructor call that needs it. Non-spatial SQL and string literals containing that text must not be altered. Preserve existing AOI and spatial predicate behavior; add AST-level tests for constructor contexts, non-spatial statements, and string literals.
+- **Do not touch:** `src/transpiler/mod.rs`, `src/spatial.rs`, `src/routes.rs`, `tests/sda_mvp.rs`, `planning/*` except this task's micro-plan.
+- **Grep anchors:** `normalize_static_calls`, `rewrite_spatial`, `STGeomFromText`, `parser_ast_rewrites_geometry_constructor_and_intersects_without_runtime_extension`.
+- **Acceptance:** `cargo test transpiler::spatial::`; `cargo fmt --check`; `git diff --check`.
+
+#### Task 3.5.1 — Reject unsafe mukey geometry fallback (G20)
+
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Files in scope — must edit:** `src/transpiler/spatial.rs` (implementation/unit tests), `tests/sda_mvp.rs` (focused integration regression only).
+- **Can create:** none.
+- **Depends on:** G5; follows 3.4.1 because both goals touch `src/transpiler/spatial.rs`. G20 is scheduled before G6 to resolve the cycle in GOALS.md, as directed by the user.
+- **Spec:** If `mupolygon` geometry metadata is missing and there is no explicit override, reject the mukey TVF with a structured error rather than selecting another layer or assuming SRID 4326. Add unit and integration coverage using a GeoPackage with one non-`mupolygon` geometry layer. When valid metadata or an explicit override is present, use the discovered/overridden column and SRID.
+- **Do not touch:** `src/spatial.rs`, `src/routes.rs`, `src/transpiler/mod.rs`, `planning/*` except this task's micro-plan.
+- **Grep anchors:** `MukeyTarget`, `geometry_metadata_for_table("mupolygon")`, `mukey_srid`, `mukey_rewrite_uses_mupolygon_metadata_not_first_geometry_row`.
+- **Acceptance:** `cargo test transpiler::spatial::`; `cargo test --test sda_mvp`; `cargo fmt --check`; `git diff --check`.
+
+#### Task 3.6.1 — Use shared-cache in-memory test databases (G24)
+
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Files in scope — must edit:** `src/routes.rs` (test setup only), `tests/sda_mvp.rs` (test setup only).
+- **Can create:** none.
+- **Depends on:** 3.5.1; decision D1.
+- **Spec:** Replace test-only temporary-file SQLite databases with unique named shared-cache in-memory URIs, keeping a holder connection alive for each test and preserving any needed non-database fixture inputs. Do not change production configuration or connection behavior. Confirm no test database path covered by G24 still uses a temporary file.
+- **Do not touch:** production implementation outside test-only setup, `src/executor/sqlite.rs`, `src/transpiler/*`, `planning/*` except this task's micro-plan.
+- **Grep anchors:** `Connection::open(&path)`, `NamedTempFile`, `fn app`, integration `#[tokio::test]` setup.
+- **Acceptance:** `cargo test routes::`; `cargo test --test sda_mvp`; `cargo fmt --check`; `git diff --check`.
+
 ## Wave-boundary verification (orchestrator)
 
 - Full serial `cargo test` with `SDA_TEST_SPATIALITE` set, and `cargo fmt --check`.
-- Confirm the new rollback tests fail on the pre-change code (the worker should record a red run before the change), then pass after.
-- Confirm `git diff master...HEAD -- src/routes.rs` shows no change from this task.
+- For wave 1, confirm the new rollback tests failed on the pre-change code and pass after; report recorded in `STATE_3.md`.
+- Run the full suite serially after each wave before marking it done.
