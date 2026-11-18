@@ -13,14 +13,28 @@ pub enum Format {
 }
 
 /// Serialize result sets in an SDA tabular response format.
-pub fn serialize(result_sets: &[ResultSet], format: Format) -> String {
+pub fn serialize(result_sets: &[ResultSet], format: Format) -> Result<String, SerializeError> {
     match format {
-        Format::Json => json_results(result_sets, Headers::None),
-        Format::JsonColumnName => json_results(result_sets, Headers::Names),
-        Format::JsonColumnNameMetadata => json_results(result_sets, Headers::Metadata),
+        Format::Json => Ok(json_results(result_sets, Headers::None)),
+        Format::JsonColumnName => Ok(json_results(result_sets, Headers::Names)),
+        Format::JsonColumnNameMetadata => Ok(json_results(result_sets, Headers::Metadata)),
         Format::Xml => xml_results(result_sets),
     }
 }
+
+/// Error raised when a result cannot be represented in the requested format.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SerializeError {
+    column: String,
+}
+
+impl std::fmt::Display for SerializeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "invalid XML element name for column \"{}\"", self.column)
+    }
+}
+
+impl std::error::Error for SerializeError {}
 
 #[derive(Clone, Copy)]
 enum Headers {
@@ -32,7 +46,8 @@ enum Headers {
 fn json_results(result_sets: &[ResultSet], headers: Headers) -> String {
     let mut output = String::from("{");
     let mut first_table = true;
-    for (index, set) in result_sets.iter().enumerate() {
+    let mut emitted = 0usize;
+    for set in result_sets {
         if set.rows.is_empty() {
             continue;
         }
@@ -40,11 +55,12 @@ fn json_results(result_sets: &[ResultSet], headers: Headers) -> String {
             output.push(',');
         }
         first_table = false;
-        let key = if index == 0 {
+        let key = if emitted == 0 {
             "Table".to_owned()
         } else {
-            format!("Table{index}")
+            format!("Table{emitted}")
         };
+        emitted += 1;
         output.push_str(&json_string(&key));
         output.push_str(":[");
         let mut first_row = true;
@@ -145,7 +161,6 @@ fn metadata(set: &ResultSet, column: usize) -> String {
     let (type_name, provider_type) = match value {
         Some(Value::Integer(_)) => ("int", int_provider()),
         Some(Value::Real(_)) => ("float", float_provider()),
-        Some(Value::Text(_)) => ("varchar", varchar_provider()),
         Some(Value::Blob(_)) => ("varbinary", varbinary_provider()),
         _ => ("varchar", varchar_provider()),
     };
@@ -166,13 +181,33 @@ const fn varbinary_provider() -> i32 {
     29
 }
 
-fn xml_results(result_sets: &[ResultSet]) -> String {
+// ASCII-only XML name check: first char letter or `_`; rest letters, digits,
+// `_`, `-`, `.`. Names are rejected, never sanitized.
+fn is_xml_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars
+        .next()
+        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
+}
+
+fn xml_results(result_sets: &[ResultSet]) -> Result<String, SerializeError> {
     let mut xml = String::from("<NewDataSet>");
     for set in result_sets.iter().filter(|set| !set.rows.is_empty()) {
+        if let Some(bad) = set.columns.iter().find(|name| !is_xml_name(name)) {
+            return Err(SerializeError {
+                column: bad.clone(),
+            });
+        }
         for row in &set.rows {
             xml.push_str("<Table>");
             for (index, value) in row.iter().enumerate() {
                 let name = set.columns.get(index).map(String::as_str).unwrap_or("");
+                if !is_xml_name(name) {
+                    return Err(SerializeError {
+                        column: name.to_owned(),
+                    });
+                }
                 if matches!(value, Value::Null) {
                     let _ = write!(xml, "<{name} />");
                 } else {
@@ -183,7 +218,7 @@ fn xml_results(result_sets: &[ResultSet]) -> String {
         }
     }
     xml.push_str("</NewDataSet>");
-    xml
+    Ok(xml)
 }
 
 fn xml_escape(value: &str) -> String {
@@ -218,7 +253,8 @@ mod tests {
                 ]],
             )],
             Format::Json,
-        );
+        )
+        .unwrap();
         assert_eq!(result, r#"{"Table":[["12","A&B",null]]}"#);
     }
 
@@ -234,10 +270,11 @@ mod tests {
                 set(&["flag"], vec![vec![Value::Integer(1)]]),
             ],
             Format::JsonColumnNameMetadata,
-        );
+        )
+        .unwrap();
         assert_eq!(
             result,
-            r#"{"Table":[["id","label"],["ColumnOrdinal=0,DataTypeName=int,ProviderType=8","ColumnOrdinal=1,DataTypeName=varchar,ProviderType=22"],["2","x"]],"Table2":[["flag"],["ColumnOrdinal=0,DataTypeName=int,ProviderType=8"],["1"]]}"#
+            r#"{"Table":[["id","label"],["ColumnOrdinal=0,DataTypeName=int,ProviderType=8","ColumnOrdinal=1,DataTypeName=varchar,ProviderType=22"],["2","x"]],"Table1":[["flag"],["ColumnOrdinal=0,DataTypeName=int,ProviderType=8"],["1"]]}"#
         );
     }
 
@@ -247,10 +284,14 @@ mod tests {
             serialize(
                 &[set(&["x"], vec![vec![Value::Null]])],
                 Format::JsonColumnName
-            ),
+            )
+            .unwrap(),
             r#"{"Table":[["x"],[null]]}"#
         );
-        assert_eq!(serialize(&[set(&["x"], vec![])], Format::Json), "{}");
+        assert_eq!(
+            serialize(&[set(&["x"], vec![])], Format::Json).unwrap(),
+            "{}"
+        );
     }
 
     #[test]
@@ -262,8 +303,41 @@ mod tests {
                     vec![vec![Value::Text("<A&B>".into()), Value::Null]]
                 )],
                 Format::Xml
-            ),
+            )
+            .unwrap(),
             "<NewDataSet><Table><name>&lt;A&amp;B&gt;</name><empty /></Table></NewDataSet>"
+        );
+    }
+
+    #[test]
+    fn first_empty_set_then_rows_uses_table_key() {
+        let result = serialize(
+            &[
+                set(&["a"], vec![]),
+                set(&["b"], vec![vec![Value::Integer(1)]]),
+            ],
+            Format::Json,
+        )
+        .unwrap();
+        assert_eq!(result, r#"{"Table":[["1"]]}"#);
+    }
+
+    fn xml_for(column: &str) -> Result<String, SerializeError> {
+        serialize(
+            &[set(&[column], vec![vec![Value::Integer(1)]])],
+            Format::Xml,
+        )
+    }
+
+    #[test]
+    fn xml_rejects_invalid_names_and_accepts_valid() {
+        for bad in ["a b", "1a", ""] {
+            let err = xml_for(bad).unwrap_err();
+            assert!(err.to_string().contains(&format!("\"{bad}\"")), "{err}");
+        }
+        assert_eq!(
+            xml_for("my-col.1_x").unwrap(),
+            "<NewDataSet><Table><my-col.1_x>1</my-col.1_x></Table></NewDataSet>"
         );
     }
 }

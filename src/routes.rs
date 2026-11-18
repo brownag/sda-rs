@@ -98,7 +98,10 @@ pub async fn post(State(state): State<AppState>, request: Request) -> Response {
         }
         Err(err) => return error(StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
     };
-    let body = serializer::serialize(&output.result_sets, format);
+    let body = match serializer::serialize(&output.result_sets, format) {
+        Ok(body) => body,
+        Err(err) => return error(StatusCode::BAD_REQUEST, err.to_string()),
+    };
     let content_type = if format == Format::Xml {
         "application/xml; charset=utf-8"
     } else {
