@@ -74,14 +74,14 @@ External prerequisite: completed Plan 5/G32.
 | 1 | 6.1.1, 6.1.2 | Define the spatial compatibility contract and inventory the complete SDA_Get catalog/package call sites. |
 | 2 | 6.2.1 | Decode and validate GeoPackageBinary geometry values. |
 | 3 | 6.3.1 | Support the SDA_Get intersection functions used by soilDB's spatial client path first. |
-| 4 | 6.4.1 (blocked; superseded for execution by 6.4.2), 6.4.2 | Add area-symbol and soil-survey-polygon intersection/key TVFs; resolve the preserved failure and CRS regression. |
+| 4 | 6.4.1 and 6.4.2 (blocked); 6.4.3 | Add area-symbol and soil-survey-polygon intersection/key TVFs; first reconcile the inconsistent test/runtime observations without weakening the WGS84 contract. |
 | 5 | 6.5.1 | Add mapunit-polygon intersection/key TVFs. |
 | 6 | 6.6.1 | Add other feature-layer intersection/key TVFs where the data model supports them. |
 | 7 | 6.7.1 | Implement feasible scalar key-to-WKT TVFs. |
 | 8 | 6.8.1 | Implement feasible table-input WKT TVFs and input-table macros. |
 | 9 | 6.9.1 | Add and run the opt-in soilDB/Iowa integration harness. |
 
-Dependencies: `6.2.1` depends on `6.1.1`; `6.3.1` depends on `6.1.2` and `6.2.1`; `6.4.1` depends on `6.3.1`; recovery task `6.4.2` also depends on `6.3.1` and takes over the preserved, uncommitted in-scope work from blocked task 6.4.1; `6.5.1` depends on completion of Wave 4 via 6.4.2; each of `6.6.1`–`6.8.1` depends on the immediately prior implementation wave; `6.9.1` depends on `6.3.1`–`6.8.1`. Every task depends on completed Plan 5/G32. Wave 1 tasks have disjoint output files; all same-module SDA_Get implementation tasks are intentionally sequential.
+Dependencies: `6.2.1` depends on `6.1.1`; `6.3.1` depends on `6.1.2` and `6.2.1`; `6.4.1` depends on `6.3.1`; recovery task `6.4.2` also depends on `6.3.1` and takes over the preserved, uncommitted in-scope work from blocked task 6.4.1; diagnostic task `6.4.3` depends on 6.3.1 and the failure evidence from 6.4.1/6.4.2, and is diagnostic-only; implementation in Wave 4 remains gated on an established diagnosis. `6.5.1` depends on completed Wave 4; each of `6.6.1`–`6.8.1` depends on the immediately prior implementation wave; `6.9.1` depends on `6.3.1`–`6.8.1`. Every task depends on completed Plan 5/G32. Wave 1 tasks have disjoint output files; all same-module SDA_Get implementation tasks are intentionally sequential.
 
 ## Global hazards and execution rules
 
@@ -171,6 +171,18 @@ Dependencies: `6.2.1` depends on `6.1.1`; `6.3.1` depends on `6.1.2` and `6.2.1`
 - **Do not touch:** external package repositories, planning/GOALS.md, GeoPackage decoder, serializer, route/wire behavior, dependencies, or any files outside the four named paths. Preserve all current uncommitted changes.
 - **Grep anchors:** `tests/sda_get_contract.rs` `query`, test loop and first Mukey case; `src/transpiler/spatial.rs` `intersection_spec`, `expand_source`; `src/spatial.rs` `requires_spatial`; `src/serializer.rs` `serialize_json` for why empty result sets appear as `{}`; baseline implementation in commit `4d4aa0a`.
 - **Acceptance:** after evidence-led fix, at most one `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract -- --nocapture`; require all eight exact JSON cases to pass with configured SpatiaLite and real spatial queries. If it fails or root cause remains unresolved, stop immediately. If it passes, run `cargo fmt --check` and `git diff --check`.
+
+### Task 6.4.3 — Diagnose inconsistent WGS84 test observations
+
+- **ID:** 6.4.3
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Files in scope — must edit:** `tests/sda_get_contract.rs` (temporary, narrowly tagged diagnostic output only; remove it before stopping).
+- **Can create:** none.
+- **Read-only references:** `src/transpiler/spatial.rs`, `src/spatial.rs`, `src/routes.rs`, `src/serializer.rs`, and `src/executor/sqlite.rs`.
+- **Depends on:** 6.3.1 and recorded failure evidence from blocked tasks 6.4.1/6.4.2.
+- **Spec:** Diagnose why the same first Mukey WGS84 request returned `{}` in three acceptance runs but returned the expected row in a later diagnostic request. Add temporary test-only reporting of SQL, HTTP status, and exact response body for each query in the current contract test, with no expectation changes. Run the diagnostic once serially with output visible. Compare the exact first request path and test fixture with prior observations. Do not alter production source, query behavior, expected WGS84 results, external repositories, or user data. Remove temporary reporting before stopping. If no specific cause is established from this run, stop and report; do not repeat the diagnostic.
+- **Do not touch:** any production code, docs, fixtures beyond temporary reporting, planning/GOALS.md, dependencies, external repositories, or the Iowa GeoPackage.
+- **Acceptance:** one diagnostic-only command: `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract -- --nocapture --test-threads=1`; record all emitted SQL/status/body pairs. This is not an implementation acceptance pass. Remove temporary instrumentation and run `git diff --check`. No retry.
 
 ### Task 6.5.1 — Add mapunit-polygon intersection/key TVFs
 
