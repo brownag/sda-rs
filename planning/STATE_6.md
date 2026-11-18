@@ -38,6 +38,9 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - Wave 1 boundary: `cargo fmt --check` passed; `git diff --check` passed;
   `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test`
   passed (57 unit + 18 integration tests; 0 failures, configured spatial queries executed).
+- Wave 2 boundary: `cargo fmt --check` passed; `git diff --check` passed;
+  `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test`
+  passed (61 unit + 18 integration tests; 0 failures, configured spatial queries executed).
 - At most two workers; isolated worktrees for parallel tasks. Only Wave 1 is parallel.
 - The soilDB checkout and Iowa GeoPackage are user data; inspect read-only and leave unchanged.
 - Run configured Rust suites serially at wave boundaries; run `make test-soildb` at its milestone and final acceptance.
