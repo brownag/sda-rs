@@ -20,7 +20,7 @@ Plan: `planning/EXECUTION_PLAN_5.md`. Active goal: explicit and tested SQLite se
 |---|---|---|---|
 | 1 | 5.1.1 Persistent-state authorizer | done | `50b9f34`, `7283746` |
 | 2 | 5.2.1 Extension lifecycle; 5.2.2 test UDF flags | done | `076fa29`, `b2b8c12` |
-| 3 | 5.3.1 SQLite/row limits; 5.3.2 serialized-output cap | pending | — |
+| 3 | 5.3.1 SQLite/row limits; 5.3.2 serialized-output cap | done | `c37d6bc`, `a538b89` |
 
 ## Orchestration decisions and hazards
 
@@ -38,8 +38,8 @@ Plan: `planning/EXECUTION_PLAN_5.md`. Active goal: explicit and tested SQLite se
 |---|---|---|---|---|
 | 5.2.1 | `/home/andrew/workspace/sda-rs` → `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-5-task-5.2.1` | detached; commits integrated | 2026-11-18 | retained; cleanup not authorized |
 | 5.2.2 | `/home/andrew/workspace/sda-rs` → `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-5-task-5.2.2` | detached; commits integrated | 2026-11-18 | retained; cleanup not authorized |
-| 5.3.1 | `/home/andrew/workspace/sda-rs` → `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-5-task-5.3.1` | detached at `8ad2889` | 2026-11-18 | active |
-| 5.3.2 | `/home/andrew/workspace/sda-rs` → `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-5-task-5.3.2` | detached at `8ad2889` | 2026-11-18 | active |
+| 5.3.1 | `/home/andrew/workspace/sda-rs` → `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-5-task-5.3.1` | detached; commits integrated | 2026-11-18 | retained; cleanup not authorized |
+| 5.3.2 | `/home/andrew/workspace/sda-rs` → `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-5-task-5.3.2` | detached; commits integrated | 2026-11-18 | retained; cleanup not authorized |
 
 ## Task reports
 
@@ -72,3 +72,21 @@ Plan: `planning/EXECUTION_PLAN_5.md`. Active goal: explicit and tested SQLite se
 - **Wave checks:** configured full suite — 52 unit + 16 integration tests passed, 0 failed; live SpatiaLite tests executed.
 - **Coverage:** test-only scalar UDF uses `SQLITE_UTF8 | SQLITE_DIRECTONLY`; direct invocation passes and view invocation is denied.
 - **Deviations/gotchas:** none; no production UDF registered.
+
+## 5.3.1
+- **Status:** complete.
+- **Files:** `Cargo.toml`; `src/executor/sqlite.rs`; `tests/sqlite_limits_contract.rs`.
+- **Commits:** planning `0d93110`; code `c37d6bc`.
+- **Targeted tests:** `cargo test executor::sqlite::tests` — 12 passed; `cargo test --test sqlite_limits_contract` — 1 passed; fmt and diff checks passed.
+- **Wave checks:** configured full suite — 57 unit + 18 integration tests passed, 0 failed; live SpatiaLite tests executed.
+- **Coverage:** SQL text, string/BLOB, deadline interruption, and aggregate row boundaries; batch rollback/temp workflows remain covered.
+- **Deviation/gotcha:** lower-cap tests use private unit helpers; integration test verifies public/default SQL-text behavior. No dependency versions changed.
+
+## 5.3.2
+- **Status:** complete.
+- **Files:** `src/serializer.rs`; `tests/serializer_limits_contract.rs`.
+- **Commits:** planning `a98a8ce`; code `a538b89`.
+- **Targeted tests:** `cargo test serializer::tests` — 7 passed; `cargo test --test serializer_limits_contract` — 1 passed; existing `serializer_contract` — 1 passed.
+- **Wave checks:** configured full suite — 57 unit + 18 integration tests passed, 0 failed; live SpatiaLite tests executed.
+- **Coverage:** JSON/XML exact-cap output succeeds; overflow errors during generation; public JSON contract below cap remains unchanged.
+- **Deviations/gotchas:** none; existing structured route error mapping preserved, routes unchanged.
