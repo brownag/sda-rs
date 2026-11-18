@@ -21,7 +21,7 @@ Plan: `planning/EXECUTION_PLAN_1.md`
 | 4 | 1.3.2 | done |
 | 5 | 1.3.1 | done |
 | 6 | 1.4.1, 1.4.2 | done |
-| 7 | 1.5.1 | in progress |
+| 7 | 1.5.1 | done |
 
 ## Task reports
 
@@ -116,4 +116,6 @@ Plan: `planning/EXECUTION_PLAN_1.md`
 - `cargo test transpiler::spatial`: passed; `cargo test --test sda_mvp`: passed (2 tests); `cargo fmt --check` and `git diff --check`: passed.
 - No loadable `mod_spatialite` was available. Conditional live-extension test early-returned; no live spatial execution is claimed.
 - Orchestrator wave-boundary verification: `cargo fmt --check` passed; `cargo test` passed (33 unit tests + 2 integration tests, 0 failures; binary/doc suites 0 tests).
-- Remaining acceptance gap: capability currently exposes only the first `gpkg_geometry_columns` row; follow-up must select `mupolygon` from multiple rows.
+- The earlier first-row metadata limitation was resolved in the authorized follow-up below.
+- Follow-up `0f79354` retains all layer metadata for AOI geometry-column recognition as well as explicit `mupolygon` UDF selection; multi-row regression tests pass.
+- Final re-verification: `cargo fmt --check` and `cargo test` passed (33 unit tests + 3 integration tests, 0 failures). No loadable `mod_spatialite` was available; live execution is not claimed.
