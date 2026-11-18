@@ -159,7 +159,9 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 ## 6.6.2
 - **Status:** blocked; no implementation commit.
 - **Scope:** diagnose the failed Mupoint WGS84 case and correct its established cause while preserving the 6.6.1 diff.
-- **Diagnostic attempt:** the single configured diagnostic invocation failed during compilation before reaching the test: temporary instrumentation borrowed `extension` after it had been moved into app config. No HTTP/SQL/geometry/predicate evidence was captured.
-- **Disposition:** instrumentation removed; no production behavior changed, no acceptance rerun, and no commit. Cause remains unproven.
+- **Prior diagnostic attempt:** an initial invocation failed during compilation before reaching the test because temporary instrumentation borrowed `extension` after it was moved; no evidence was captured.
+- **Approved GPT-6.2 Sol diagnostic:** corrected one-time serial invocation compiled and reached the test. The Mupoint WGS84 request returned HTTP 200 with key `401`; generated SQL used `mupoint.mp_shape`, SRID 4326, and the request-local predicate returned 1. Thus the reported WGS84 failure did not reproduce.
+- **Additional observation:** the following Mupoint Web-Mercator assertion returned `{}`. Request-local replay showed the stored point transformed to `55659.745396636783,55660.451865421521`, versus rounded fixture WKT `55659.745,55660.451`; `ST_Intersects` returned 0.
+- **Disposition:** probes removed and all four pre-existing implementation-file hashes verified unchanged. Per approved stop condition, no production behavior changed and no acceptance rerun or commit was made.
 - **Preservation:** original uncommitted 6.6.1 changes remain in `src/transpiler/spatial.rs`, `src/spatial.rs`, `tests/sda_get_contract.rs`, and `docs/sda-get-support.md`; expected key `401` remains.
-- **Next:** await user direction; Waves 7–9 remain gated.
+- **Next:** await user direction on the Web-Mercator fixture/predicate finding; Waves 7–9 remain gated.
