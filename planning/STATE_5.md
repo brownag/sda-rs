@@ -19,7 +19,7 @@ Plan: `planning/EXECUTION_PLAN_5.md`. Active goal: explicit and tested SQLite se
 | Wave | Tasks | Status | Code commit |
 |---|---|---|---|
 | 1 | 5.1.1 Persistent-state authorizer | done | `50b9f34`, `7283746` |
-| 2 | 5.2.1 Extension lifecycle; 5.2.2 test UDF flags | pending | — |
+| 2 | 5.2.1 Extension lifecycle; 5.2.2 test UDF flags | done | `076fa29`, `b2b8c12` |
 | 3 | 5.3.1 SQLite/row limits; 5.3.2 serialized-output cap | pending | — |
 
 ## Orchestration decisions and hazards
@@ -36,8 +36,8 @@ Plan: `planning/EXECUTION_PLAN_5.md`. Active goal: explicit and tested SQLite se
 
 | Task | Repo/worktree | Branch state | Created | Lifecycle |
 |---|---|---|---|---|
-| 5.2.1 | `/home/andrew/workspace/sda-rs` → `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-5-task-5.2.1` | detached at `2df923c` | 2026-11-18 | active |
-| 5.2.2 | `/home/andrew/workspace/sda-rs` → `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-5-task-5.2.2` | detached at `2df923c` | 2026-11-18 | active |
+| 5.2.1 | `/home/andrew/workspace/sda-rs` → `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-5-task-5.2.1` | detached; commits integrated | 2026-11-18 | retained; cleanup not authorized |
+| 5.2.2 | `/home/andrew/workspace/sda-rs` → `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-5-task-5.2.2` | detached; commits integrated | 2026-11-18 | retained; cleanup not authorized |
 
 ## Task reports
 
@@ -52,3 +52,21 @@ Plan: `planning/EXECUTION_PLAN_5.md`. Active goal: explicit and tested SQLite se
 - **Coverage:** persistent UPDATE denied without side effects; temp create/populate/read and successful batch commit work; failed batch rolls back; user BEGIN/COMMIT rejected.
 - **Deviation:** full suite exposed stale persistent-write unit expectations and denied automatic rollback; escalated and fixed within task scope. Dependency versions unchanged.
 - **Gotcha:** authorizer is suspended only for synchronous executor-owned commit/rollback and restored afterward; submitted transaction-control SQL remains denied.
+
+## 5.2.1
+- **Status:** complete.
+- **Files:** `tests/extension_security_contract.rs`.
+- **Commits:** planning `aa57b56`; code `076fa29`.
+- **Targeted test:** configured extension contract — 2 passed; fmt and diff checks passed.
+- **Wave checks:** configured full suite — 52 unit + 16 integration tests passed, 0 failed; live SpatiaLite tests executed.
+- **Coverage:** ordinary SQLite without extension, configured SpatiaLite spatial query, and query-controlled `load_extension` rejection.
+- **Deviations/gotchas:** none; production extension lifecycle unchanged.
+
+## 5.2.2
+- **Status:** complete.
+- **Files:** `Cargo.toml`; `tests/udf_flags_contract.rs`.
+- **Commits:** planning `44c6c1e`; code `b2b8c12`.
+- **Targeted test:** `cargo test --test udf_flags_contract` — 1 passed; fmt and diff checks passed.
+- **Wave checks:** configured full suite — 52 unit + 16 integration tests passed, 0 failed; live SpatiaLite tests executed.
+- **Coverage:** test-only scalar UDF uses `SQLITE_UTF8 | SQLITE_DIRECTONLY`; direct invocation passes and view invocation is denied.
+- **Deviations/gotchas:** none; no production UDF registered.
