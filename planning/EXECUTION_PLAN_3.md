@@ -162,7 +162,7 @@ Dependencies: 3.1.1 → 3.2.1 → {3.3.1, 3.3.2} → 3.4.1 → 3.5.1 → 3.6.1. 
 - **Spec:** Replace test-only temporary-file SQLite databases with unique named shared-cache in-memory URIs, keeping a holder connection alive for each test and preserving any needed non-database fixture inputs. Do not change production configuration or connection behavior. Confirm no test database path covered by G24 still uses a temporary file.
 - **Do not touch:** production implementation outside test-only setup, `src/executor/sqlite.rs`, `src/transpiler/*`, `planning/*` except this task's micro-plan.
 - **Grep anchors:** `Connection::open(&path)`, `NamedTempFile`, `fn app`, integration `#[tokio::test]` setup.
-- **Acceptance:** `cargo test routes::`; `cargo test --test sda_mvp`; `cargo fmt --check`; `git diff --check`.
+- **Acceptance:** `cargo test routes::`; `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_mvp`; `cargo fmt --check`; `git diff --check`.
 
 ## Wave-boundary verification (orchestrator)
 
