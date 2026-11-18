@@ -26,10 +26,10 @@ checkouts. No package source was changed.
 ## Status definitions and scope
 
 - **Already supported** means the server currently rewrites and executes the
-  specific catalog function. The only demonstrated catalog entry is the
-  WGS84 mukey-intersection function; see
-  [`src/transpiler/spatial.rs`](../src/transpiler/spatial.rs) and
-  [`tests/mukey_contract.rs`](../tests/mukey_contract.rs).
+  specific catalog function. The WGS84 mukey-intersection behavior is covered
+  by [`tests/mukey_contract.rs`](../tests/mukey_contract.rs); the four mukey
+  and sapolygonkey WGS84/Web-Mercator variants are covered by
+  [`tests/sda_get_contract.rs`](../tests/sda_get_contract.rs).
 - **Implementable** means the catalog operation can be represented using
   SQLite plus the optional SpatiaLite extension and the required SSURGO table
   and geometry layer. It is not yet implemented unless marked already
@@ -59,7 +59,7 @@ aliases are retained as published (including `AreasymbolWkt84` and
 | `SDA_Get_AreasymbolWktWgs84_from_AreasymbolTable` | `DeclareVarcharTable`; area symbols | `areasymbol`, `AreasymbolWkt84` | `sapolygon` geometry; macro-expanded input table | No active direct call found | Implementable |
 | `SDA_Get_AreasymbolWktWm_from_AreasymbolTable` | `DeclareVarcharTable`; area symbols | `areasymbol`, `AreasymbolWktWm` | `sapolygon` geometry; macro-expanded input table | No active direct call found | Implementable |
 | `SDA_Get_Mukey_from_intersection_with_WktWgs84` | WKT, EPSG:4326 | `mukey` | `mupolygon` geometry | **First priority:** soilDB `R/SDA-spatial.R:469-476, 488-495`; `R/SDA_query.R:94-101` (documented query example); py-soildb `src/soildb/spatial.py:322-334` | **Already supported; first priority** |
-| `SDA_Get_Mukey_from_intersection_with_WktWm` | WKT, EPSG:3857 | `mukey` | `mupolygon` geometry | No direct call found; WGS84 client path makes its sibling the first priority | Implementable |
+| `SDA_Get_Mukey_from_intersection_with_WktWm` | WKT, EPSG:3857 | `mukey` | `mupolygon` geometry | Web-Mercator sibling of the active WGS84 client path | **Supported** |
 | `SDA_Get_MupolygonWktWgs84_from_Mukey` | One mukey | `MupolygonWktWgs84` | `mupolygon` geometry | soilDB vignette example only: `vignettes/sda.Rmd:1178-1212`; not counted as active package call | Implementable |
 | `SDA_Get_MupolygonWktWm_from_Mukey` | One mukey | `MupolygonWktWm` | `mupolygon` geometry | No active direct call found | Implementable |
 | `SDA_Get_MupolygonWktWgs84_from_MukeyTable` | `DeclareIntTable`; mukeys | `mukey`, `MupolygonWktWgs84` | `mupolygon` geometry; macro-expanded input table | No active direct call found | Implementable |
@@ -72,8 +72,8 @@ aliases are retained as published (including `AreasymbolWkt84` and
 | `SDA_Get_MulineWktWm_from_Mukey` | One mukey | `MulineWktWm` | `muline` geometry | No active direct call found | Implementable when layer exists |
 | `SDA_Get_MulineWktWgs84_from_MukeyTable` | `DeclareIntTable`; mukeys | `mukey`, `MulineWktWgs84` | `muline` geometry; macro-expanded input table | No active direct call found | Implementable when layer exists |
 | `SDA_Get_MulineWktWm_from_MukeyTable` | `DeclareIntTable`; mukeys | `mukey`, `MulineWktWm` | `muline` geometry; macro-expanded input table | No active direct call found | Implementable when layer exists |
-| `SDA_Get_Sapolygonkey_from_intersection_with_WktWgs84` | WKT, EPSG:4326 | `sapolygonkey` | `sapolygon` geometry | **First priority:** soilDB `R/SDA-spatial.R:488-495`; py-soildb `src/soildb/spatial.py:336-348` | Implementable; first priority |
-| `SDA_Get_Sapolygonkey_from_intersection_with_WktWm` | WKT, EPSG:3857 | `sapolygonkey` | `sapolygon` geometry | No direct call found; WGS84 sibling is actively used | Implementable |
+| `SDA_Get_Sapolygonkey_from_intersection_with_WktWgs84` | WKT, EPSG:4326 | `sapolygonkey` | `sapolygon` geometry | **First priority:** soilDB `R/SDA-spatial.R:488-495`; py-soildb `src/soildb/spatial.py:336-348` | **Supported; first priority** |
+| `SDA_Get_Sapolygonkey_from_intersection_with_WktWm` | WKT, EPSG:3857 | `sapolygonkey` | `sapolygon` geometry | Web-Mercator sibling of the active WGS84 client path | **Supported** |
 | `SDA_Get_Sapolygonkey_from_intersection_with_sastatusmap_WktWgs84` | WKT, EPSG:4326 | `sapolygonkey` | `sapolygon` geometry joined to `sastatusmap` by `areasymbol` | No active direct call found | Implementable when both relations and join key exist |
 | `SDA_Get_Sapolygonkey_from_intersection_with_sastatusmap_WktWm` | WKT, EPSG:3857 | `sapolygonkey` | `sapolygon` geometry joined to `sastatusmap` by `areasymbol` | No active direct call found | Implementable when both relations and join key exist |
 | `SDA_Get_Mupolygonkey_from_intersection_with_WktWgs84` | WKT, EPSG:4326 | `mupolygonkey` | `mupolygon` geometry and key | No active direct call found | Implementable when key is present |
@@ -97,13 +97,15 @@ paths. soilDB's active query construction is in
 vignette calls at `sda.Rmd:1178-1186` are usage examples/documented patterns,
 not additional functions called by package implementation code.
 
-The existing server support is deliberately narrower than the catalog:
-`src/transpiler/spatial.rs:11, 65-100, 136-238` dispatches only
-`SDA_Get_Mukey_from_intersection_with_WktWgs84`; `tests/mukey_contract.rs:43-101`
-executes real SpatiaLite queries for it and checks its result. Geometry layer
-and CRS metadata are discovered through `src/spatial.rs:5-59, 105-120`.
-Therefore every other matrix row is a prospective target, not an implicit
-support promise.
+The server implements all four active-client intersection TVFs: mukey and
+sapolygonkey, each with WGS84 and Web-Mercator WKT inputs.
+`tests/sda_get_contract.rs` executes configured SpatiaLite queries for all four
+variants and checks key names, SQLite key types, and intersecting results.
+`tests/mukey_contract.rs:43-101` retains coverage of the original WGS84 mukey
+query shapes. Geometry layer and CRS metadata are discovered through
+`src/spatial.rs` and the active intersection dispatch in
+`src/transpiler/spatial.rs`. Other matrix rows remain prospective targets, not
+an implicit support promise.
 
 The source-data model bounds implementation. `sapolygon` and `mupolygon` are
 the primary layers; `mupoint`, `muline`, `featline`, `featpoint`, and

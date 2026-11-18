@@ -67,6 +67,9 @@ pub fn requires_spatial(sql: &str) -> bool {
         "stgeomfromtext",
         "stintersects",
         "sda_get_mukey_from_intersection_with_wktwgs84",
+        "sda_get_mukey_from_intersection_with_wktwm",
+        "sda_get_sapolygonkey_from_intersection_with_wktwgs84",
+        "sda_get_sapolygonkey_from_intersection_with_wktwm",
         "spatialite_",
     ]
     .iter()

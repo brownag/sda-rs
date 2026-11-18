@@ -9,6 +9,30 @@ use crate::spatial::SpatialCapability;
 use super::TranspilerError;
 
 const MUKEY_FUNCTION: &str = "SDA_Get_Mukey_from_intersection_with_WktWgs84";
+const MUKEY_WM_FUNCTION: &str = "SDA_Get_Mukey_from_intersection_with_WktWm";
+const SAPOLYGONKEY_FUNCTION: &str = "SDA_Get_Sapolygonkey_from_intersection_with_WktWgs84";
+const SAPOLYGONKEY_WM_FUNCTION: &str = "SDA_Get_Sapolygonkey_from_intersection_with_WktWm";
+
+#[derive(Clone)]
+struct IntersectionTarget {
+    function: &'static str,
+    table: &'static str,
+    key: &'static str,
+    input_srid: i32,
+    column: String,
+    feature_srid: i32,
+}
+
+fn intersection_spec(name: &str) -> Option<(&'static str, &'static str, &'static str, i32)> {
+    [
+        (MUKEY_FUNCTION, "mupolygon", "mukey", 4326),
+        (MUKEY_WM_FUNCTION, "mupolygon", "mukey", 3857),
+        (SAPOLYGONKEY_FUNCTION, "sapolygon", "sapolygonkey", 4326),
+        (SAPOLYGONKEY_WM_FUNCTION, "sapolygon", "sapolygonkey", 3857),
+    ]
+    .into_iter()
+    .find(|(function, _, _, _)| function.eq_ignore_ascii_case(name))
+}
 
 pub(super) fn parser_compatibility(sql: &str) -> String {
     const NEEDLE: &str = "geometry::STGeomFromText";
@@ -64,17 +88,6 @@ pub(super) fn rewrite(
     let mut output = Vec::with_capacity(statements.len());
     for statement in statements {
         let spatial_statement = statement.dfs().any(is_spatial_expression);
-        let has_mukey = statement.dfs().any(|node| matches!(node, Expression::Function(function) if function.name.eq_ignore_ascii_case(MUKEY_FUNCTION)));
-        let mukey_metadata = if has_mukey {
-            capability.geometry_metadata_for_table("mupolygon")
-        } else {
-            None
-        };
-        if has_mukey && mukey_metadata.is_none() && capability.geometry_override().is_none() {
-            return Err(TranspilerError::Rejected(
-                "mukey TVF requires geometry metadata for mupolygon".into(),
-            ));
-        }
         let geometry_column = if spatial_statement {
             capability.effective_geometry_column().ok_or_else(|| {
                 TranspilerError::Rejected(
@@ -85,15 +98,39 @@ pub(super) fn rewrite(
         } else {
             "geom"
         };
-        let target = MukeyTarget {
-            column: capability
-                .geometry_override()
-                .or_else(|| mukey_metadata.map(|metadata| metadata.geometry_column.as_str()))
-                .unwrap_or(geometry_column)
-                .to_owned(),
-            srid: mukey_metadata.map_or(4326, |metadata| metadata.srs_id),
-        };
-        let statement = transform_all(statement, &|node| expand_tables(node, &target))
+        let mut targets = Vec::new();
+        for node in statement.dfs() {
+            if let Expression::Function(function) = node {
+                if let Some((name, table, key, input_srid)) = intersection_spec(&function.name) {
+                    if targets
+                        .iter()
+                        .any(|target: &IntersectionTarget| target.function == name)
+                    {
+                        continue;
+                    }
+                    let metadata = capability.geometry_metadata_for_table(table);
+                    if metadata.is_none() && capability.geometry_override().is_none() {
+                        return Err(TranspilerError::Rejected(format!(
+                            "{name} TVF requires geometry metadata for {table}"
+                        )));
+                    }
+                    targets.push(IntersectionTarget {
+                        function: name,
+                        table,
+                        key,
+                        input_srid,
+                        column: capability
+                            .geometry_override()
+                            .or_else(|| metadata.map(|metadata| metadata.geometry_column.as_str()))
+                            .or_else(|| capability.effective_geometry_column())
+                            .unwrap_or(geometry_column)
+                            .to_owned(),
+                        feature_srid: metadata.map_or(4326, |metadata| metadata.srs_id),
+                    });
+                }
+            }
+        }
+        let statement = transform_all(statement, &|node| expand_tables(node, &targets))
             .map_err(classify_error)?;
         output.push(
             transform_all(statement, &|node| rewrite_node(node, capability))
@@ -101,11 +138,6 @@ pub(super) fn rewrite(
         );
     }
     Ok(output)
-}
-
-struct MukeyTarget {
-    column: String,
-    srid: i32,
 }
 
 /// Unsupported input shapes are validation failures; everything else is a generation failure.
@@ -127,15 +159,15 @@ fn require_geom_from_text_arity(arg_count: usize) -> Result<(), polyglot_sql::Er
 
 fn expand_tables(
     node: Expression,
-    target: &MukeyTarget,
+    targets: &[IntersectionTarget],
 ) -> Result<Expression, polyglot_sql::Error> {
     let Expression::Select(mut select) = node else {
         return Ok(node);
     };
     if select.from.is_none() && select.expressions.len() == 1 {
-        if matches!(&select.expressions[0], Expression::Function(function) if function.name.eq_ignore_ascii_case(MUKEY_FUNCTION))
+        if matches!(&select.expressions[0], Expression::Function(function) if intersection_spec(&function.name).is_some())
         {
-            let derived = expand_source(select.expressions[0].clone(), target)?;
+            let derived = expand_source(select.expressions[0].clone(), targets)?;
             let mut parsed = Dialect::get(DialectType::TSQL).parse("SELECT * FROM placeholder")?;
             let Expression::Select(mut template) = parsed.remove(0) else {
                 unreachable!()
@@ -148,27 +180,26 @@ fn expand_tables(
     }
     if let Some(from) = &mut select.from {
         for source in &mut from.expressions {
-            *source = expand_source(source.clone(), target)?;
+            *source = expand_source(source.clone(), targets)?;
         }
     }
     for join in &mut select.joins {
-        join.this = expand_source(join.this.clone(), target)?;
+        join.this = expand_source(join.this.clone(), targets)?;
     }
     Ok(Expression::Select(select))
 }
 
 fn expand_source(
     source: Expression,
-    target: &MukeyTarget,
+    targets: &[IntersectionTarget],
 ) -> Result<Expression, polyglot_sql::Error> {
-    let srid = target.srid;
     let (function, alias) = match &source {
-        Expression::Function(function) if function.name.eq_ignore_ascii_case(MUKEY_FUNCTION) => {
+        Expression::Function(function) if intersection_spec(&function.name).is_some() => {
             (function, None)
         }
         Expression::Alias(alias) => match &alias.this {
             Expression::Function(function)
-                if function.name.eq_ignore_ascii_case(MUKEY_FUNCTION)
+                if intersection_spec(&function.name).is_some()
                     && alias.column_aliases.is_empty() =>
             {
                 (function, Some(alias.alias.clone()))
@@ -177,15 +208,35 @@ fn expand_source(
         },
         _ => return Ok(source),
     };
+    let target = targets
+        .iter()
+        .find(|target| target.function.eq_ignore_ascii_case(&function.name))
+        .ok_or_else(|| {
+            polyglot_sql::Error::InvalidInput("missing intersection target metadata".into())
+        })?;
     if function.args.len() != 1
         || !matches!(&function.args[0], Expression::Literal(literal) if matches!(literal.as_ref(), Literal::String(_)))
     {
-        return Err(polyglot_sql::Error::InvalidInput("mukey TVF requires one literal WKT argument; correlated and other expressions are unsupported".into()));
+        return Err(polyglot_sql::Error::InvalidInput(format!("{} TVF requires one literal WKT argument; correlated and other expressions are unsupported", target.function)));
     }
     let argument = function.args[0].clone();
-    let mut parsed = Dialect::get(DialectType::TSQL).parse(
-        &format!("SELECT * FROM (SELECT DISTINCT mp.mukey FROM mupolygon AS mp WHERE mp.areasymbol <> 'US' AND ST_Intersects(ST_Transform(GeomFromGPB(mp.__geom__), {srid}), GeomFromText(__wkt__, 4326))) AS __sda")
-    )?;
+    let predicate = if target.function == MUKEY_FUNCTION {
+        format!("ST_Intersects(ST_Transform(GeomFromGPB(mp.__geom__), {}), GeomFromText(__wkt__, 4326))", target.feature_srid)
+    } else {
+        format!(
+            "ST_Intersects(ST_Transform(GeomFromGPB(mp.__geom__), {}), GeomFromText(__wkt__, {}))",
+            target.input_srid, target.input_srid
+        )
+    };
+    let filter = if target.table == "mupolygon" {
+        "mp.areasymbol <> 'US' AND "
+    } else {
+        ""
+    };
+    let mut parsed = Dialect::get(DialectType::TSQL).parse(&format!(
+        "SELECT * FROM (SELECT DISTINCT mp.{} FROM {} AS mp WHERE {}{}) AS __sda",
+        target.key, target.table, filter, predicate
+    ))?;
     let Expression::Select(mut outer) = parsed.remove(0) else {
         unreachable!()
     };
@@ -212,11 +263,11 @@ fn expand_source(
 
 fn is_spatial_expression(expression: &Expression) -> bool {
     match expression {
-        Expression::Function(function) => function.name.eq_ignore_ascii_case(MUKEY_FUNCTION),
+        Expression::Function(function) => intersection_spec(&function.name).is_some(),
         Expression::MethodCall(call) => {
             call.method.name.eq_ignore_ascii_case("STIntersects")
                 || call.method.name.eq_ignore_ascii_case("STGeomFromText")
-                || call.method.name.eq_ignore_ascii_case(MUKEY_FUNCTION)
+                || intersection_spec(&call.method.name).is_some()
         }
         _ => false,
     }
@@ -227,12 +278,12 @@ fn rewrite_node(
     capability: &SpatialCapability,
 ) -> Result<Expression, polyglot_sql::Error> {
     Ok(match node {
-        Expression::MethodCall(call) if call.method.name.eq_ignore_ascii_case(MUKEY_FUNCTION) => {
+        Expression::MethodCall(call) if intersection_spec(&call.method.name).is_some() => {
             return Err(polyglot_sql::Error::InvalidInput(
                 "qualified mukey TVF syntax is unsupported".into(),
             ));
         }
-        Expression::Function(function) if function.name.eq_ignore_ascii_case(MUKEY_FUNCTION) => {
+        Expression::Function(function) if intersection_spec(&function.name).is_some() => {
             return Err(polyglot_sql::Error::InvalidInput(
                 "SDA_Get_Mukey_from_intersection_with_WktWgs84 is unsupported in this AST context"
                     .into(),
