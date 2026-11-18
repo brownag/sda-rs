@@ -28,7 +28,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 | 4 | 6.4.1–6.4.3 diagnostic attempts; 6.4.4 implementation; 6.4.5 regression correction | done | `8a54496`, `d4d867b` |
 | 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | done | `84e0138` |
 | 6 | 6.6.1 implementation; 6.6.2 diagnosis; 6.6.3 fixture correction; 6.6.4 format and boundary verification | done | `9c23a78` |
-| 7 | 6.7.1 One-key WKT TVFs; 6.7.2 compile recovery; 6.7.3 HTTP 500 diagnostic; 6.7.4 generated SQLite diagnosis / evidence-led fix | blocked on configured contract failure; 6.7.4 pending approval | — |
+| 7 | 6.7.1 One-key WKT TVFs; 6.7.2 compile recovery; 6.7.3 HTTP 500 diagnostic; 6.7.4 generated SQLite diagnosis / evidence-led fix | implementation verified; boundary review pending | `23dea36` |
 | 8 | 6.8.1 Table-input WKT TVFs/macros | blocked on Wave 7 | — |
 | 9 | 6.9.1 soilDB/Iowa integration harness | blocked on Waves 7–8 | — |
 
@@ -203,15 +203,14 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Gate:** no retry, behavior change, or acceptance run. A behavior fix requires separate approval; Waves 7–9 remain blocked.
 
 ## 6.7.4
-- **Status:** diagnostic run stopped as inconclusive; no implementation change.
-- **Diagnostic:** ran the prescribed command once. The test completed, but all three `'inside'`, `11`, and `'11'` cases returned HTTP 400 with `{"error":"SQL rejected: spatial rewrite requires GeoPackage geometry metadata or a geometry column override"}`. Preparation failed before the callback could emit generated SQL, so no SQL/status/body evidence concerning `MAX` was obtained.
-- **Cause:** fixture created `gpkg_geometry_columns` without the geometry extension metadata expected by `SpatialCapability`; the request-local route and callback therefore rejected before transpilation. The task requires stopping rather than retrying when the diagnostic lacks evidence.
-- **Cleanup:** removed temporary diagnostic test; `[DEBUG-674]` and `debug_674_scalar_mukey` absent. All four baseline hashes match: `docs/sda-get-support.md` `e54c42b04df09620c57d6875099228d086475ab056325ad92e9a662c6a7a9ec3`; `src/spatial.rs` `a7ebc463b5534fde0cf58d38e77bab40a446bf0a194c958670e1797ecadb9b2d`; `src/transpiler/spatial.rs` `463c367b021b57e3d3cf25aba527cb5152e29de3c64198ca4a33bf6764e07307`; `tests/sda_get_contract.rs` `676cd9890525c6fa8c044c189f7636b73e8ee5456d951c834af6eba2e3f8d2ca`. `git diff --check` passed; original four-file Wave 7 diff preserved.
-- **Disposition:** no cause established, no scalar rewrite fix, no focused regression, and no configured contract rerun. Waves 7–9 remain blocked pending further authorization.
+- **Status:** implementation and configured acceptance complete; implementation commit `23dea36`.
+- **SQL diagnosis:** T-SQL parsing converted template `CAST(... AS TEXT)` into `VARCHAR(MAX)`, and SQLite failed near `MAX`. Direct key equality removes this invalid type syntax; the error was not specific to the `'inside'` input.
+- **NULL diagnosis:** `NULL` is parsed as `Expression::Null`, not `Expression::Literal`. Scalar WKT validation now accepts either AST form; SQL equality with NULL yields the expected empty result.
+- **Fixture diagnosis/correction:** SpatiaLite initialization did not create `gpkg_geometry_columns` in this fixture. The test now creates its GeoPackage metadata table once and inserts geometry metadata before starting the router. Earlier recorded inference that initialization created this table was incorrect.
+- **Regression:** focused transpiler assertions cover `'inside'`, numeric `11`, and string `'11'` with generated SQL free of `VARCHAR`/`MAX`; configured contract covers actual WKT, aliases, CRS variants, NULL/no-match, and prior intersection cases.
+- **Acceptance:** configured `cargo test --test sda_get_contract -- --nocapture --test-threads=1` passed. Configured full `cargo test` passed (62 unit tests and all integration/doc targets). `cargo fmt --check` and `git diff --check` passed after formatting. `cargo clippy --all-targets` passed with warnings for `needless_question_mark` in `src/executor/sqlite.rs` and `collapsible_if` in the existing `expand_tables` condition.
+- **Disposition:** Wave 7 implementation verified and committed. Waves 8–9 remain gated on the separate Wave 7 boundary review.
 
 ## Scalar mukey WKT follow-up
-- **Change:** replaced the T-SQL `VARCHAR(255)` comparison template with direct key equality and removed the now-unused key-type flag. Added a transpiler regression for `'inside'`, `11`, and `'11'`, asserting argument substitution and absence of `VARCHAR`/`MAX`. Added a diagnostic fixture row with `mukey = '11'` after earlier intersection assertions, keeping `mukey` distinct from `mupolygonkey`.
-- **Focused test:** `cargo test scalar_mukey_wkt_uses_sqlite_compatible_key_comparison -- --nocapture` passed.
-- **Configured contract:** ran once with `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract -- --nocapture --test-threads=1`; failed at the first request with HTTP 400 (expected 200), exit 101. The shared query helper asserts status before capturing the body, so the failing response body and later scalar cases were not observed.
-- **Disposition:** stopped at the first configured failure; no retry, formatter, diff check, further edits, or commit. Wave 7 remains blocked.
-- **Fixture diagnosis:** `InitSpatialMetaData(1)` already creates SpatiaLite's `gpkg_geometry_columns`; the test fixture's subsequent duplicate `CREATE TABLE` fails before inserting the listed geometry metadata. The router therefore sees an empty metadata table and returns HTTP 400 on the first spatial request. Planned correction: remove only the duplicate table creation and insert fixture rows into the initialized metadata table.
+- **Correction:** direct key equality and acceptance of literal/NULL AST variants. Test fixture includes a distinct `mukey = '11'` row, separate from `mupolygonkey = 11`.
+- **Verification:** configured focused contract and full configured suite pass as recorded above. No Iowa or external data was touched.
