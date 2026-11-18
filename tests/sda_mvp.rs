@@ -124,11 +124,15 @@ async fn spatial_tvf_executes_when_test_extension_is_configured() {
         let _guard = unsafe { rusqlite::LoadExtensionGuard::new(&connection) }.unwrap();
         unsafe { connection.load_extension(&extension, None) }.unwrap();
     }
+    let initialized: i32 = connection
+        .query_row("SELECT InitSpatialMetaData(1)", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(initialized, 1, "SpatiaLite metadata initialization failed");
     connection
         .execute_batch(
             "CREATE TABLE gpkg_geometry_columns(table_name TEXT, column_name TEXT, srs_id INTEGER);
          INSERT INTO gpkg_geometry_columns VALUES ('soil_map', 'soil_shape', 26910);
-         INSERT INTO gpkg_geometry_columns VALUES ('mupolygon', 'shape_custom', 3857);
+         INSERT INTO gpkg_geometry_columns VALUES ('mupolygon', 'shape_custom', 4326);
          CREATE TABLE mupolygon(mukey TEXT, areasymbol TEXT, shape_custom BLOB);
          CREATE TABLE mapunit(mukey TEXT);
          INSERT INTO mapunit VALUES ('1'), ('2'), ('3');
