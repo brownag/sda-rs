@@ -20,7 +20,7 @@ Plan: `planning/EXECUTION_PLAN_1.md`
 | 3 | 1.2.2 | done |
 | 4 | 1.3.2 | done |
 | 5 | 1.3.1 | done |
-| 6 | 1.4.1, 1.4.2 | pending |
+| 6 | 1.4.1, 1.4.2 | done |
 | 7 | 1.5.1 | pending |
 
 ## Task reports
@@ -106,3 +106,4 @@ Plan: `planning/EXECUTION_PLAN_1.md`
 - Review follow-up: `execute_query_blocking` now provides capability/metadata to a pre-transpile callback on the same request-local connection; spatial-required source or generated SQL is rejected with structured `SpatialError::Unavailable` before SQLite execution.
 - Follow-up tests: `cargo test spatial::` — 5 passed; `cargo test routes::` — 3 passed; `cargo fmt --check` and `git diff --check` passed.
 - Follow-up implementation and planning/report commits are recorded separately.
+- Orchestrator wave-boundary verification after both tasks: `cargo fmt --check` passed; `cargo test` passed (27 passed, 0 failed; binary/doc suites 0 tests).
