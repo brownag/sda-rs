@@ -54,6 +54,7 @@ impl SqliteExecutor {
 pub enum ExecutorError {
     Sqlite(rusqlite::Error),
     Spatial(spatial::SpatialError),
+    Preparation(String),
     Join(tokio::task::JoinError),
 }
 
@@ -62,6 +63,7 @@ impl fmt::Display for ExecutorError {
         match self {
             Self::Sqlite(error) => write!(f, "SQLite execution failed: {error}"),
             Self::Spatial(error) => write!(f, "{error}"),
+            Self::Preparation(error) => write!(f, "SQL preparation failed: {error}"),
             Self::Join(error) => write!(f, "SQLite worker failed: {error}"),
         }
     }
@@ -110,11 +112,63 @@ pub fn execute_spatial(
         Connection::open(path)?
     };
     let spatial = spatial::initialize(&connection, extension, geometry_override)?;
+    if statements
+        .iter()
+        .any(|statement| spatial::requires_spatial(statement))
+    {
+        spatial.require_spatial()?;
+    }
     let result_sets = execute_on(&connection, statements)?;
     Ok(ExecutionOutput {
         result_sets,
         spatial,
     })
+}
+
+/// Initialize request-local spatial state, then let the caller prepare SQL
+/// while the capability/GeoPackage metadata is available, before execution.
+pub async fn execute_query_blocking<F>(
+    path: String,
+    query: String,
+    extension: Option<String>,
+    geometry_override: Option<String>,
+    prepare: F,
+) -> Result<ExecutionOutput, ExecutorError>
+where
+    F: FnOnce(&SpatialCapability, &str) -> Result<Vec<String>, String> + Send + 'static,
+{
+    Ok(tokio::task::spawn_blocking(move || {
+        let connection = open_connection(&path)?;
+        let spatial = spatial::initialize(
+            &connection,
+            extension.as_deref(),
+            geometry_override.as_deref(),
+        )?;
+        if spatial::requires_spatial(&query) {
+            spatial.require_spatial()?;
+        }
+        let statements = prepare(&spatial, &query).map_err(ExecutorError::Preparation)?;
+        if statements
+            .iter()
+            .any(|statement| spatial::requires_spatial(statement))
+        {
+            spatial.require_spatial()?;
+        }
+        let result_sets = execute_on(&connection, &statements)?;
+        Ok::<_, ExecutorError>(ExecutionOutput {
+            result_sets,
+            spatial,
+        })
+    })
+    .await??)
+}
+
+fn open_connection(path: &str) -> Result<Connection, rusqlite::Error> {
+    if path == ":memory:" {
+        Connection::open_in_memory()
+    } else {
+        Connection::open(path)
+    }
 }
 
 /// Run SQLite work on Tokio's blocking pool.

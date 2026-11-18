@@ -38,6 +38,20 @@ impl SpatialCapability {
     }
 }
 
+/// Conservatively recognizes spatial operations currently reserved for the
+/// spatial rewrite path; ordinary SQL remains executable without SpatiaLite.
+pub fn requires_spatial(sql: &str) -> bool {
+    let sql = sql.to_ascii_lowercase();
+    [
+        "stgeomfromtext",
+        "stintersects",
+        "sda_get_mukey_from_intersection_with_wktwgs84",
+        "spatialite_",
+    ]
+    .iter()
+    .any(|marker| sql.contains(marker))
+}
+
 #[derive(Debug)]
 pub enum SpatialError {
     Unavailable,
@@ -144,6 +158,7 @@ pub fn initialize(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::executor::{execute_query_blocking, execute_spatial, ExecutorError};
 
     #[test]
     fn ordinary_sqlite_has_no_spatial_metadata_and_needs_no_extension() {
@@ -190,5 +205,56 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(error, SpatialError::ExtensionLoad { .. }));
+    }
+
+    #[test]
+    fn spatial_statement_fails_with_structured_capability_error() {
+        let error = execute_spatial(
+            ":memory:",
+            &["SELECT STGeomFromText('POINT(0 0)', 4326)".into()],
+            None,
+            None,
+        )
+        .unwrap_err();
+        assert!(matches!(
+            error,
+            ExecutorError::Spatial(SpatialError::Unavailable)
+        ));
+    }
+
+    #[tokio::test]
+    async fn preparation_receives_metadata_before_transpiling_query() {
+        let path =
+            std::env::temp_dir().join(format!("sda-spatial-prepare-{}.sqlite", std::process::id()));
+        let connection = Connection::open(&path).unwrap();
+        connection.execute_batch(
+            "CREATE TABLE gpkg_geometry_columns (table_name TEXT, column_name TEXT, geometry_type_name TEXT, srs_id INTEGER, z TINYINT, m TINYINT);
+             INSERT INTO gpkg_geometry_columns VALUES ('soil_map', 'shape', 'MULTIPOLYGON', 4326, 0, 0);",
+        ).unwrap();
+        drop(connection);
+        let output = execute_query_blocking(
+            path.to_string_lossy().into_owned(),
+            "SELECT 1".into(),
+            None,
+            Some("shape_override".into()),
+            |capability, query| {
+                assert_eq!(query, "SELECT 1");
+                let metadata = capability.geometry_metadata().unwrap();
+                assert_eq!(metadata.table_name, "soil_map");
+                assert_eq!(metadata.srs_id, 4326);
+                assert_eq!(
+                    capability.effective_geometry_column(),
+                    Some("shape_override")
+                );
+                Ok(vec!["SELECT 1".into()])
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            output.result_sets[0].rows,
+            [vec![rusqlite::types::Value::Integer(1)]]
+        );
+        std::fs::remove_file(path).unwrap();
     }
 }

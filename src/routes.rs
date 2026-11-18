@@ -80,19 +80,19 @@ pub async fn post(State(state): State<AppState>, request: Request) -> Response {
         "XML" => Format::Xml,
         _ => return error(StatusCode::BAD_REQUEST, "Unsupported format"),
     };
-    let statements = match transpiler::transpile(&query) {
-        Ok(statements) => statements,
-        Err(err) => return error(StatusCode::BAD_REQUEST, err.to_string()),
-    };
-    let output = match executor::execute_spatial_blocking(
+    let output = match executor::execute_query_blocking(
         state.database_path,
-        statements,
+        query,
         state.spatial_extension,
         state.geometry_column,
+        |_, query| transpiler::transpile(query).map_err(|err| err.to_string()),
     )
     .await
     {
         Ok(output) => output,
+        Err(executor::ExecutorError::Preparation(message)) => {
+            return error(StatusCode::BAD_REQUEST, message)
+        }
         Err(err) => return error(StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
     };
     let body = serializer::serialize(&output.result_sets, format);
@@ -286,5 +286,21 @@ mod tests {
             Some("shape_override")
         );
         fs::remove_file(path).unwrap();
+    }
+
+    #[tokio::test]
+    async fn spatial_query_without_extension_returns_structured_error() {
+        let response = send(
+            ":memory:",
+            "/Tabular/post.rest",
+            "application/json",
+            r#"{"query":"SELECT STGeomFromText('POINT(0 0)', 4326)"}"#,
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        assert!(std::str::from_utf8(&body)
+            .unwrap()
+            .contains("Spatial capability unavailable: SpatiaLite is not loaded"));
     }
 }
