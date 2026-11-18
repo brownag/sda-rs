@@ -1,30 +1,39 @@
 # Project Goals (`planning/GOALS.md`)
 
 Last Updated: 2026-11-18
-Source State: STATE_4.md (Plan 4 complete); STATE_3.md (Plan 3 complete)
+Source State: STATE_5.md (Plan 5 not yet executed); STATE_4.md (Plan 4 complete)
 
 ## Circled Goal (Active)
 
 - **[G32]** SQLite execution enforces an explicit, tested security boundary for submitted SQL, extension loading, registered UDFs, and resource use.
-  - Why now: G1's SQLite/GeoPackage MVP acceptance is complete. User-submitted SQL is the service boundary; explicit safeguards reduce system-wide risk before broadening query or spatial capability.
-  - Exit criteria: Document the authorizer allow/deny policy, trusted optional extension loading, conservative UDF flags, and resource limits; test each policy while preserving G1 behavior. Initial limits: 2 MiB SQL text, 100,000 rows/request, 64 MiB serialized output, 60 seconds execution, and 64 MiB SQLite string/BLOB length.
-  - First action: Finalize Plan 5 for the authorizer policy, extension/UDF tests, and resource caps; then execute its approved waves.
+  - Why now: It is the highest-leverage pre-hosting task: submitted SQL crosses the service boundary, and explicit safeguards reduce risk before real SDA clients are pointed at the server.
+  - Exit criteria: Complete Plan 5 and pass its acceptance checks: persistent writes are rejected without side effects; required `#temp` workflows and trusted configured extension loading work; UDF invocation policy is tested; SQL, row, output, execution-time, and SQLite string/BLOB limits are enforced. Preserve G1 behavior and pass the configured full test suite.
+  - First action: Resume Plan 5 at Wave 1; `STATE_5.md` still lists all waves as pending, so the earlier configured test pass is baseline evidence, not G32 completion.
 
 ## Sequenced Goals (Dependency DAG)
 
 - **[G29]** The supported spatial SQL contract documents method coverage, NULL/error behavior, CRS assumptions, and intentional semantic differences.
-  - Depends on: completed G1; establishes the compatibility boundary for spatial expansion.
+  - Depends on: G32.
+  - Why now: First spatial readiness goal after the security boundary; define expected behavior before expanding spatial support or testing against live SDA applications.
+  - Exit criteria: Document supported methods, NULL/error behavior, CRS assumptions, and intentional semantic differences, with tests or examples for the documented contract.
+  - First action: Inventory current spatial rewrites and runtime behavior against the scoping spec.
 - **[G30]** GeoPackageBinary decoding and validation cover headers, envelope flags, empty geometries, malformed blobs, and WKB extraction.
-  - Depends on: completed G1.
+  - Depends on: G29.
+  - Why now: Establishes reliable geometry inputs for later spatial compatibility work and is one of the three agreed pre-hosting goals.
+  - Exit criteria: Header/envelope parsing, empty geometries, malformed blobs, and WKB extraction have explicit behavior and focused tests.
+  - First action: Inspect current geometry handling and identify missing decoding/validation cases.
 - **[G31]** Spatial metadata is resolved for every referenced table and geometry column, and missing or ambiguous metadata is rejected explicitly.
-  - Depends on: completed G20; needed by G28.
+  - Depends on: G30.
 - **[G33]** A focused spike evaluates terrio's geometry parsing, operations, CRS handling, and memory behavior against a representative GeoPackage fixture.
   - Depends on: G29, G30.
   - Exit criteria: Record supported APIs and gaps; do not adopt terrio as a SQL engine without evidence.
+- **[G11]** The bounded `SDA_Get_*` subset used by soilDB (R) and the soildb Python package is supported.
+  - Depends on: G32, G29, G30.
+  - Why now: These package call sites are a concrete path toward exercising the server with real SDA clients; prioritize only the catalog entries those clients actually use.
+  - Exit criteria: Inventory package versions and `SDA_Get_*` call sites, select a bounded subset, and add contract tests for each supported call; record unsupported calls and reasons.
+  - First action: Search the soilDB and soildb package sources/docs for `SDA_Get_*` usage and classify each call by implementation effort.
 - **[G12]** The broader CLR spatial method set—including `STContains`, `STWithin`, `STIntersection`, `STBuffer`, `STArea`, and `STAsText`—is supported with documented unit/SRID semantics.
   - Depends on: G29; AOI construction/intersection MVP behavior is covered by Plan 4.
-- **[G11]** The documented `SDA_Get_*` function catalog is supported, including table-valued macros and table-input variants.
-  - Depends on: completed G1 and mukey intersection coverage; define a bounded function subset before implementation.
 
 ## Independent Backlog
 
@@ -45,6 +54,10 @@ Source State: STATE_4.md (Plan 4 complete); STATE_3.md (Plan 3 complete)
 
 ## Deferred
 
+- **[G34]** The server is hosted and validated against SDA applications using representative real client workflows.
+  - Depends on: completed G32, G29, and G30; prioritize G11's package-used function subset before attempting these client workflows.
+  - Trigger: Reconsider after the first three goals are complete and a bounded package-use compatibility surface is identified.
+  - Exit criteria: Run representative soilDB and soildb Python workflows against the hosted server; record pass/fail gaps and operational issues.
 - **[G28]** Native SQLite spatial acceleration.
   - Depends on: G29, G30, G31, G33.
   - Trigger: Reconsider only after those prerequisites validate the geometry representation, predicate semantics, exact evaluation, and R-tree assumptions.
@@ -74,6 +87,12 @@ Source State: STATE_4.md (Plan 4 complete); STATE_3.md (Plan 3 complete)
 - **[G27]** Rewrite non-compliant historical commit subjects containing wave/phase numbers.
   - Status: Pruned.
   - Reason: Rewriting feature-branch history is destructive; revisit only if the branch is unpushed and the user requests it.
+
+## Ranking Rationale
+
+- Pre-hosting critical path: **G32 → G29 → G30**. G32 closes the SQL execution boundary; G29 defines spatial compatibility; G30 validates the geometry representation. Hosting/app validation is deferred until all three are complete.
+- G11 is the next client-compatibility candidate: first inventory the `SDA_Get_*` calls used by soilDB and the soildb Python package, then support a deliberately bounded subset rather than the entire catalog.
+- G31/G33 and broader spatial methods remain sequenced behind the contract/geometry foundations; G28 remains deferred until its correctness prerequisites are complete.
 
 ## Decisions (2026-11-18)
 
