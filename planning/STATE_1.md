@@ -35,6 +35,7 @@ Plan: `planning/EXECUTION_PLAN_1.md`
 - `git diff --check`: passed.
 - Deviations: used std-only JSON encoding because `serde_json` is not a dependency and adding/changing dependency files was outside task scope.
 - Planning and implementation commits are separate; no remote actions.
+- Orchestrator wave-boundary verification: `cargo fmt --check` passed; `cargo test` passed (13 passed, 0 failed; binary/doc suites 0 tests).
 
 ## 1.1.1
 - Status: implemented and verified on `feature/sqlite-mvp`.
