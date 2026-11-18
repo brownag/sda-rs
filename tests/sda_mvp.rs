@@ -3,21 +3,18 @@ use axum::{
     http::{Request, StatusCode},
 };
 use rusqlite::Connection;
-use std::{
-    fs,
-    sync::atomic::{AtomicUsize, Ordering},
-};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tower::ServiceExt;
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[tokio::test]
 async fn router_keeps_nonspatial_query_working_and_reports_spatial_unavailable() {
-    let path = std::env::temp_dir().join(format!(
-        "sda-mvp-{}-{}.sqlite",
+    let path = format!(
+        "file:sda_mvp_{}_{}?mode=memory&cache=shared",
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
+    );
     let connection = Connection::open(&path).unwrap();
     connection
         .execute_batch(
@@ -38,10 +35,9 @@ async fn router_keeps_nonspatial_query_working_and_reports_spatial_unavailable()
          INSERT INTO mupolygon VALUES ('1', NULL);",
         )
         .unwrap();
-    drop(connection);
 
     let config = sda_rs::config::Config {
-        backend_url: path.to_string_lossy().into_owned(),
+        backend_url: path,
         port: 0,
         spatial_extension: None,
         geometry_column: None,
@@ -79,7 +75,6 @@ async fn router_keeps_nonspatial_query_working_and_reports_spatial_unavailable()
     assert_eq!(spatial.status(), StatusCode::INTERNAL_SERVER_ERROR);
     let body = to_bytes(spatial.into_body(), usize::MAX).await.unwrap();
     assert!(String::from_utf8_lossy(&body).contains("Spatial capability unavailable"));
-    fs::remove_file(path).unwrap();
 }
 
 #[tokio::test]
@@ -153,11 +148,11 @@ async fn router_rejects_mukey_tvf_without_mupolygon_metadata_or_override() {
         eprintln!("SDA_TEST_SPATIALITE not set; mukey metadata route regression not tested");
         return;
     };
-    let path = std::env::temp_dir().join(format!(
-        "sda-mukey-metadata-{}-{}.sqlite",
+    let path = format!(
+        "file:sda_mukey_metadata_{}_{}?mode=memory&cache=shared",
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
+    );
     let connection = Connection::open(&path).unwrap();
     connection
         .execute_batch(
@@ -165,10 +160,9 @@ async fn router_rejects_mukey_tvf_without_mupolygon_metadata_or_override() {
              INSERT INTO gpkg_geometry_columns VALUES ('soil_map', 'soil_shape', 26910);",
         )
         .unwrap();
-    drop(connection);
 
     let app = sda_rs::app(sda_rs::config::Config {
-        backend_url: path.to_string_lossy().into_owned(),
+        backend_url: path,
         port: 0,
         spatial_extension: Some(extension),
         geometry_column: None,
@@ -194,7 +188,6 @@ async fn router_rejects_mukey_tvf_without_mupolygon_metadata_or_override() {
         "{}",
         String::from_utf8_lossy(&body)
     );
-    fs::remove_file(path).unwrap();
 }
 
 #[tokio::test]
@@ -203,11 +196,11 @@ async fn spatial_tvf_executes_when_test_extension_is_configured() {
         eprintln!("SDA_TEST_SPATIALITE not set; live spatial execution not tested");
         return;
     };
-    let path = std::env::temp_dir().join(format!(
-        "sda-mvp-spatial-{}-{}.sqlite",
+    let path = format!(
+        "file:sda_mvp_spatial_{}_{}?mode=memory&cache=shared",
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
+    );
     let connection = Connection::open(&path).unwrap();
     {
         let _guard = unsafe { rusqlite::LoadExtensionGuard::new(&connection) }.unwrap();
@@ -231,9 +224,8 @@ async fn spatial_tvf_executes_when_test_extension_is_configured() {
            ('3', 'CA001', AsGPB(GeomFromText('POINT(1 1)', 4326)));",
         )
         .unwrap();
-    drop(connection);
     let app = sda_rs::app(sda_rs::config::Config {
-        backend_url: path.to_string_lossy().into_owned(),
+        backend_url: path,
         port: 0,
         spatial_extension: Some(extension),
         geometry_column: None,
@@ -251,5 +243,4 @@ async fn spatial_tvf_executes_when_test_extension_is_configured() {
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(to_bytes(response.into_body(), usize::MAX).await.unwrap(), r#"{"Table":[["1"]]}"#);
     }
-    fs::remove_file(path).unwrap();
 }

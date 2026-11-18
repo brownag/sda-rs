@@ -119,10 +119,7 @@ mod tests {
     use super::*;
     use axum::{body::to_bytes, http::Request as HttpRequest};
     use rusqlite::Connection;
-    use std::{
-        fs,
-        sync::atomic::{AtomicUsize, Ordering},
-    };
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use tower::ServiceExt;
 
     static NEXT: AtomicUsize = AtomicUsize::new(0);
@@ -158,19 +155,17 @@ mod tests {
 
     #[tokio::test]
     async fn parses_encodings_echoes_and_executes_against_configured_database() {
-        let path = std::env::temp_dir().join(format!(
-            "sda-routes-{}-{}.sqlite",
+        let path = format!(
+            "file:sda_routes_{}_{}?mode=memory&cache=shared",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
+        );
         let connection = Connection::open(&path).unwrap();
         connection
             .execute_batch(
                 "CREATE TABLE sample(value TEXT); INSERT INTO sample VALUES ('configured')",
             )
             .unwrap();
-        drop(connection);
-        let path = path.to_string_lossy().into_owned();
         let parsed =
             crate::request::parse_form(b"QuErY=SELECT%20value%20FROM%20sample&FoRmAt=JSON")
                 .unwrap();
@@ -250,25 +245,22 @@ mod tests {
         )
         .await;
         assert_eq!(unsafe_query.status(), StatusCode::BAD_REQUEST);
-
-        fs::remove_file(path).unwrap();
     }
 
     #[tokio::test]
     async fn request_with_spatial_config_and_gpkg_metadata_succeeds() {
-        let path = std::env::temp_dir().join(format!(
-            "sda-spatial-route-{}-{}.sqlite",
+        let path = format!(
+            "file:sda_spatial_route_{}_{}?mode=memory&cache=shared",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
+        );
         let connection = Connection::open(&path).unwrap();
         connection.execute_batch(
             "CREATE TABLE gpkg_geometry_columns (table_name TEXT, column_name TEXT, geometry_type_name TEXT, srs_id INTEGER, z TINYINT, m TINYINT);
              INSERT INTO gpkg_geometry_columns VALUES ('soil_map', 'shape_actual', 'MULTIPOLYGON', 4326, 0, 0);",
         ).unwrap();
-        drop(connection);
         let response = send_with_spatial_config(
-            &path.to_string_lossy(),
+            &path,
             None,
             Some("shape_override".into()),
             "/Tabular/post.rest",
@@ -279,7 +271,6 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         assert_eq!(&body[..], br#"{"Table":[["1"]]}"#);
-        fs::remove_file(path).unwrap();
     }
 
     #[tokio::test]
@@ -300,17 +291,15 @@ mod tests {
 
     #[tokio::test]
     async fn malformed_spatial_metadata_does_not_block_ordinary_sql() {
-        let path = std::env::temp_dir().join(format!(
-            "sda-malformed-spatial-route-{}-{}.sqlite",
+        let path = format!(
+            "file:sda_malformed_spatial_route_{}_{}?mode=memory&cache=shared",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
+        );
         let connection = Connection::open(&path).unwrap();
         connection
             .execute_batch("CREATE TABLE gpkg_geometry_columns (table_name TEXT);")
             .unwrap();
-        drop(connection);
-        let path = path.to_string_lossy().into_owned();
 
         let ordinary = send(
             &path,
@@ -337,6 +326,5 @@ mod tests {
         assert!(std::str::from_utf8(&body)
             .unwrap()
             .contains("Unable to inspect GeoPackage geometry metadata:"));
-        fs::remove_file(path).unwrap();
     }
 }
