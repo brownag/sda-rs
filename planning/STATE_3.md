@@ -17,9 +17,9 @@ Plan: `planning/EXECUTION_PLAN_3.md`. Initial goal: `planning/GOALS.md` [G16] (c
 | 3 | 3.3.1 G18 declarations; 3.3.2 G19 metadata scoping | done | `f9347c3`, `cda51c3` |
 | 4 | 3.4.1 AST-level constructor rewrite (G22) | done | `ec9b984` |
 | 5 | 3.5.1 Mukey metadata fallback (G20) | done | `b4791e5`, `a1ef6ca` |
-| 6 | 3.6.1 Shared-cache in-memory test databases (G24) | pending | — |
+| 6 | 3.6.1 Shared-cache in-memory test databases (G24) | done | `8c4f33f` |
 
-Wave-boundary verification: waves 1–5 — passed. Latest serial run: `cargo fmt --check` passed; `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed (52 unit + 5 integration, 0 failures).
+Wave-boundary verification: waves 1–6 — passed. Latest serial run: `cargo fmt --check` passed; `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed (52 unit + 5 integration, 0 failures).
 
 ## Orchestration update
 
@@ -36,6 +36,8 @@ Wave-boundary verification: waves 1–5 — passed. Latest serial run: `cargo fm
 - Wave 4 boundary: `cargo fmt --check` passed; `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed (49 unit + 4 integration, 0 failures).
 - Wave 5 worktree `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-3-task-3.5.1`, detached at worker commits `8c2f742`, `7ab9167`, `1bb4aaa`, `bca11bf`; integrated as planning/report commits `b5d4beb`, `3f664f3` and implementation/test commits `b4791e5`, `a1ef6ca`. Worktree retained; no cleanup performed.
 - Wave 5 boundary: `cargo fmt --check` passed; `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed (52 unit + 5 integration, 0 failures).
+- Wave 6 worktree `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-3-task-3.6.1`, detached at worker commits `722520a`, `35c0401`, `551cb92`, `150f917`; integrated as planning commits `e41186d`, `2e34202`, `d7eac20` and implementation commit `8c4f33f`. Worktree retained; no cleanup performed.
+- Wave 6 boundary: `cargo fmt --check` passed; `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed (52 unit + 5 integration, 0 failures).
 
 ## Task reports
 
