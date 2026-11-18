@@ -34,6 +34,8 @@ Plan: `planning/EXECUTION_PLAN_1.md`
 - `cargo test routes::`: passed, 1 passed, 0 failed; mixed-case JSON/form fields, echo, missing/unsafe query, and configured temporary database response verified.
 - `cargo fmt --check` and `git diff --check`: passed.
 - Deviation: route handler exercised in process without TCP; no dependencies or out-of-scope files changed.
+- Acceptance follow-up: `5fc775d` (`test(routes): exercise registered router endpoints`) adds `tower` as a dev-dependency and exercises `app(config).oneshot` for both paths, both encodings, configured DB, echo, missing and unsafe queries.
+- Follow-up checks: `cargo test routes::` — 1 passed; `cargo fmt --check` and `git diff --check` passed.
 
 ## 1.3.2
 - Status: implemented and verified on `feature/sqlite-mvp`.
