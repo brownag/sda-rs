@@ -192,7 +192,10 @@ async fn router_rejects_mukey_tvf_without_mupolygon_metadata_or_override() {
 
 #[tokio::test]
 async fn spatial_tvf_executes_when_test_extension_is_configured() {
-    let Ok(extension) = std::env::var("SDA_TEST_SPATIALITE") else {
+    let extension = std::env::var("SDA_TEST_SPATIALITE")
+        .ok()
+        .filter(|extension| !extension.trim().is_empty());
+    let Some(extension) = extension else {
         eprintln!("SDA_TEST_SPATIALITE not set; live spatial execution not tested");
         return;
     };
