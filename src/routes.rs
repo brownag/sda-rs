@@ -110,21 +110,26 @@ mod tests {
         fs,
         sync::atomic::{AtomicUsize, Ordering},
     };
+    use tower::ServiceExt;
 
     static NEXT: AtomicUsize = AtomicUsize::new(0);
 
-    async fn send(path: &str, content_type: &str, body: &str) -> Response {
+    async fn send(path: &str, endpoint: &str, content_type: &str, body: &str) -> Response {
         let request = HttpRequest::builder()
+            .method("POST")
+            .uri(endpoint)
             .header(header::CONTENT_TYPE, content_type)
             .body(Body::from(body.to_owned()))
             .unwrap();
-        post(
-            State(AppState {
-                database_path: path.to_owned(),
-            }),
-            request,
-        )
+        crate::app(crate::config::Config {
+            backend_url: path.to_owned(),
+            port: 0,
+            spatial_extension: None,
+            geometry_column: None,
+        })
+        .oneshot(request)
         .await
+        .unwrap()
     }
 
     #[tokio::test]
@@ -148,17 +153,29 @@ mod tests {
         assert_eq!(parsed.query.as_deref(), Some("SELECT value FROM sample"));
         assert_eq!(parsed.format.as_deref(), Some("JSON"));
 
-        for (content_type, body) in [
+        for (endpoint, content_type, body) in [
             (
+                "/Tabular/post.rest",
                 "application/json",
                 r#"{"QuErY":"SELECT value FROM sample","FoRmAt":"JSON"}"#,
             ),
             (
+                "/Tab/post.rest",
                 "application/x-www-form-urlencoded",
                 "QuErY=SELECT%20value%20FROM%20sample&FoRmAt=JSON",
             ),
+            (
+                "/Tab/post.rest",
+                "application/json",
+                r#"{"query":"SELECT value FROM sample","format":"JSON"}"#,
+            ),
+            (
+                "/Tabular/post.rest",
+                "application/x-www-form-urlencoded",
+                "query=SELECT%20value%20FROM%20sample&format=JSON",
+            ),
         ] {
-            let response = send(&path, content_type, body).await;
+            let response = send(&path, endpoint, content_type, body).await;
             assert_eq!(response.status(), StatusCode::OK);
             assert_eq!(
                 to_bytes(response.into_body(), usize::MAX).await.unwrap(),
@@ -168,6 +185,7 @@ mod tests {
 
         let echo = send(
             &path,
+            "/Tabular/post.rest",
             "application/json",
             r#"{"query":"DROP TABLE sample","format":"~"}"#,
         )
@@ -180,11 +198,29 @@ mod tests {
             to_bytes(echo.into_body(), usize::MAX).await.unwrap(),
             "DROP TABLE sample"
         );
+        let preserved = send(
+            &path,
+            "/Tab/post.rest",
+            "application/json",
+            r#"{"query":"SELECT value FROM sample","format":"JSON"}"#,
+        )
+        .await;
+        assert_eq!(
+            to_bytes(preserved.into_body(), usize::MAX).await.unwrap(),
+            r#"{"Table":[["configured"]]}"#
+        );
 
-        let missing = send(&path, "application/json", r#"{"format":"JSON"}"#).await;
+        let missing = send(
+            &path,
+            "/Tab/post.rest",
+            "application/json",
+            r#"{"format":"JSON"}"#,
+        )
+        .await;
         assert_eq!(missing.status(), StatusCode::BAD_REQUEST);
         let unsafe_query = send(
             &path,
+            "/Tabular/post.rest",
             "application/json",
             r#"{"query":"DROP TABLE sample"}"#,
         )

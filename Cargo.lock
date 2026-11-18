@@ -544,6 +544,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "tokio",
+ "tower",
  "tower-http",
 ]
 
