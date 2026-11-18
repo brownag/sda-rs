@@ -28,6 +28,7 @@ async fn router_keeps_nonspatial_query_working_and_reports_spatial_unavailable()
          CREATE TABLE muaggatt(mukey TEXT);
          CREATE TABLE mupolygon(mukey TEXT, geom_custom BLOB);
          CREATE TABLE gpkg_geometry_columns(table_name TEXT, column_name TEXT, srs_id INTEGER);
+         INSERT INTO gpkg_geometry_columns VALUES ('soil_map', 'soil_shape', 26910);
          INSERT INTO gpkg_geometry_columns VALUES ('mupolygon', 'geom_custom', 4326);
          INSERT INTO legend VALUES ('CA001', 'Fixture');
          INSERT INTO mapunit VALUES ('1');
@@ -81,6 +82,32 @@ async fn router_keeps_nonspatial_query_working_and_reports_spatial_unavailable()
     fs::remove_file(path).unwrap();
 }
 
+#[test]
+fn mukey_rewrite_uses_mupolygon_metadata_not_first_geometry_row() {
+    let connection = Connection::open_in_memory().unwrap();
+    connection
+        .execute_batch(
+            "CREATE TABLE gpkg_geometry_columns(table_name TEXT, column_name TEXT, srs_id INTEGER);
+             INSERT INTO gpkg_geometry_columns VALUES ('soil_map', 'soil_shape', 26910);
+             INSERT INTO gpkg_geometry_columns VALUES ('mupolygon', 'geom_custom', 3857);",
+        )
+        .unwrap();
+    let capability = sda_rs::spatial::initialize(&connection, None, None).unwrap();
+    let sql = sda_rs::transpiler::transpile_with_spatial(
+        "SELECT mukey FROM mapunit WHERE mukey IN (SELECT * FROM SDA_Get_Mukey_from_intersection_with_WktWgs84('POINT(0 0)'))",
+        Some(&capability),
+    )
+    .unwrap()
+    .remove(0)
+    .to_ascii_uppercase();
+    assert!(sql.contains("MP.\"GEOM_CUSTOM\""), "{sql}");
+    assert!(
+        sql.contains("ST_TRANSFORM(GEOMFROMGPB(MP.\"GEOM_CUSTOM\"), 3857)"),
+        "{sql}"
+    );
+    assert!(!sql.contains("SOIL_SHAPE"), "{sql}");
+}
+
 #[tokio::test]
 async fn spatial_tvf_executes_when_test_extension_is_configured() {
     let Ok(extension) = std::env::var("SDA_TEST_SPATIALITE") else {
@@ -100,7 +127,8 @@ async fn spatial_tvf_executes_when_test_extension_is_configured() {
     connection
         .execute_batch(
             "CREATE TABLE gpkg_geometry_columns(table_name TEXT, column_name TEXT, srs_id INTEGER);
-         INSERT INTO gpkg_geometry_columns VALUES ('mupolygon', 'shape_custom', 4326);
+         INSERT INTO gpkg_geometry_columns VALUES ('soil_map', 'soil_shape', 26910);
+         INSERT INTO gpkg_geometry_columns VALUES ('mupolygon', 'shape_custom', 3857);
          CREATE TABLE mupolygon(mukey TEXT, areasymbol TEXT, shape_custom BLOB);
          CREATE TABLE mapunit(mukey TEXT);
          INSERT INTO mapunit VALUES ('1'), ('2'), ('3');

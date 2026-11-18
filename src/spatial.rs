@@ -13,6 +13,7 @@ pub struct GeometryMetadata {
 pub struct SpatialCapability {
     available: bool,
     geometry: Option<GeometryMetadata>,
+    geometries: Vec<GeometryMetadata>,
     effective_geometry_column: Option<String>,
 }
 
@@ -23,6 +24,12 @@ impl SpatialCapability {
 
     pub fn geometry_metadata(&self) -> Option<&GeometryMetadata> {
         self.geometry.as_ref()
+    }
+
+    pub fn geometry_metadata_for_table(&self, table: &str) -> Option<&GeometryMetadata> {
+        self.geometries
+            .iter()
+            .find(|metadata| metadata.table_name.eq_ignore_ascii_case(table))
     }
 
     pub fn effective_geometry_column(&self) -> Option<&str> {
@@ -114,21 +121,21 @@ pub fn initialize(
         false
     };
 
-    let geometry = match connection.query_row(
-        "SELECT table_name, column_name, srs_id FROM gpkg_geometry_columns LIMIT 1",
-        [],
-        |row| {
-            Ok(GeometryMetadata {
-                table_name: row.get(0)?,
-                geometry_column: row.get(1)?,
-                srs_id: row.get(2)?,
+    let geometries = match connection
+        .prepare("SELECT table_name, column_name, srs_id FROM gpkg_geometry_columns")
+    {
+        Ok(mut statement) => statement
+            .query_map([], |row| {
+                Ok(GeometryMetadata {
+                    table_name: row.get(0)?,
+                    geometry_column: row.get(1)?,
+                    srs_id: row.get(2)?,
+                })
             })
-        },
-    ) {
-        Ok(metadata) => Some(metadata),
-        Err(rusqlite::Error::QueryReturnedNoRows) => None,
-        Err(error) => {
-            // The table is optional in ordinary SQLite databases.
+            .map_err(SpatialError::Metadata)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(SpatialError::Metadata)?,
+        Err(rusqlite::Error::SqliteFailure(_, _)) | Err(rusqlite::Error::InvalidQuery) => {
             let exists: bool = connection
                 .query_row(
                     "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='gpkg_geometry_columns')",
@@ -137,11 +144,15 @@ pub fn initialize(
                 )
                 .map_err(SpatialError::Metadata)?;
             if exists {
-                return Err(SpatialError::Metadata(error));
+                return Err(SpatialError::Metadata(rusqlite::Error::InvalidQuery));
             }
-            None
+            Vec::new()
+        }
+        Err(error) => {
+            return Err(SpatialError::Metadata(error));
         }
     };
+    let geometry = geometries.first().cloned();
     let effective_geometry_column = geometry_override.map(str::to_owned).or_else(|| {
         geometry
             .as_ref()
@@ -151,6 +162,7 @@ pub fn initialize(
     Ok(SpatialCapability {
         available,
         geometry,
+        geometries,
         effective_geometry_column,
     })
 }

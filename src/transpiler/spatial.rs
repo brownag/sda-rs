@@ -51,13 +51,24 @@ pub(super) fn rewrite(
     let mut output = Vec::with_capacity(statements.len());
     for statement in statements {
         let spatial_statement = statement.dfs().any(is_spatial_expression);
-        if statement.dfs().any(|node| matches!(node, Expression::Function(function) if function.name.eq_ignore_ascii_case(MUKEY_FUNCTION)))
-            && capability.geometry_metadata().is_some_and(|metadata| !metadata.table_name.eq_ignore_ascii_case("mupolygon"))
+        let has_mukey = statement.dfs().any(|node| matches!(node, Expression::Function(function) if function.name.eq_ignore_ascii_case(MUKEY_FUNCTION)));
+        let mukey_metadata = if has_mukey {
+            capability.geometry_metadata_for_table("mupolygon")
+        } else {
+            None
+        };
+        if has_mukey && mukey_metadata.is_none() && capability.effective_geometry_column().is_none()
         {
             return Err(TranspilerError::Rejected(
                 "mukey TVF requires geometry metadata for mupolygon".into(),
             ));
         }
+        let mukey_column = mukey_metadata
+            .map(|metadata| metadata.geometry_column.as_str())
+            .or_else(|| capability.effective_geometry_column());
+        let mukey_srid = mukey_metadata
+            .map(|metadata| metadata.srs_id)
+            .unwrap_or(4326);
         let geometry_column = if spatial_statement {
             capability.effective_geometry_column().ok_or_else(|| {
                 TranspilerError::Rejected(
@@ -68,8 +79,10 @@ pub(super) fn rewrite(
         } else {
             "geom"
         };
-        let statement = transform_all(statement, &|node| expand_tables(node, geometry_column))
-            .map_err(TranspilerError::Generate)?;
+        let statement = transform_all(statement, &|node| {
+            expand_tables(node, geometry_column, mukey_column, Some(mukey_srid))
+        })
+        .map_err(TranspilerError::Generate)?;
         output.push(
             transform_all(statement, &|node| rewrite_node(node, geometry_column))
                 .map_err(TranspilerError::Generate)?,
@@ -81,6 +94,8 @@ pub(super) fn rewrite(
 fn expand_tables(
     node: Expression,
     geometry_column: &str,
+    mukey_column: Option<&str>,
+    mukey_srid: Option<i32>,
 ) -> Result<Expression, polyglot_sql::Error> {
     let Expression::Select(mut select) = node else {
         return Ok(node);
@@ -88,7 +103,11 @@ fn expand_tables(
     if select.from.is_none() && select.expressions.len() == 1 {
         if matches!(&select.expressions[0], Expression::Function(function) if function.name.eq_ignore_ascii_case(MUKEY_FUNCTION))
         {
-            let derived = expand_source(select.expressions[0].clone(), geometry_column)?;
+            let derived = expand_source(
+                select.expressions[0].clone(),
+                mukey_column.unwrap_or(geometry_column),
+                mukey_srid.unwrap_or(4326),
+            )?;
             let mut parsed = Dialect::get(DialectType::TSQL).parse("SELECT * FROM placeholder")?;
             let Expression::Select(mut template) = parsed.remove(0) else {
                 unreachable!()
@@ -101,11 +120,19 @@ fn expand_tables(
     }
     if let Some(from) = &mut select.from {
         for source in &mut from.expressions {
-            *source = expand_source(source.clone(), geometry_column)?;
+            *source = expand_source(
+                source.clone(),
+                mukey_column.unwrap_or(geometry_column),
+                mukey_srid.unwrap_or(4326),
+            )?;
         }
     }
     for join in &mut select.joins {
-        join.this = expand_source(join.this.clone(), geometry_column)?;
+        join.this = expand_source(
+            join.this.clone(),
+            mukey_column.unwrap_or(geometry_column),
+            mukey_srid.unwrap_or(4326),
+        )?;
     }
     Ok(Expression::Select(select))
 }
@@ -113,6 +140,7 @@ fn expand_tables(
 fn expand_source(
     source: Expression,
     geometry_column: &str,
+    srid: i32,
 ) -> Result<Expression, polyglot_sql::Error> {
     let (function, alias) = match &source {
         Expression::Function(function) if function.name.eq_ignore_ascii_case(MUKEY_FUNCTION) => {
@@ -136,7 +164,7 @@ fn expand_source(
     }
     let argument = function.args[0].clone();
     let mut parsed = Dialect::get(DialectType::TSQL).parse(
-        "SELECT * FROM (SELECT DISTINCT mp.mukey FROM mupolygon AS mp WHERE mp.areasymbol <> 'US' AND ST_Intersects(ST_Transform(GeomFromGPB(mp.__geom__), 4326), GeomFromText(__wkt__, 4326))) AS __sda"
+        &format!("SELECT * FROM (SELECT DISTINCT mp.mukey FROM mupolygon AS mp WHERE mp.areasymbol <> 'US' AND ST_Intersects(ST_Transform(GeomFromGPB(mp.__geom__), {srid}), GeomFromText(__wkt__, 4326))) AS __sda")
     )?;
     let Expression::Select(mut outer) = parsed.remove(0) else {
         unreachable!()
