@@ -16,10 +16,11 @@ Plan: `planning/EXECUTION_PLAN_1.md`
 | Wave | Tasks | Status |
 |---|---|---|
 | 1 | 1.1.1 | done |
-| 2 | 1.2.1, 1.2.2 | pending |
-| 3 | 1.3.1, 1.3.2 | pending |
-| 4 | 1.4.1, 1.4.2 | pending |
-| 5 | 1.5.1 | pending |
+| 2 | 1.2.1 | pending |
+| 3 | 1.2.2 | pending |
+| 4 | 1.3.1, 1.3.2 | pending |
+| 5 | 1.4.1, 1.4.2 | pending |
+| 6 | 1.5.1 | pending |
 
 ## Task reports
 

@@ -59,6 +59,7 @@ Build `sda-rs` as a Rust HTTP service that implements a tested, SQLite/GeoPackag
 - 2026-11-17 — Up to three concurrent workers with worktree isolation for parallel tasks; integration/full suites run serially.
 - 2026-11-17 — Use `openai/gpt-6-luna` for all worker tasks and escalation; retain the wave-orchestration retry limits.
 - 2026-11-17 — Track orchestration artifacts; keep planning-only commits separate from implementation.
+- 2026-11-17 — Sequence tasks 1.2.1 and 1.2.2 because both require `src/lib.rs` module registration; executor/result registration belongs to 1.2.1 and transpiler registration to 1.2.2.
 
 ## DAG and wave table
 
@@ -67,12 +68,13 @@ Tasks in each wave have disjoint file scopes. Waves are logical phases and run s
 | Wave | Tasks | Purpose |
 |---|---|---|
 | 1 | 1.1.1 | Scaffold crate, dependencies, config, test conventions, and executable server shell. |
-| 2 | 1.2.1, 1.2.2 | SQLite executor/session result model; core T-SQL parsing/transpilation and guardrails. |
-| 3 | 1.3.1, 1.3.2 | SDA request routes; result serialization formats. |
-| 4 | 1.4.1, 1.4.2 | Batch variables/temp-table compatibility; optional spatial capability and GeoPackage metadata discovery. |
-| 5 | 1.5.1 | Integrate AOI + selected UDF end to end with seeded mock tables and acceptance suite. |
+| 2 | 1.2.1 | SQLite execution/session result model. |
+| 3 | 1.2.2 | Core T-SQL parsing/transpilation and guardrails. |
+| 4 | 1.3.1, 1.3.2 | SDA request routes; result serialization formats. |
+| 5 | 1.4.1, 1.4.2 | Batch variables/temp-table compatibility; optional spatial capability and GeoPackage metadata discovery. |
+| 6 | 1.5.1 | Integrate AOI + selected UDF end to end with seeded mock tables and acceptance suite. |
 
-Dependencies: `1.1.1 -> {1.2.1, 1.2.2}`; `{1.2.1, 1.2.2} -> {1.3.1, 1.3.2}`; `1.2.2 -> 1.4.1`; `1.2.1 -> 1.4.2`; `{1.3.1, 1.3.2, 1.4.1, 1.4.2} -> 1.5.1`.
+Dependencies: `1.1.1 -> 1.2.1 -> 1.2.2`; `{1.2.1, 1.2.2} -> {1.3.1, 1.3.2}`; `1.2.2 -> 1.4.1`; `1.2.1 -> 1.4.2`; `{1.3.1, 1.3.2, 1.4.1, 1.4.2} -> 1.5.1`.
 
 ## Global hazards and execution rules
 
@@ -103,22 +105,22 @@ Dependencies: `1.1.1 -> {1.2.1, 1.2.2}`; `{1.2.1, 1.2.2} -> {1.3.1, 1.3.2}`; `1.
 ### Task 1.2.1 — SQLite session executor and dynamic result sets
 
 - **Repo:** same.
-- **Files in scope — must edit:** `src/executor/mod.rs`, `src/executor/sqlite.rs`, `src/result.rs`.
+- **Files in scope — must edit:** `src/executor/mod.rs`, `src/executor/sqlite.rs`, `src/result.rs`, `src/lib.rs` (register executor/result modules only).
 - **Can create:** `src/executor/`.
 - **Depends on:** 1.1.1.
 - **Spec:** Implement the SQLite execution seam using `rusqlite`, dynamic column names/types, sequential statements and multiple result sets on one request-local connection. Expose execution via a blocking boundary usable by Axum; do not couple this task to HTTP types. Preserve SQLite NULL and value representations for serializer conversion. Test in-memory query results, multiple statements, empty result sets, and request-local temp-table visibility within a batch.
-- **Do not touch:** `src/main.rs`, `src/config.rs`, route/transpiler/serializer modules, planning documents.
+- **Do not touch:** `src/main.rs`, `src/config.rs`, route/transpiler/serializer modules, planning documents; do not register the transpiler module.
 - **Grep anchors:** `SdaBackend`, `ResultSet` in `planning/INITIAL_PROMPT.md`.
 - **Acceptance:** `cargo test executor::`; targeted tests use in-memory SQLite and assert column order, values, nulls, and session continuity.
 
 ### Task 1.2.2 — T-SQL parser pipeline and safety guardrails
 
 - **Repo:** same.
-- **Files in scope — must edit:** `src/transpiler/mod.rs`, `src/transpiler/normalize.rs`, `src/transpiler/security.rs`.
+- **Files in scope — must edit:** `src/transpiler/mod.rs`, `src/transpiler/normalize.rs`, `src/transpiler/security.rs`, `src/lib.rs` (register transpiler module only).
 - **Can create:** `src/transpiler/`.
-- **Depends on:** 1.1.1.
+- **Depends on:** 1.2.1.
 - **Spec:** Validate the real `polyglot-sql` Rust API and use it to parse T-SQL and generate SQLite SQL. Establish structured transpilation errors and AST guardrails rejecting administrative/destructive constructs outside the explicitly supported temp-table pattern. Implement the basic compatible subset needed by the plan, including bracketed identifiers, `TOP`, `ISNULL`, `IIF`, and SQLite `STRING_AGG` lowering where required. Do not implement variable folding or spatial/UDF rewriting here.
-- **Do not touch:** executor, routes, serializer, CLI/config, planning files.
+- **Do not touch:** executor, routes, serializer, CLI/config, planning files; do not alter executor/result module registration.
 - **Grep anchors:** `DialectType::TSQL`, `Expression`, `generate`, function normalization in `planning/sda-rs-scoping.md`.
 - **Acceptance:** `cargo test transpiler::`; tests parse/generate representative queries and reject `DROP`, `ALTER`, `TRUNCATE`, `GRANT`, `EXEC`, and `WAITFOR`.
 
