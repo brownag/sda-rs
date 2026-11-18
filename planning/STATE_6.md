@@ -27,7 +27,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 | 3 | 6.3.1 Active-client intersection TVFs | done | `4d4aa0a` |
 | 4 | 6.4.1–6.4.3 diagnostic attempts; 6.4.4 implementation; 6.4.5 regression correction | done | `8a54496`, `d4d867b` |
 | 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | done | `84e0138` |
-| 6 | 6.6.1 preserved; 6.6.2 diagnostic outcome; 6.6.3 fixture correction | blocked pending formatting and boundary acceptance | — |
+| 6 | 6.6.1 preserved; 6.6.2 diagnostic outcome; 6.6.3 fixture correction; 6.6.4 formatting and boundary verification | blocked pending 6.6.4 approval and acceptance | — |
 | 7 | 6.7.1 Scalar key-to-WKT TVFs | pending | — |
 | 8 | 6.8.1 Table-input WKT TVFs/macros | pending | — |
 | 9 | 6.9.1 soilDB/Iowa integration harness | pending | — |
@@ -173,3 +173,9 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Checks:** `git diff --check` passed. `cargo fmt --check` failed on three formatting differences in the preserved 6.6.1 production diff at `src/transpiler/spatial.rs`. No production formatting edits were made because task 6.6.3 scope is test-only.
 - **Caveat:** the earlier Mupoint WGS84 `{}` result did not reproduce in the approved diagnostic and remains unexplained. Iowa has `featpoint` but lacks required `featpointkey`.
 - **Disposition:** no implementation commit; Wave 6 awaits a separately scoped resolution of formatting and the configured full-suite boundary check. Waves 7–9 remain gated.
+
+## 6.6.4
+- **Status:** micro-plan prepared; execution awaits approval. No implementation changes or acceptance runs in this planning step.
+- **Scope:** format only the three reported `intersection_spec` entries in `src/transpiler/spatial.rs` under Rust 2021 conventions. Preserve the 6.6.1 four-file diff and the 6.6.3 fixture correction.
+- **Planned checks:** `cargo fmt --check`, `git diff --check`, then one configured `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` run, serially. Stop at the first failure; no retry or implementation commit.
+- **Disposition:** after successful checks, review the whole Wave 6 diff before any focused local implementation commit. Waves 7–9 remain gated.
