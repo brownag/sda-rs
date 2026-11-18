@@ -26,6 +26,7 @@ struct IntersectionTarget {
     key: &'static str,
     join_statusmap: bool,
     input_srid: i32,
+    geometry_srid: Option<i32>,
     column: String,
 }
 
@@ -162,6 +163,11 @@ pub(super) fn rewrite(
                         key,
                         join_statusmap,
                         input_srid,
+                        geometry_srid: if name == MUKEY_FUNCTION {
+                            metadata.map(|metadata| metadata.srs_id)
+                        } else {
+                            None
+                        },
                         column: capability
                             .geometry_override()
                             .or_else(|| metadata.map(|metadata| metadata.geometry_column.as_str()))
@@ -262,9 +268,10 @@ fn expand_source(
         return Err(polyglot_sql::Error::InvalidInput(format!("{} TVF requires one literal WKT argument; correlated and other expressions are unsupported", target.function)));
     }
     let argument = function.args[0].clone();
+    let geometry_srid = target.geometry_srid.unwrap_or(target.input_srid);
     let predicate = format!(
         "ST_Intersects(ST_Transform(GeomFromGPB(mp.__geom__), {}), GeomFromText(__wkt__, {}))",
-        target.input_srid, target.input_srid
+        geometry_srid, target.input_srid
     );
     let filter = if target.table == "mupolygon" {
         "mp.areasymbol <> 'US' AND "
@@ -509,6 +516,10 @@ mod tests {
         assert!(generated.contains("MP.\"GEOM_OVERRIDE\""), "{generated}");
         assert!(
             generated.contains("ST_TRANSFORM(GEOMFROMGPB(MP.\"GEOM_OVERRIDE\"), 3857)"),
+            "{generated}"
+        );
+        assert!(
+            generated.contains("GEOMFROMTEXT('POINT(0 0)', 4326)"),
             "{generated}"
         );
         assert!(!generated.contains("GEOM_CUSTOM"), "{generated}");
