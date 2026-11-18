@@ -15,7 +15,7 @@ Plan: `planning/EXECUTION_PLAN_4.md`. Active goal: advance G1 by completing G6, 
 
 | Wave | Task | Status | Code commit |
 |---|---|---|---|
-| 1 | 4.1.1 Request decoding; 4.1.2 metadata serialization | pending | — |
+| 1 | 4.1.1 Request decoding; 4.1.2 metadata serialization | done | 7333fd6, 51c18db |
 | 2 | 4.2.1 SQL/batch endpoint coverage; 4.2.2 AOI route coverage | pending | — |
 | 3 | 4.3.1 Mukey TVF fixture coverage | pending | — |
 | 4 | 4.4.1 Live SpatiaLite acceptance gate | pending | — |
@@ -31,3 +31,17 @@ Plan: `planning/EXECUTION_PLAN_4.md`. Active goal: advance G1 by completing G6, 
 ## Task reports
 
 <!-- Workers append "## {{id}}" sections below, max 15 lines each. -->
+
+## 4.1.1
+- Status: done; code commit `7333fd6` (`test: cover request decoding and routing`).
+- Changed: `tests/request_contract.rs` (79 lines).
+- Verification: `cargo test --test request_contract` (1 passed); `cargo fmt --check`; `git diff --check`.
+- Wave-boundary verification: configured `cargo test` (52 unit + 7 integration passed; 0 failed); live SpatiaLite test ran and passed.
+- Deviations: none. Gotchas: none.
+
+## 4.1.2
+- Status: done; code commit `51c18db` (`test: lock serializer metadata contract`).
+- Changed: `tests/serializer_contract.rs` (36 lines).
+- Verification: `cargo test --test serializer_contract` (1 passed); `cargo fmt --check`; `git diff --check`.
+- Wave-boundary verification: configured `cargo test` (52 unit + 7 integration passed; 0 failed); live SpatiaLite test ran and passed.
+- Deviations: none. Gotchas: none.
