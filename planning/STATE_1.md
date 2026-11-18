@@ -103,3 +103,6 @@ Plan: `planning/EXECUTION_PLAN_1.md`
 - `cargo test spatial::`: 3 passed; `cargo test routes::`: 2 passed; `cargo fmt --check`: passed; `git diff --check`: passed.
 - SpatiaLite availability: no `mod_spatialite` extension found; only `libspatialite.so` shared library present, so extension smoke test was not applicable. Missing-extension behavior is covered deterministically.
 - No AOI/UDF rewrites, transpiler/serializer changes, or remote actions. Existing untracked `target/` preserved.
+- Review follow-up: `execute_query_blocking` now provides capability/metadata to a pre-transpile callback on the same request-local connection; spatial-required source or generated SQL is rejected with structured `SpatialError::Unavailable` before SQLite execution.
+- Follow-up tests: `cargo test spatial::` — 5 passed; `cargo test routes::` — 3 passed; `cargo fmt --check` and `git diff --check` passed.
+- Follow-up implementation and planning/report commits are recorded separately.
