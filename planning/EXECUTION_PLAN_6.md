@@ -74,14 +74,14 @@ External prerequisite: completed Plan 5/G32.
 | 1 | 6.1.1, 6.1.2 | Define the spatial compatibility contract and inventory the complete SDA_Get catalog/package call sites. |
 | 2 | 6.2.1 | Decode and validate GeoPackageBinary geometry values. |
 | 3 | 6.3.1 | Support the SDA_Get intersection functions used by soilDB's spatial client path first. |
-| 4 | 6.4.1 | Add area-symbol and soil-survey-polygon intersection/key TVFs. |
+| 4 | 6.4.1 (blocked; superseded for execution by 6.4.2), 6.4.2 | Add area-symbol and soil-survey-polygon intersection/key TVFs; resolve the preserved failure and CRS regression. |
 | 5 | 6.5.1 | Add mapunit-polygon intersection/key TVFs. |
 | 6 | 6.6.1 | Add other feature-layer intersection/key TVFs where the data model supports them. |
 | 7 | 6.7.1 | Implement feasible scalar key-to-WKT TVFs. |
 | 8 | 6.8.1 | Implement feasible table-input WKT TVFs and input-table macros. |
 | 9 | 6.9.1 | Add and run the opt-in soilDB/Iowa integration harness. |
 
-Dependencies: `6.2.1` depends on `6.1.1`; `6.3.1` depends on `6.1.2` and `6.2.1`; each of `6.4.1`–`6.8.1` depends on the immediately prior implementation wave; `6.9.1` depends on `6.3.1`–`6.8.1`. Every task depends on completed Plan 5/G32. Wave 1 tasks have disjoint output files; all same-module SDA_Get implementation tasks are intentionally sequential.
+Dependencies: `6.2.1` depends on `6.1.1`; `6.3.1` depends on `6.1.2` and `6.2.1`; `6.4.1` depends on `6.3.1`; recovery task `6.4.2` also depends on `6.3.1` and takes over the preserved, uncommitted in-scope work from blocked task 6.4.1; `6.5.1` depends on completion of Wave 4 via 6.4.2; each of `6.6.1`–`6.8.1` depends on the immediately prior implementation wave; `6.9.1` depends on `6.3.1`–`6.8.1`. Every task depends on completed Plan 5/G32. Wave 1 tasks have disjoint output files; all same-module SDA_Get implementation tasks are intentionally sequential.
 
 ## Global hazards and execution rules
 
@@ -159,6 +159,18 @@ Dependencies: `6.2.1` depends on `6.1.1`; `6.3.1` depends on `6.1.2` and `6.2.1`
 - **Do not touch:** external package repositories, geometry decoder, serializer, or route/wire behavior.
 - **Grep anchors:** task 6.1.2 support matrix; `src/transpiler/spatial.rs` `rewrite_node`; `src/spatial.rs` spatial function dispatch; `tests/sda_get_contract.rs`.
 - **Acceptance:** `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract`; `cargo fmt --check`; `git diff --check`.
+
+### Task 6.4.2 — Recover and complete Wave 4 intersections
+
+- **ID:** 6.4.2
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Files in scope — must edit:** `src/transpiler/spatial.rs`, `src/spatial.rs`, `docs/sda-get-support.md`, `tests/sda_get_contract.rs`.
+- **Can create:** none.
+- **Depends on:** 6.3.1; takes over the preserved uncommitted task-scoped partial changes from blocked task 6.4.1.
+- **Spec:** With user authorization, diagnose why the configured contract test previously returned `{}` for the first Mukey WGS84 request even though a separate diagnostic path returned the expected row. Preserve the current diff and capture the actual response/results for the same request path; establish a falsifiable cause before changing behavior. Correct the confirmed Web-Mercator mixed-SRID predicate by comparing both operands in a common CRS. Complete the remaining two area-symbol and two sapolygonkey-with-sastatusmap intersection variants, both WGS84 and Web-Mercator, without duplicating 6.3.1's four basic Mukey/Sapolygonkey variants. Keep exact result columns and test status-map filtering/DISTINCT with unmatched intersecting and duplicate matched rows. If the WGS84 discrepancy remains unexplained or a safe in-scope fix is not established, stop and report; do not guess.
+- **Do not touch:** external package repositories, planning/GOALS.md, GeoPackage decoder, serializer, route/wire behavior, dependencies, or any files outside the four named paths. Preserve all current uncommitted changes.
+- **Grep anchors:** `tests/sda_get_contract.rs` `query`, test loop and first Mukey case; `src/transpiler/spatial.rs` `intersection_spec`, `expand_source`; `src/spatial.rs` `requires_spatial`; `src/serializer.rs` `serialize_json` for why empty result sets appear as `{}`; baseline implementation in commit `4d4aa0a`.
+- **Acceptance:** after evidence-led fix, at most one `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract -- --nocapture`; require all eight exact JSON cases to pass with configured SpatiaLite and real spatial queries. If it fails or root cause remains unresolved, stop immediately. If it passes, run `cargo fmt --check` and `git diff --check`.
 
 ### Task 6.5.1 — Add mapunit-polygon intersection/key TVFs
 
