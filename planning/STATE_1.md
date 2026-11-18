@@ -84,3 +84,13 @@ Plan: `planning/EXECUTION_PLAN_1.md`
 - Planning report and implementation commits are separate; no remote actions.
 - Deviations: none.
 - Orchestrator wave-boundary verification: `cargo fmt --check` passed; `cargo test` passed (9 passed, 0 failed; binary/doc suites 0 tests).
+
+## 1.4.1
+- Status: implemented and verified on `feature/sqlite-mvp`.
+- Planning micro-plan: `20ec701`; authorized scope revision: `f57409a`; implementation commit: `15fe592` (`feat(transpiler): fold batch vars and temp tables`).
+- Files: `src/transpiler/{mod.rs,normalize.rs,vars.rs,temp_tables.rs}` only; removed temporary AST inspection test; no shared module registration needed.
+- Pipeline now runs validated source AST through variable folding and temp-table rewriting, then T-SQL-to-SQLite dialect conversion and SQLite normalization/generation.
+- `cargo test transpiler::vars`: 2 passed; `cargo test transpiler::temp_tables`: 2 passed.
+- `cargo test transpiler::`: 9 passed; `cargo fmt --check` and `git diff --check` passed.
+- Unsupported forms reject: multi-item/unequal SET, assignments to undeclared vars, non-sole SELECT variable assignment, unbound vars, and non-`#temp` SELECT INTO.
+- No remote actions; pre-existing `target/` preserved.
