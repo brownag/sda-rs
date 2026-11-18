@@ -18,7 +18,7 @@ Plan: `planning/EXECUTION_PLAN_4.md`. Active goal: advance G1 by completing G6, 
 | 1 | 4.1.1 Request decoding; 4.1.2 metadata serialization | done | 7333fd6, 51c18db |
 | 2 | 4.2.1 SQL/batch endpoint coverage; 4.2.2 AOI route coverage | done | 0bfbf3d, 6eeaac7 |
 | 3 | 4.3.1 Mukey TVF fixture coverage | done | b35ec1c |
-| 4 | 4.4.1 Live SpatiaLite acceptance gate | pending | — |
+| 4 | 4.4.1 Live SpatiaLite acceptance gate | done | d0cf69e |
 
 ## Orchestration decisions and hazards
 
@@ -67,3 +67,11 @@ Plan: `planning/EXECUTION_PLAN_4.md`. Active goal: advance G1 by completing G6, 
 - Live evidence: SpatiaLite loaded; `InitSpatialMetaData(1)` returned 1; both WHERE-IN and FROM TVF queries executed and selected only the intersecting non-US fixture.
 - Wave-boundary verification: configured `cargo test` (52 unit + 11 integration passed; 0 failed); existing live SpatiaLite test ran and passed.
 - Deviations: none. Gotchas: none.
+
+## 4.4.1
+- Status: done; code commit `d0cf69e` (`test: clarify live spatial test skip`).
+- Changed: `tests/sda_mvp.rs` (4 insertions, 1 deletion).
+- Verification: configured `cargo test --test sda_mvp -- --nocapture` (5 passed); `cargo fmt --check`; `git diff --check`.
+- Live evidence: configured extension initialized and spatial queries executed; the acceptance test was not skipped.
+- Final configured suite: `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` (52 unit + 11 integration passed; 0 failed).
+- Deviations: none. Gotchas: unset/blank extension now reports an explicit skip.
