@@ -18,14 +18,23 @@ Plan: `planning/EXECUTION_PLAN_1.md`
 | 1 | 1.1.1 | done |
 | 2 | 1.2.1 | done |
 | 3 | 1.2.2 | done |
-| 4 | 1.3.2 | pending |
+| 4 | 1.3.2 | done |
 | 5 | 1.3.1 | pending |
 | 6 | 1.4.1, 1.4.2 | pending |
 | 7 | 1.5.1 | pending |
 
 ## Task reports
 
-<!-- Empty until worker tasks are executed. -->
+## 1.3.2
+- Status: implemented and verified on `feature/sqlite-mvp`.
+- Files: `src/serializer.rs`, `src/lib.rs` (serializer module registration only).
+- Formats: JSON, JSON+COLUMNNAME, JSON+COLUMNNAME+METADATA, and XML; JSON values stringify non-NULL SQLite values and preserve NULL; table names retain result-set indexes; empty result sets are omitted.
+- Metadata mappings are explicitly provisional and inferred from SQLite dynamic values; no exact SDA parity claim.
+- `cargo test serializer::`: 4 passed, 0 failed (9 filtered); binary suite 0 tests.
+- `cargo fmt --check`: passed.
+- `git diff --check`: passed.
+- Deviations: used std-only JSON encoding because `serde_json` is not a dependency and adding/changing dependency files was outside task scope.
+- Planning and implementation commits are separate; no remote actions.
 
 ## 1.1.1
 - Status: implemented and verified on `feature/sqlite-mvp`.
