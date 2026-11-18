@@ -1,5 +1,7 @@
 mod normalize;
 mod security;
+mod temp_tables;
+mod vars;
 
 use std::{error::Error as StdError, fmt};
 
@@ -33,12 +35,11 @@ pub fn transpile(sql: &str) -> Result<Vec<String>, TranspilerError> {
     for statement in &ast {
         security::validate(statement)?;
     }
-    let generated = Dialect::get(DialectType::TSQL)
-        .transpile(sql, DialectType::SQLite)
-        .map_err(TranspilerError::Generate)?;
-    generated
-        .iter()
-        .map(|statement| normalize::normalize_sqlite(statement))
+    let statements = vars::fold(ast)?;
+    let statements = temp_tables::rewrite(statements)?;
+    statements
+        .into_iter()
+        .map(normalize::generate_sqlite)
         .collect()
 }
 
@@ -86,5 +87,20 @@ mod tests {
     fn lowers_string_agg_for_sqlite() {
         let output = transpile("SELECT STRING_AGG(name, ',') FROM people").unwrap();
         assert!(output[0].contains("GROUP_CONCAT"), "{:?}", output[0]);
+    }
+
+    #[test]
+    fn folds_variables_and_select_into_batch() {
+        let output = transpile(
+            "DECLARE @minimum INT; SET @minimum = 2; SELECT * INTO #selected FROM source WHERE id > @minimum; SELECT * FROM #selected",
+        )
+        .unwrap();
+        assert_eq!(output.len(), 2);
+        assert!(
+            output[0].contains("CREATE TEMPORARY TABLE selected AS SELECT"),
+            "{output:?}"
+        );
+        assert!(output[0].contains("id > 2"), "{output:?}");
+        assert!(output[1].contains("FROM selected"), "{output:?}");
     }
 }
