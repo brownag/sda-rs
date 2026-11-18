@@ -1,0 +1,228 @@
+# Execution Plan 6 — Spatial Readiness and SDA Client Compatibility
+
+## Goal & Scope
+
+### Goal
+
+After Plan 5 completes G32, establish a documented spatial SQL contract, validate GeoPackageBinary decoding, support as much of the SDA `SDA_Get_*` catalog as the SQLite/GeoPackage backend can safely implement, and exercise the server through an opt-in integration harness using the R soilDB package and the local Iowa GeoPackage. Prioritize the smaller set of functions actively used by soilDB and py-soildb, while recording the full catalog and unsupported cases.
+
+### In scope
+
+- G29: document supported spatial methods, NULL/error behavior, CRS assumptions, and intentional differences from SDA.
+- G30: implement and test GeoPackageBinary header, envelope, empty geometry, malformed input, and WKB decoding/validation.
+- G11: inventory the official `SDA_Get_*` surface and package call sites; implement package-used functions first, then all additional functions that are feasible within this backend and available data model; document unsupported cases with reasons.
+- Add an opt-in `make test-soildb` integration harness in this repository. It starts/stops the server, installs the local soilDB source into a temporary R library, sets soilDB's configurable SDA endpoint option, and runs testthat-style `SDA_query`, `SDA_spatialQuery`, and selected `get_SDA_*` cases against the Iowa GeoPackage.
+- Use `SDA_TEST_GEOPACKAGE` with local default `/data/SSURGO/output/iowa_ssurgo.gpkg`; access the database read-only and never copy it into the repository.
+- Use the local soilDB checkout at `~/workspace/soilDB` for integration tests. Its `feat/custom-sda1` working tree currently contains user changes, including the endpoint option in `R/SDA_query.R`; use but do not edit, stage, commit, stash, or clean that checkout. The `createSSURGO` changes are unrelated to this plan.
+- Inspect current py-soildb sources at `~/workspace/py-soildb` when inventorying package usage; record package versions and source revisions in the compatibility matrix.
+
+### Out of scope / deferred
+
+- G32 implementation: this is already specified in Plan 5 and must be completed before any Plan 6 task starts.
+- Hosting/deployment or pointing production SDA applications at the service; this remains gated on G32, G29, and G30, with package compatibility as a further readiness check.
+- Changes to the soilDB or py-soildb repositories, including committing or otherwise resolving their current branch/worktree state.
+- Changing the SDA wire protocol, replacing SQLite/GeoPackage, adding dependencies, or changing accepted architecture decisions.
+- Implementing SDA functions that cannot be represented safely or meaningfully on the SQLite/GeoPackage backend; record them and why they are unsupported.
+- Running the soilDB integration harness as part of ordinary `cargo test` or CI by default. It is opt-in and requires local R packages, SpatiaLite, the source checkout, and the large Iowa dataset.
+
+### Verbatim constraints and user decisions
+
+- “we want to support all the SDA_Get functions we can but the short set are the ones that are actuvely used”
+- “as part of our testing, I'd like to set up an integration test using the R soilDB package in `~/workspace/soilDB` SDA_query/SDA_spatialQuery/get_SDA* style tests.”
+- “we will need to create our own fixtures that point at the iowa geopackage `/data/SSURGO/output/iowa_ssurgo.gpkg`”
+- The integration test starts and stops the service itself.
+- The Iowa GeoPackage is read-only, referenced at its existing path, and configurable through an environment-variable override.
+- The current soilDB checkout's endpoint-option patch is user-owned and is used by the harness without modification.
+- Plan 5/G32 runs first. Plan 6 may be drafted now but cannot execute until G32 is complete.
+- Use no more than two workers, isolated worktrees for parallel work, and `openai/gpt-6-luna` for workers/escalation.
+- Planning artifacts are tracked and committed separately. No remote Git operations.
+- At each wave boundary run `cargo fmt --check`, `git diff --check`, and `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` serially. Run the Iowa/soilDB integration target at its milestone and final acceptance, not every wave.
+
+## Dated decisions
+
+- 2026-11-18 — Plan 5 remains the implementation plan for G32. Plan 6 is gated on its completion; do not duplicate or silently replace G32 work.
+- 2026-11-18 — Complete the pre-hosting path in order: G32, then G29, then G30. Keep hosting and live SDA-app trials deferred until all three pass.
+- 2026-11-18 — G11 means support all catalog functions that can be implemented safely; inventory the full surface and prioritize the functions actively used by soilDB and py-soildb.
+- 2026-11-18 — Use the local soilDB source tree's endpoint option, but do not alter its current dirty state. Add the client harness only in sda-rs.
+- 2026-11-18 — Keep the Iowa GeoPackage outside the repository, open it read-only, and allow its path to be overridden with `SDA_TEST_GEOPACKAGE`.
+- 2026-11-18 — The R integration run is an opt-in Make target; it starts/stops the server and runs only at the specified milestone/final gate.
+- 2026-11-18 — Current workspace package references: soilDB 2.9.4 (`feat/custom-sda1`, dirty user-owned tree); py-soildb 0.9.0 (`v090`, clean tree). Inventory must record exact revisions and distinguish package source from released versions where they differ.
+- 2026-11-18 — Preserve accepted ADRs 0001–0006. No supersession is authorized.
+- 2026-11-18 — Plan 6 artifacts are tracked and committed separately from implementation.
+
+## Reconnaissance log
+
+- Repository: `/home/andrew/workspace/sda-rs`, branch `feature/sda-readiness`, clean after planning commit `4198dc8`. No remote action is authorized.
+- Plan 5 (`EXECUTION_PLAN_5.md`) already specifies G32. `STATE_5.md` still marks all three waves pending; Plan 6 cannot start until Plan 5 completion is verified and recorded.
+- Configured Rust baseline passed: `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` (52 unit + 11 integration tests); `cargo fmt --check` and `git diff --check` passed.
+- R environment: R 4.6.2; soilDB 2.9.4, testthat 3.3.2, sf 1.1.2, wk 0.9.5, DBI 1.3.0, and RSQLite 3.53.3 are installed.
+- The soilDB source tree is `/home/andrew/workspace/soilDB`, branch `feat/custom-sda1`, HEAD `1eaa0717`; pre-existing user changes are `.Rbuildignore`, `R/SDA_query.R`, `R/createSSURGO.R`, and untracked `createSSURGO_patch.diff`. The `R/SDA_query.R` diff adds option `soilDB.sda.tabular.post.rest.url`. Never alter or stage these changes.
+- py-soildb source tree is `/home/andrew/workspace/py-soildb`, branch `v090`, HEAD `f070c0a`, clean. Its package metadata reports version 0.9.0.
+- `/data/SSURGO/output/iowa_ssurgo.gpkg` exists and is approximately 6.4 GB. Read-only metadata inspection found `mupolygon.geom`, `sapolygon.geom`, and `featpoint.geom`, all EPSG:4326. `IA001` exists; `mupolygon` includes mukey `1857266`.
+- Current SDA TVF rewrite anchor is `src/transpiler/spatial.rs` (`MUKEY_FUNCTION`, `rewrite`, `rewrite_node`); geometry capability/metadata anchor is `src/spatial.rs`; configured spatial contract examples are in `tests/aoi_contract.rs` and `tests/mukey_contract.rs`.
+- `src/transpiler/spatial.rs` is 503 lines; use grep anchors, not whole-file reads. `src/spatial.rs` is 333 lines. The repo is a Rust Cargo project with a Makefile; there is no existing R integration harness.
+- soilDB's existing query/client patterns are in `tests/testthat/test-SDA_query.R`, `R/SDA-spatial.R`, and `R/get_SDA_muaggatt.R`. In the checked-out soilDB source, `SDA_spatialQuery()` uses mukey and sapolygonkey intersection TVFs; the local Iowa fixture can exercise these with real data.
+- `planning/sda-rs-scoping.md` documents the broader TVF catalog but notes that historical package-source inspection was incomplete. Plan 6 must ground its matrix in the named current package sources and authoritative catalog evidence.
+- Accepted ADRs 0001–0006 are active. Preserve SQLite/GeoPackage, request-local blocking connections, optional SpatiaLite, rollback, response numbering, and shared-cache in-memory test semantics.
+
+## Dependency graph and waves
+
+External prerequisite: completed Plan 5/G32.
+
+| Wave | Tasks | Purpose |
+|---|---|---|
+| 1 | 6.1.1, 6.1.2 | Define the spatial compatibility contract and inventory the complete SDA_Get catalog/package call sites. |
+| 2 | 6.2.1 | Decode and validate GeoPackageBinary geometry values. |
+| 3 | 6.3.1 | Support the SDA_Get intersection functions used by soilDB's spatial client path first. |
+| 4 | 6.4.1 | Add area-symbol and soil-survey-polygon intersection/key TVFs. |
+| 5 | 6.5.1 | Add mapunit-polygon intersection/key TVFs. |
+| 6 | 6.6.1 | Add other feature-layer intersection/key TVFs where the data model supports them. |
+| 7 | 6.7.1 | Implement feasible scalar key-to-WKT TVFs. |
+| 8 | 6.8.1 | Implement feasible table-input WKT TVFs and input-table macros. |
+| 9 | 6.9.1 | Add and run the opt-in soilDB/Iowa integration harness. |
+
+Dependencies: `6.2.1` depends on `6.1.1`; `6.3.1` depends on `6.1.2` and `6.2.1`; each of `6.4.1`–`6.8.1` depends on the immediately prior implementation wave; `6.9.1` depends on `6.3.1`–`6.8.1`. Every task depends on completed Plan 5/G32. Wave 1 tasks have disjoint output files; all same-module SDA_Get implementation tasks are intentionally sequential.
+
+## Global hazards and execution rules
+
+- Do not start any Plan 6 task until Plan 5/G32 is complete and its state reports the required security, resource, and configured-suite acceptance evidence.
+- Do not edit Plan 5 artifacts or rewrite its history as part of Plan 6.
+- Do not touch or stage any files in the soilDB or py-soildb repositories. Their source trees are inputs only; preserve soilDB's dirty working tree.
+- Never copy, update, or write to `/data/SSURGO/output/iowa_ssurgo.gpkg`; use read-only inspection and requests only.
+- The integration harness must use a temporary R library and temporary logs, start the service bound to loopback, wait for readiness, and stop its child process even on test failure. Do not use a fixed shared port; allow explicit overrides.
+- Keep the R harness opt-in and separate from `cargo test`; fail with actionable diagnostics when its explicitly requested prerequisites are missing rather than reporting a false pass.
+- Test fixtures should use stable Iowa data such as area symbol `IA001` and mukey `1857266`; use exact expected values only after verifying them with read-only queries.
+- Keep spatial extension handling optional for ordinary SQLite. Configured live-SpatiaLite acceptance must prove the extension initialized and a real spatial query executed.
+- Preserve the exact SDA response contract, `#temp` behavior, transaction rollback, request-local connections, and all accepted ADRs.
+- Do not add crates, change dependency versions, alter the HTTP wire protocol, or deploy/host the service in this plan.
+- At each wave boundary, run the configured Rust suite serially. Run `make test-soildb` after its harness task and again at final acceptance; report external package versions and the GeoPackage path.
+
+## Task specifications
+
+### Task 6.1.1 — Document the supported spatial SQL contract
+
+- **ID:** 6.1.1
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Files in scope — must edit:** `docs/spatial-sql-contract.md`.
+- **Can create:** the named contract document only.
+- **Depends on:** completed Plan 5/G32.
+- **Spec:** Document current supported spatial constructors/methods and SDA query patterns; specify input/output SRID expectations, units where relevant, NULL behavior, invalid geometry/error behavior, optional SpatiaLite behavior, GeoPackageBinary assumptions, and intentional differences or unsupported cases. Cross-reference the scoped code/test anchors. Do not promise behavior that the implementation and tests do not demonstrate.
+- **Do not touch:** source code, `planning/GOALS.md`, Plan 5 files, or other repositories.
+- **Grep anchors:** `src/transpiler/spatial.rs` `rewrite`, `rewrite_node`; `src/spatial.rs` `geometry_metadata_for_table`, `prepare_spatial_capability`; `tests/aoi_contract.rs`; `tests/mukey_contract.rs`; `planning/sda-rs-scoping.md` spatial method table.
+- **Acceptance:** document review against the named implementation/tests; `cargo fmt --check`; `git diff --check`.
+
+### Task 6.1.2 — Inventory SDA_Get catalog and client usage
+
+- **ID:** 6.1.2
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Files in scope — must edit:** `docs/sda-get-support.md`.
+- **Can create:** the named compatibility matrix only.
+- **Depends on:** completed Plan 5/G32.
+- **Spec:** Inventory the authoritative USDA-NRCS SDA_Get catalog and current soilDB/py-soildb package call sites. Compare current published release metadata/source with the local worktrees; record package versions, source revisions, source URLs/references, each function's arguments/return columns, WGS84/Web-Mercator variants, table-input requirements, required data tables/geometry layers, and whether it is actively called. Classify every function as already supported, implementable in this backend, or unsupported with an evidence-based reason. Mark soilDB's and py-soildb's actively used functions as first-priority implementation targets. Do not treat every function as feasible merely because it appears in the catalog.
+- **Do not touch:** package source trees, production Rust code, Plan 5 files, or any dependency.
+- **Grep anchors:** `/home/andrew/workspace/soilDB/R/SDA-spatial.R`, `/home/andrew/workspace/soilDB/R/SDA_query.R`, `/home/andrew/workspace/soilDB/vignettes/sda.Rmd`, `/home/andrew/workspace/py-soildb/src/soildb/spatial.py`, `planning/sda-rs-scoping.md` “Complete SDA_Get Table-Valued Function Surface”.
+- **Acceptance:** matrix accounts for every catalog entry and cites package source locations for active usage; verify package versions/revisions and no external repo changed; `git diff --check`.
+
+### Task 6.2.1 — Decode and validate GeoPackageBinary
+
+- **ID:** 6.2.1
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Files in scope — must edit:** `src/gpkg_geometry.rs`, `src/lib.rs`.
+- **Can create:** unit tests within `src/gpkg_geometry.rs`.
+- **Depends on:** 6.1.1.
+- **Spec:** Add a small, testable decoder for GeoPackageBinary headers and WKB payload boundaries. Cover magic/version, flags and byte order, optional envelope lengths, empty geometries, truncated/invalid headers, and WKB extraction. Reject malformed values with explicit errors; do not silently reinterpret arbitrary blobs. Keep the parser independent of SpatiaLite and do not change query semantics unless the named contract requires it.
+- **Do not touch:** `src/spatial.rs`, `src/serializer.rs`, the Iowa GeoPackage, or wire response code.
+- **Grep anchors:** `src/lib.rs` module declarations; `src/spatial.rs` geometry metadata helpers; `planning/sda-rs-scoping.md` GeoPackage geometry references.
+- **Acceptance:** `cargo test gpkg_geometry`; `cargo fmt --check`; `git diff --check`.
+
+### Task 6.3.1 — Support active client intersection TVFs
+
+- **ID:** 6.3.1
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Files in scope — must edit:** `src/transpiler/spatial.rs`, `src/spatial.rs`, `docs/sda-get-support.md`.
+- **Can create:** `tests/sda_get_contract.rs`.
+- **Depends on:** 6.1.2, 6.2.1.
+- **Spec:** Implement and test all safely feasible WGS84/Web-Mercator variants of the spatial-intersection SDA_Get functions actively called by soilDB and py-soildb (including the mukey and sapolygonkey paths where catalog evidence confirms usage). Reuse the existing AST rewrite and spatial preparation architecture; validate returned key column names/types and real intersections on deterministic in-memory fixtures. Preserve existing `SDA_Get_Mukey_from_intersection_with_WktWgs84` behavior. Update the support matrix only if implementation evidence changes its classifications.
+- **Do not touch:** external package repositories, `planning/GOALS.md`, the GeoPackage decoder, serializer, or wire protocol.
+- **Grep anchors:** `src/transpiler/spatial.rs` `MUKEY_FUNCTION`, `rewrite`, `rewrite_node`; `src/spatial.rs` `SPATIAL_FUNCTIONS`, `prepare_spatial_capability`; `tests/mukey_contract.rs`; package call sites from task 6.1.2.
+- **Acceptance:** `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract`; configured test must execute real spatial queries; `cargo fmt --check`; `git diff --check`.
+
+### Task 6.4.1 — Add area-symbol and survey-polygon intersection TVFs
+
+- **ID:** 6.4.1
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Files in scope — must edit:** `src/transpiler/spatial.rs`, `src/spatial.rs`, `docs/sda-get-support.md`.
+- **Can create:** none.
+- **Must edit:** `tests/sda_get_contract.rs`.
+- **Depends on:** 6.3.1.
+- **Spec:** Implement catalog-classified-feasible `areasymbol` and `sapolygonkey` intersection functions, including WGS84/Web-Mercator forms and status-map joins where supported by the source data model. Use the task 6.1.2 matrix as the bounded list; every feasible entry added must have an execution test and exact result-column assertion. If a supposedly feasible entry requires a schema/semantic capability not present, stop and report rather than widening scope silently.
+- **Do not touch:** external package repositories, geometry decoder, serializer, or route/wire behavior.
+- **Grep anchors:** task 6.1.2 support matrix; `src/transpiler/spatial.rs` `rewrite_node`; `src/spatial.rs` spatial function dispatch; `tests/sda_get_contract.rs`.
+- **Acceptance:** `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract`; `cargo fmt --check`; `git diff --check`.
+
+### Task 6.5.1 — Add mapunit-polygon intersection/key TVFs
+
+- **ID:** 6.5.1
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Files in scope — must edit:** `src/transpiler/spatial.rs`, `src/spatial.rs`, `docs/sda-get-support.md`.
+- **Can create:** none.
+- **Must edit:** `tests/sda_get_contract.rs`.
+- **Depends on:** 6.4.1.
+- **Spec:** Implement catalog-classified-feasible mapunit-polygon intersection/key functions, including WGS84/Web-Mercator variants. Resolve the `mupolygon` geometry column and SRID through existing metadata; preserve the existing `mukey` intersection behavior and test exact return columns, key coercion, NULL/no-match behavior, and real intersections. Use the task 6.1.2 support matrix as the boundary.
+- **Do not touch:** external package repositories, serializer, or wire protocol.
+- **Grep anchors:** task 6.1.2 support matrix; `src/spatial.rs` `geometry_metadata_for_table`; `src/transpiler/spatial.rs` `rewrite_node`; `tests/sda_get_contract.rs`.
+- **Acceptance:** `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract`; `cargo fmt --check`; `git diff --check`.
+
+### Task 6.6.1 — Add other feasible feature-layer intersection TVFs
+
+- **ID:** 6.6.1
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Files in scope — must edit:** `src/transpiler/spatial.rs`, `src/spatial.rs`, `tests/sda_get_contract.rs`, `docs/sda-get-support.md`.
+- **Can create:** none.
+- **Depends on:** 6.5.1.
+- **Spec:** Implement catalog-classified-feasible intersection/key functions for `mupoint`, `muline`, `featpoint`, and `featline`, including WGS84/Web-Mercator variants. The Iowa fixture only has `featpoint` among these layers; use deterministic in-memory fixtures for generic behavior. Keep functions whose required geometry layer is absent from a particular GeoPackage classified as conditionally supported, not as an unconditional error or fabricated result. Update unsupported classifications only with evidence.
+- **Do not touch:** external package repositories, geometry decoder, serializer, or route/wire behavior.
+- **Grep anchors:** task 6.1.2 support matrix; `src/transpiler/spatial.rs` `rewrite_node`; `src/spatial.rs` spatial function dispatch; `tests/sda_get_contract.rs`.
+- **Acceptance:** `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract`; `cargo fmt --check`; `git diff --check`.
+
+### Task 6.7.1 — Implement scalar key-to-WKT TVFs
+
+- **ID:** 6.7.1
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Files in scope — must edit:** `src/transpiler/spatial.rs`, `src/spatial.rs`, `tests/sda_get_contract.rs`, `docs/sda-get-support.md`.
+- **Can create:** none.
+- **Depends on:** 6.6.1.
+- **Spec:** Implement catalog-classified-feasible scalar SDA_Get functions that return geometry WKT by a single key (for example, area-symbol or mukey inputs), including documented WGS84/Web-Mercator variants. Resolve geometry columns/SRIDs through existing metadata, produce the catalog's exact aliases, and test NULL/no-match behavior and CRS transformations. Use the support matrix as the task boundary.
+- **Do not touch:** external package repositories, serializer, or wire protocol.
+- **Grep anchors:** task 6.1.2 support matrix; `src/spatial.rs` `geometry_metadata_for_table`; `src/transpiler/spatial.rs` `rewrite_node`; `tests/sda_get_contract.rs`.
+- **Acceptance:** `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract`; `cargo fmt --check`; `git diff --check`.
+
+### Task 6.8.1 — Implement feasible table-input WKT TVFs
+
+- **ID:** 6.8.1
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Files in scope — must edit:** `src/transpiler/spatial.rs`, `src/transpiler/temp_tables.rs`, `tests/sda_get_contract.rs`, `docs/sda-get-support.md`.
+- **Can create:** none.
+- **Depends on:** 6.7.1.
+- **Spec:** Implement the feasible table-input SDA_Get variants and the `DeclareIntTable`, `DeclareVarcharTable`, and `DeclareVarchar255Table` forms required by supported catalog entries. Preserve request-local temporary-table isolation and batch rollback; test declaration, population, joins, aliases, WGS84/Web-Mercator variants, and malformed or absent inputs. Follow the task 6.1.2 matrix and document any remaining unsupported variants there.
+- **Do not touch:** executor transaction policy, external package repositories, serializer, or wire protocol.
+- **Grep anchors:** task 6.1.2 support matrix; `src/transpiler/temp_tables.rs` `rewrite`, `#temp` mapping; `src/transpiler/spatial.rs` `rewrite_node`; `tests/sql_batch_contract.rs`; `tests/sda_get_contract.rs`.
+- **Acceptance:** `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract`; `cargo fmt --check`; `git diff --check`.
+
+### Task 6.9.1 — Add the opt-in soilDB/Iowa integration harness
+
+- **ID:** 6.9.1
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Files in scope — must edit:** `Makefile`.
+- **Can create:** `scripts/test-soildb.sh`, `tests/soildb/testthat.R`, `tests/soildb/testthat/test-sda-rs.R`, `tests/soildb/README.md`.
+- **Depends on:** 6.3.1, 6.4.1, 6.5.1, 6.6.1, 6.7.1, 6.8.1.
+- **Spec:** Add opt-in `make test-soildb` that builds/starts the server on loopback, waits for readiness, and always stops the child process. Use configurable `SOILDB_PATH`, `SDA_TEST_GEOPACKAGE`, `SDA_TEST_SPATIALITE`, and port settings with actionable prerequisite errors; pass the extension path to the server as `SDA_SPATIAL_EXTENSION` and the GeoPackage as its backend. Install the local soilDB source into a temporary R library; set the soilDB endpoint option `soilDB.sda.tabular.post.rest.url` to the child server URL ending in `/Tabular/post.rest`. Tests must be testthat-style and cover `SDA_query`, `SDA_spatialQuery`, and selected `get_SDA_*` package functions with stable Iowa fixtures (including verified `IA001`/mukey examples). Assert useful results rather than only HTTP success. Never write to or copy the Iowa GeoPackage, edit the soilDB checkout, use a fixed shared port, or add this external harness to ordinary `cargo test`.
+- **Do not touch:** any file in `/home/andrew/workspace/soilDB` or `/home/andrew/workspace/py-soildb`; Rust application code except building/running it; CI defaults.
+- **Grep anchors:** soilDB `R/SDA_query.R` endpoint option and `tests/testthat/test-SDA_query.R`; `R/SDA-spatial.R` `SDA_spatialQuery`; `R/get_SDA_muaggatt.R`; `src/main.rs`; `src/config.rs`; `Makefile`.
+- **Acceptance:** `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so SDA_TEST_GEOPACKAGE=/data/SSURGO/output/iowa_ssurgo.gpkg SOILDB_PATH=/home/andrew/workspace/soilDB make test-soildb`; confirm all named testthat cases executed without skips; `git diff --check`. Then run the configured full Rust suite serially.
+
+## Wave-boundary verification
+
+- After each wave: `cargo fmt --check`, `git diff --check`, and `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` (serial).
+- After task 6.9.1 and at final acceptance: run the configured `make test-soildb` command above, and verify the Iowa database and both external package repositories remain unchanged.
+- No task may run before Plan 5/G32 is complete. No remote Git operations.
