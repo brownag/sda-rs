@@ -7,49 +7,6 @@ use crate::{
     spatial::{self, SpatialCapability},
 };
 
-/// An owned batch of SQL statements, executed on one request-local connection.
-#[derive(Debug, Clone)]
-pub struct SqliteExecutor {
-    path: String,
-    statements: Vec<String>,
-    spatial_extension: Option<String>,
-    geometry_column: Option<String>,
-}
-
-impl SqliteExecutor {
-    pub fn new(
-        path: impl Into<String>,
-        statements: impl IntoIterator<Item = impl Into<String>>,
-    ) -> Self {
-        Self {
-            path: path.into(),
-            statements: statements.into_iter().map(Into::into).collect(),
-            spatial_extension: None,
-            geometry_column: None,
-        }
-    }
-
-    pub fn with_spatial_config(
-        mut self,
-        extension: Option<String>,
-        geometry_column: Option<String>,
-    ) -> Self {
-        self.spatial_extension = extension;
-        self.geometry_column = geometry_column;
-        self
-    }
-
-    pub fn execute(self) -> Result<Vec<ResultSet>, ExecutorError> {
-        Ok(execute_spatial(
-            &self.path,
-            &self.statements,
-            self.spatial_extension.as_deref(),
-            self.geometry_column.as_deref(),
-        )?
-        .result_sets)
-    }
-}
-
 #[derive(Debug)]
 pub enum ExecutorError {
     Sqlite(rusqlite::Error),
@@ -106,12 +63,7 @@ pub fn execute_spatial(
     extension: Option<&str>,
     geometry_override: Option<&str>,
 ) -> Result<ExecutionOutput, ExecutorError> {
-    let connection = if path == ":memory:" {
-        Connection::open_in_memory()?
-    } else {
-        Connection::open(path)?
-    };
-    let spatial = spatial::initialize(&connection, extension, geometry_override)?;
+    let (connection, spatial) = open_initialized(path, extension, geometry_override)?;
     if statements
         .iter()
         .any(|statement| spatial::requires_spatial(statement))
@@ -138,12 +90,8 @@ where
     F: FnOnce(&SpatialCapability, &str) -> Result<Vec<String>, String> + Send + 'static,
 {
     Ok(tokio::task::spawn_blocking(move || {
-        let connection = open_connection(&path)?;
-        let spatial = spatial::initialize(
-            &connection,
-            extension.as_deref(),
-            geometry_override.as_deref(),
-        )?;
+        let (connection, spatial) =
+            open_initialized(&path, extension.as_deref(), geometry_override.as_deref())?;
         if spatial::requires_spatial(&query) {
             spatial.require_spatial()?;
         }
@@ -171,29 +119,14 @@ fn open_connection(path: &str) -> Result<Connection, rusqlite::Error> {
     }
 }
 
-/// Run SQLite work on Tokio's blocking pool.
-pub async fn execute_blocking(
-    path: String,
-    statements: Vec<String>,
-) -> Result<Vec<ResultSet>, ExecutorError> {
-    Ok(tokio::task::spawn_blocking(move || execute(&path, &statements)).await??)
-}
-
-pub async fn execute_spatial_blocking(
-    path: String,
-    statements: Vec<String>,
-    extension: Option<String>,
-    geometry_override: Option<String>,
-) -> Result<ExecutionOutput, ExecutorError> {
-    Ok(tokio::task::spawn_blocking(move || {
-        execute_spatial(
-            &path,
-            &statements,
-            extension.as_deref(),
-            geometry_override.as_deref(),
-        )
-    })
-    .await??)
+fn open_initialized(
+    path: &str,
+    extension: Option<&str>,
+    geometry_override: Option<&str>,
+) -> Result<(Connection, SpatialCapability), ExecutorError> {
+    let connection = open_connection(path)?;
+    let spatial = spatial::initialize(&connection, extension, geometry_override)?;
+    Ok((connection, spatial))
 }
 
 fn execute_on(
@@ -281,11 +214,9 @@ mod tests {
         assert!(results[0].rows.is_empty());
     }
 
-    #[tokio::test]
-    async fn exposes_blocking_execution_boundary() {
-        let results = execute_blocking(":memory:".into(), vec!["SELECT 3 AS value".into()])
-            .await
-            .unwrap();
+    #[test]
+    fn executes_single_select() {
+        let results = execute(":memory:", &["SELECT 3 AS value".into()]).unwrap();
         assert_eq!(results[0].rows, [vec![Value::Integer(3)]]);
     }
 
@@ -293,6 +224,9 @@ mod tests {
     fn ordinary_executor_exposes_missing_spatial_metadata_without_failure() {
         let output = execute_spatial(":memory:", &["SELECT 1".into()], None, None).unwrap();
         assert!(!output.spatial.available());
-        assert_eq!(output.spatial.geometry_metadata(), None);
+        assert_eq!(
+            output.spatial.geometry_metadata_for_table("mupolygon"),
+            None
+        );
     }
 }

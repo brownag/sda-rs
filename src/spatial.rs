@@ -12,7 +12,6 @@ pub struct GeometryMetadata {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SpatialCapability {
     available: bool,
-    geometry: Option<GeometryMetadata>,
     geometries: Vec<GeometryMetadata>,
     effective_geometry_column: Option<String>,
 }
@@ -20,10 +19,6 @@ pub struct SpatialCapability {
 impl SpatialCapability {
     pub fn available(&self) -> bool {
         self.available
-    }
-
-    pub fn geometry_metadata(&self) -> Option<&GeometryMetadata> {
-        self.geometry.as_ref()
     }
 
     pub fn geometry_metadata_for_table(&self, table: &str) -> Option<&GeometryMetadata> {
@@ -162,16 +157,12 @@ pub fn initialize(
             return Err(SpatialError::Metadata(error));
         }
     };
-    let geometry = geometries.first().cloned();
-    let effective_geometry_column = geometry_override.map(str::to_owned).or_else(|| {
-        geometry
-            .as_ref()
-            .map(|metadata| metadata.geometry_column.clone())
-    });
+    let effective_geometry_column = geometry_override
+        .map(str::to_owned)
+        .or_else(|| geometries.first().map(|m| m.geometry_column.clone()));
 
     Ok(SpatialCapability {
         available,
-        geometry,
         geometries,
         effective_geometry_column,
     })
@@ -187,7 +178,7 @@ mod tests {
         let connection = Connection::open_in_memory().unwrap();
         let capability = initialize(&connection, None, None).unwrap();
         assert!(!capability.available());
-        assert_eq!(capability.geometry_metadata(), None);
+        assert_eq!(capability.geometry_metadata_for_table("soil_map"), None);
         assert_eq!(capability.effective_geometry_column(), None);
         assert_eq!(
             capability.require_spatial().unwrap_err().to_string(),
@@ -204,7 +195,7 @@ mod tests {
         ).unwrap();
         let capability = initialize(&connection, None, Some("geom_override")).unwrap();
         assert_eq!(
-            capability.geometry_metadata(),
+            capability.geometry_metadata_for_table("soil_map"),
             Some(&GeometryMetadata {
                 table_name: "soil_map".into(),
                 geometry_column: "geom_custom".into(),
@@ -261,7 +252,7 @@ mod tests {
             Some("shape_override".into()),
             |capability, query| {
                 assert_eq!(query, "SELECT 1");
-                let metadata = capability.geometry_metadata().unwrap();
+                let metadata = capability.geometry_metadata_for_table("soil_map").unwrap();
                 assert_eq!(metadata.table_name, "soil_map");
                 assert_eq!(metadata.srs_id, 4326);
                 assert_eq!(

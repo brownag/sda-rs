@@ -108,7 +108,6 @@ pub async fn post(State(state): State<AppState>, request: Request) -> Response {
         "application/json; charset=utf-8"
     };
     let mut response = Response::new(Body::from(body));
-    response.extensions_mut().insert(output.spatial);
     response
         .headers_mut()
         .insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
@@ -256,7 +255,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn request_exposes_spatial_metadata_and_geometry_override() {
+    async fn request_with_spatial_config_and_gpkg_metadata_succeeds() {
         let path = std::env::temp_dir().join(format!(
             "sda-spatial-route-{}-{}.sqlite",
             std::process::id(),
@@ -278,19 +277,8 @@ mod tests {
         )
         .await;
         assert_eq!(response.status(), StatusCode::OK);
-        let capability = response
-            .extensions()
-            .get::<crate::spatial::SpatialCapability>()
-            .unwrap();
-        assert!(!capability.available());
-        assert_eq!(
-            capability.geometry_metadata().unwrap().geometry_column,
-            "shape_actual"
-        );
-        assert_eq!(
-            capability.effective_geometry_column(),
-            Some("shape_override")
-        );
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        assert_eq!(&body[..], br#"{"Table":[["1"]]}"#);
         fs::remove_file(path).unwrap();
     }
 
