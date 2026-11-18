@@ -74,14 +74,14 @@ External prerequisite: completed Plan 5/G32.
 | 1 | 6.1.1, 6.1.2 | Define the spatial compatibility contract and inventory the complete SDA_Get catalog/package call sites. |
 | 2 | 6.2.1 | Decode and validate GeoPackageBinary geometry values. |
 | 3 | 6.3.1 | Support the SDA_Get intersection functions used by soilDB's spatial client path first. |
-| 4 | 6.4.1–6.4.3 (blocked/diagnostic); 6.4.4 | Add area-symbol and soil-survey-polygon intersection/key TVFs; fix the confirmed Web-Mercator mismatch while retaining the WGS84 assertion. |
+| 4 | 6.4.1–6.4.3 (blocked/diagnostic); 6.4.4; 6.4.5 | Add area-symbol and soil-survey-polygon intersection/key TVFs; correct the Web-Mercator mismatch and restore Mukey metadata-SRID behavior. |
 | 5 | 6.5.1 | Add mapunit-polygon intersection/key TVFs. |
 | 6 | 6.6.1 | Add other feature-layer intersection/key TVFs where the data model supports them. |
 | 7 | 6.7.1 | Implement feasible scalar key-to-WKT TVFs. |
 | 8 | 6.8.1 | Implement feasible table-input WKT TVFs and input-table macros. |
 | 9 | 6.9.1 | Add and run the opt-in soilDB/Iowa integration harness. |
 
-Dependencies: `6.2.1` depends on `6.1.1`; `6.3.1` depends on `6.1.2` and `6.2.1`; `6.4.1` depends on `6.3.1`; recovery task `6.4.2` also depends on `6.3.1` and takes over the preserved, uncommitted in-scope work from blocked task 6.4.1; diagnostic task `6.4.3` depends on 6.3.1 and the failure evidence from 6.4.1/6.4.2, and is diagnostic-only; implementation task `6.4.4` depends on 6.3.1 and the preserved partial work/diagnostic findings from 6.4.1–6.4.3. `6.5.1` depends on completed Wave 4 via 6.4.4; each of `6.6.1`–`6.8.1` depends on the immediately prior implementation wave; `6.9.1` depends on `6.3.1`–`6.8.1`. Every task depends on completed Plan 5/G32. Wave 1 tasks have disjoint output files; all same-module SDA_Get implementation tasks are intentionally sequential.
+Dependencies: `6.2.1` depends on `6.1.1`; `6.3.1` depends on `6.1.2` and `6.2.1`; `6.4.1` depends on `6.3.1`; recovery task `6.4.2` also depends on `6.3.1` and takes over the preserved, uncommitted in-scope work from blocked task 6.4.1; diagnostic task `6.4.3` depends on 6.3.1 and the failure evidence from 6.4.1/6.4.2, and is diagnostic-only; implementation task `6.4.4` depends on 6.3.1 and the preserved partial work/diagnostic findings from 6.4.1–6.4.3; regression correction `6.4.5` depends on 6.4.4 and the Wave 4 boundary-test evidence. `6.5.1` depends on completed Wave 4 via 6.4.5; each of `6.6.1`–`6.8.1` depends on the immediately prior implementation wave; `6.9.1` depends on `6.3.1`–`6.8.1`. Every task depends on completed Plan 5/G32. Wave 1 tasks have disjoint output files; all same-module SDA_Get implementation tasks are intentionally sequential.
 
 ## Global hazards and execution rules
 
@@ -195,6 +195,18 @@ Dependencies: `6.2.1` depends on `6.1.1`; `6.3.1` depends on `6.1.2` and `6.2.1`
 - **Do not touch:** external repositories, planning/GOALS.md, geometry decoder, serializer, route/wire behavior, dependencies, Iowa data, or files outside the four in-scope paths.
 - **Grep anchors:** `src/transpiler/spatial.rs` `intersection_spec`, `expand_source`; `src/spatial.rs` `requires_spatial`; `tests/sda_get_contract.rs` query list and status-map fixture; `docs/sda-get-support.md` corresponding four catalog rows; Web-Mercator mismatch evidence in `planning/STATE_6.md`.
 - **Acceptance:** after the focused fix, at most one `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract -- --nocapture`; require all eight exact cases to pass with configured SpatiaLite and real queries. If it fails, stop and report. If it passes, run `cargo fmt --check` and `git diff --check`; orchestrator runs the full configured suite at the Wave 4 boundary.
+
+### Task 6.4.5 — Restore Mukey metadata-SRID behavior
+
+- **ID:** 6.4.5
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Files in scope — must edit:** `src/transpiler/spatial.rs`.
+- **Can create:** none.
+- **Depends on:** 6.4.4; regression found by the configured Wave 4 full-suite check.
+- **Spec:** Restore the pre-existing `SDA_Get_Mukey_from_intersection_with_WktWgs84` behavior: transform the source geometry to its `mupolygon` metadata SRID while keeping the WKT constructor at SRID 4326. Do not regress the new Web-Mercator variants: both geometry and WKT must use a common 3857 CRS there. Preserve optional metadata/override validation and all four basic Mukey/Sapolygonkey TVFs. Keep or strengthen the existing unit assertion for metadata SRID; do not weaken it.
+- **Do not touch:** external repositories, planning/GOALS.md, spatial decoder, other spatial function support, serializer, routes, dependencies, or files outside `src/transpiler/spatial.rs`.
+- **Grep anchors:** `src/transpiler/spatial.rs` `MUKEY_FUNCTION`, `expand_source`, and `mukey_override_column_uses_mupolygon_metadata_srid`; failing output recorded in `planning/STATE_6.md`.
+- **Acceptance:** `cargo test mukey_override_column_uses_mupolygon_metadata_srid`; then `cargo fmt --check` and `git diff --check`. The orchestrator reruns the configured full suite at the Wave 4 boundary.
 
 ### Task 6.5.1 — Add mapunit-polygon intersection/key TVFs
 

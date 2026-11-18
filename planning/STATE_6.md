@@ -25,7 +25,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 | 1 | 6.1.1 Spatial SQL contract; 6.1.2 SDA_Get inventory | done | `b90bd8b`, `366a02a` |
 | 2 | 6.2.1 GeoPackageBinary decoder | done | `e2eb5c2` |
 | 3 | 6.3.1 Active-client intersection TVFs | done | `4d4aa0a` |
-| 4 | 6.4.1–6.4.3 diagnostic attempts; 6.4.4 implementation | in progress | — |
+| 4 | 6.4.1–6.4.3 diagnostic attempts; 6.4.4 implementation; 6.4.5 regression correction | in progress | — |
 | 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | pending | — |
 | 6 | 6.6.1 Other feature-layer intersection TVFs | pending | — |
 | 7 | 6.7.1 Scalar key-to-WKT TVFs | pending | — |
@@ -115,7 +115,18 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Next action:** await user direction; all downstream waves remain gated on Wave 4 completion.
 
 ## 6.4.4
-- **Status:** user-authorized implementation continuation; micro-planning.
+- **Status:** implementation committed; Wave 4 boundary uncovered a regression requiring follow-up.
 - **Scope:** finish the four remaining area-symbol/status-map intersection variants, fix the confirmed Web-Mercator CRS mismatch, and retain the WGS84 expected result without claiming the earlier inconsistent responses are explained.
 - **Authorization:** user approved proceeding with the confirmed Web-Mercator fix and remaining Wave 4 work while preserving the WGS84 assertion.
 - **WGS84 caveat:** user confirmed that earlier `{}` responses may remain recorded as unexplained if the post-fix configured contract passes.
+- **Files:** `src/transpiler/spatial.rs`, `src/spatial.rs`, `tests/sda_get_contract.rs`, `docs/sda-get-support.md`.
+- **Code commit:** `8a54496` (`feat(spatial): complete SDA intersection TVFs`).
+- **Targeted acceptance:** configured `cargo test --test sda_get_contract -- --nocapture` passed (1 integration test; all eight query cases executed with real spatial fixtures).
+- **Checks:** `cargo fmt --check` and `git diff --check` passed.
+- **Wave boundary:** configured full `cargo test` failed in unit test `transpiler::spatial::tests::mukey_override_column_uses_mupolygon_metadata_srid` (60 unit passed, 1 failed; integration tests were not reached). Generated SQL transformed geometry to SRID 4326 instead of expected metadata SRID 3857.
+- **Next:** 6.4.5 restores the existing Mukey WGS84 metadata-SRID behavior while preserving the Web-Mercator common-CRS fix; Wave 5 remains gated.
+
+## 6.4.5
+- **Status:** authorized focused regression correction; micro-planning.
+- **Scope:** `src/transpiler/spatial.rs` only; preserve the WGS84 Mukey metadata-SRID contract and the new Web-Mercator correction.
+- **Authorization:** existing Plan 6 scope requires preserving the previously tested Mukey behavior; regression surfaced at the Wave 4 boundary.
