@@ -13,19 +13,20 @@ Plan: `planning/EXECUTION_PLAN_3.md`. Initial goal: `planning/GOALS.md` [G16] (c
 | Wave | Task | Status | Code commit |
 |---|---|---|---|
 | 1 | 3.1.1 Roll back failed batches | done | `1a3b62d` |
-| 2 | 3.2.1 Isolate temporary table names (G17) | pending | — |
+| 2 | 3.2.1 Isolate temporary table names (G17) | done | `a7b0849`, `790ccc5` |
 | 3 | 3.3.1 G18 declarations; 3.3.2 G19 metadata scoping | pending | — |
 | 4 | 3.4.1 AST-level constructor rewrite (G22) | pending | — |
 | 5 | 3.5.1 Mukey metadata fallback (G20) | pending | — |
 | 6 | 3.6.1 Shared-cache in-memory test databases (G24) | pending | — |
 
-Wave-boundary verification: wave 1 — passed. `cargo fmt --check` passed; `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed (40 unit + 4 integration, 0 failures).
+Wave-boundary verification: waves 1–2 — passed. Latest serial run: `cargo fmt --check` passed; `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed (42 unit + 4 integration, 0 failures).
 
 ## Orchestration update
 
 - User requested that the remaining sequenced correctness goals be added as subsequent waves; G1 and broad MVP acceptance remain for a follow-on orchestration.
 - GOALS.md contains a G20 ↔ G6 dependency cycle. User directed G20 before G6; this plan tests G20 without the live spatial fixture, then leaves G6 for follow-on work.
 - Task worktree `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-3-task-3.1.1`, detached at task commits `72ed301`, `ec1fe40`, `9238dda`; implementation and reports integrated to `feature/sqlite-mvp` as planning commit `e41b9d4`, code commit `1a3b62d`, and state commit `35296b8`. Worktree retained; no cleanup performed.
+- Task worktree `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-3-task-3.2.1`, detached at task commits `3b7c001`, `73a7415`, `693b674`, `7356810`, `adb7e06`; integrated as planning commits `5e7b710`, `ee546bb`, `4344ea6`, implementation/test commits `a7b0849`, `790ccc5`. Worktree retained; no cleanup performed.
 
 ## Task reports
 
@@ -56,5 +57,6 @@ Wave-boundary verification: wave 1 — passed. `cargo fmt --check` passed; `SDA_
 - Deviations: none. Full suite not run (orchestrator-owned).
 - Addendum: commit `7356810` updates only the existing generated-SQL assertion in `src/transpiler/mod.rs` to check generated-name form and same-name reference.
 - The first full-suite wave check caught this stale literal-name assertion after generated names were introduced.
-- `cargo test transpiler::folds_variables_and_select_into_batch` exited 0 but matched 0 tests; `cargo test folds_variables_and_select_into_batch` ran the focused test: 1 passed, 0 failed.
+- `cargo test transpiler::folds_variables_and_select_into_batch` exited 0 but matched 0 tests; corrected command `cargo test folds_variables_and_select_into_batch` ran the focused test: 1 passed, 0 failed.
 - `cargo fmt --check` and `git diff --check` passed for the addendum change.
+- Wave-boundary serial full suite after the assertion fix: 42 unit + 4 integration passed, 0 failed; `cargo fmt --check` passed. Integrated implementation commits: `a7b0849`, `790ccc5`.
