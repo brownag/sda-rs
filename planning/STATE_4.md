@@ -16,7 +16,7 @@ Plan: `planning/EXECUTION_PLAN_4.md`. Active goal: advance G1 by completing G6, 
 | Wave | Task | Status | Code commit |
 |---|---|---|---|
 | 1 | 4.1.1 Request decoding; 4.1.2 metadata serialization | done | 7333fd6, 51c18db |
-| 2 | 4.2.1 SQL/batch endpoint coverage; 4.2.2 AOI route coverage | pending | — |
+| 2 | 4.2.1 SQL/batch endpoint coverage; 4.2.2 AOI route coverage | done | 0bfbf3d, 6eeaac7 |
 | 3 | 4.3.1 Mukey TVF fixture coverage | pending | — |
 | 4 | 4.4.1 Live SpatiaLite acceptance gate | pending | — |
 
@@ -44,4 +44,18 @@ Plan: `planning/EXECUTION_PLAN_4.md`. Active goal: advance G1 by completing G6, 
 - Changed: `tests/serializer_contract.rs` (36 lines).
 - Verification: `cargo test --test serializer_contract` (1 passed); `cargo fmt --check`; `git diff --check`.
 - Wave-boundary verification: configured `cargo test` (52 unit + 7 integration passed; 0 failed); live SpatiaLite test ran and passed.
+- Deviations: none. Gotchas: none.
+
+## 4.2.1
+- Status: done; code commit `0bfbf3d` (`test: cover scalar SQL and temp batches`).
+- Changed: `tests/sql_batch_contract.rs` (77 lines).
+- Verification: `cargo test --test sql_batch_contract` (1 passed); `cargo fmt --check`; `git diff --check`.
+- Wave-boundary verification: configured `cargo test` (52 unit + 10 integration passed; 0 failed); live SpatiaLite test ran and passed.
+- Deviations: none. Gotchas: none.
+
+## 4.2.2
+- Status: done; code commit `6eeaac7` (`test: cover AOI spatial route contract`).
+- Changed: `tests/aoi_contract.rs` (109 lines).
+- Verification: configured `cargo test --test aoi_contract` (2 passed); `cargo fmt --check`; `git diff --check`.
+- Wave-boundary verification: configured `cargo test` (52 unit + 10 integration passed; 0 failed); live SpatiaLite test ran and passed.
 - Deviations: none. Gotchas: none.
