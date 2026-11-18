@@ -27,7 +27,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 | 3 | 6.3.1 Active-client intersection TVFs | done | `4d4aa0a` |
 | 4 | 6.4.1–6.4.3 diagnostic attempts; 6.4.4 implementation; 6.4.5 regression correction | done | `8a54496`, `d4d867b` |
 | 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | done | `84e0138` |
-| 6 | 6.6.1 and 6.6.2 | blocked | — |
+| 6 | 6.6.1 preserved; 6.6.2 diagnostic outcome; 6.6.3 fixture correction | blocked pending 6.6.3 approval and acceptance | — |
 | 7 | 6.7.1 Scalar key-to-WKT TVFs | pending | — |
 | 8 | 6.8.1 Table-input WKT TVFs/macros | pending | — |
 | 9 | 6.9.1 soilDB/Iowa integration harness | pending | — |
@@ -164,4 +164,11 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Additional observation:** the following Mupoint Web-Mercator assertion returned `{}`. Request-local replay showed the stored point transformed to `55659.745396636783,55660.451865421521`, versus rounded fixture WKT `55659.745,55660.451`; `ST_Intersects` returned 0.
 - **Disposition:** probes removed and all four pre-existing implementation-file hashes verified unchanged. Per approved stop condition, no production behavior changed and no acceptance rerun or commit was made.
 - **Preservation:** original uncommitted 6.6.1 changes remain in `src/transpiler/spatial.rs`, `src/spatial.rs`, `tests/sda_get_contract.rs`, and `docs/sda-get-support.md`; expected key `401` remains.
-- **Next:** await user direction on the Web-Mercator fixture/predicate finding; Waves 7–9 remain gated.
+- **Next:** 6.6.3 plans the user-authorized Web-Mercator fixture follow-up; Waves 7–9 remain gated.
+
+## 6.6.3
+- **Status:** micro-plan drafted; awaiting approval to edit fixtures. No tests run or implementation files changed during planning.
+- **Scope:** fix only four positive Wave 6 Web-Mercator query literals: exact projected point for Mupoint/Featpoint, transverse line crossing for Muline/Featline. The line cases were not reached in 6.6.2.
+- **Preserve:** the existing four-file diff apart from the planned fixture literals and explanatory comment; exact result keys/types, WGS84 and no-match assertions, production behavior, and Iowa's missing `featpointkey` caveat.
+- **WGS84 caveat:** Mupoint WGS84 passed in the diagnostic run only; the earlier empty response remains unexplained.
+- **Gate:** one configured `sda_get_contract` acceptance attempt at most after edits. Stop on failure; if it passes, run `cargo fmt --check` and `git diff --check`. Wave 6 still requires the separate orchestrator boundary gate.
