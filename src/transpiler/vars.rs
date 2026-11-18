@@ -19,12 +19,16 @@ pub(super) fn fold(statements: Vec<Expression>) -> Result<Vec<Expression>, Trans
                         return Err(TranspilerError::Rejected("unsupported DECLARE item".into()));
                     };
                     let name = variable_name(&item.this)?;
-                    values.insert(
-                        name,
-                        item.default
-                            .map(|v| *v)
-                            .unwrap_or_else(|| Expression::Null(Null {})),
-                    );
+                    if values.contains_key(&name) {
+                        return Err(TranspilerError::Rejected(format!(
+                            "variable {name} is already declared"
+                        )));
+                    }
+                    let value = match item.default {
+                        Some(value) => substitute(*value, &values)?,
+                        None => Expression::Null(Null {}),
+                    };
+                    values.insert(name, value);
                 }
             }
             Expression::SetStatement(set) => {
@@ -147,6 +151,32 @@ mod tests {
     #[test]
     fn rejects_set_of_undeclared_variable() {
         let ast = Dialect::get(DialectType::TSQL).parse("SET @x = 1").unwrap();
+        assert!(fold(ast).is_err());
+    }
+
+    #[test]
+    fn folds_declaration_defaults_using_prior_values() {
+        let dialect = Dialect::get(DialectType::TSQL);
+        let ast = dialect
+            .parse("DECLARE @b INT = 5; DECLARE @a INT = @b; SELECT @a")
+            .unwrap();
+        let folded = fold(ast).unwrap();
+        assert_eq!(folded, dialect.parse("SELECT 5").unwrap());
+    }
+
+    #[test]
+    fn rejects_unbound_variable_in_declaration_default() {
+        let ast = Dialect::get(DialectType::TSQL)
+            .parse("DECLARE @a INT = @missing")
+            .unwrap();
+        assert!(fold(ast).is_err());
+    }
+
+    #[test]
+    fn rejects_redeclaration() {
+        let ast = Dialect::get(DialectType::TSQL)
+            .parse("DECLARE @x INT = 1; DECLARE @X INT = 2")
+            .unwrap();
         assert!(fold(ast).is_err());
     }
 }
