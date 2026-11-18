@@ -11,6 +11,7 @@ rusqlite = { version = "0.32", features = ["load_extension"] }
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
 tower-http = { version = "0.6", features = ["cors", "limit", "trace"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter"] }
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

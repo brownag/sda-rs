@@ -2,7 +2,7 @@ use serde::{
     de::{MapAccess, Visitor},
     Deserialize, Deserializer,
 };
-use std::{fmt, marker::PhantomData};
+use std::fmt;
 
 #[derive(Debug)]
 pub struct QueryRequest {
@@ -12,7 +12,7 @@ pub struct QueryRequest {
 
 impl<'de> Deserialize<'de> for QueryRequest {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct RequestVisitor(PhantomData<()>);
+        struct RequestVisitor;
         impl<'de> Visitor<'de> for RequestVisitor {
             type Value = QueryRequest;
             fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -30,7 +30,7 @@ impl<'de> Deserialize<'de> for QueryRequest {
                 Ok(QueryRequest { query, format })
             }
         }
-        deserializer.deserialize_map(RequestVisitor(PhantomData))
+        deserializer.deserialize_map(RequestVisitor)
     }
 }
 

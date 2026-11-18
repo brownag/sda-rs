@@ -34,6 +34,8 @@ pub(super) fn validate(statement: &Expression) -> Result<(), TranspilerError> {
                 Some("CREATE TABLE")
             }
             Expression::CreateTable(_) => None,
+            Expression::Pragma(_) => Some("PRAGMA"),
+            Expression::Attach(_) => Some("ATTACH"),
             Expression::Raw(_) => Some("unsupported raw SQL"),
             _ => None,
         };
@@ -42,4 +44,27 @@ pub(super) fn validate(statement: &Expression) -> Result<(), TranspilerError> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::transpiler::{transpile, TranspilerError};
+
+    #[test]
+    fn rejects_attach_database() {
+        let result = transpile("ATTACH DATABASE 'x.db' AS x");
+        assert!(
+            matches!(result, Err(TranspilerError::Rejected(_))),
+            "{result:?}"
+        );
+    }
+
+    #[test]
+    fn rejects_pragma() {
+        let result = transpile("PRAGMA table_info(t)");
+        assert!(
+            matches!(result, Err(TranspilerError::Rejected(_))),
+            "{result:?}"
+        );
+    }
 }
