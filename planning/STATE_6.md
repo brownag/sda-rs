@@ -28,7 +28,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 | 4 | 6.4.1–6.4.3 diagnostic attempts; 6.4.4 implementation; 6.4.5 regression correction | done | `8a54496`, `d4d867b` |
 | 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | done | `84e0138` |
 | 6 | 6.6.1 implementation; 6.6.2 diagnosis; 6.6.3 fixture correction; 6.6.4 format and boundary verification | done | `9c23a78` |
-| 7 | 6.7.1 Scalar key-to-WKT TVFs | in progress | — |
+| 7 | 6.7.1 One-key WKT TVFs | in progress—contract clarification | — |
 | 8 | 6.8.1 Table-input WKT TVFs/macros | pending | — |
 | 9 | 6.9.1 soilDB/Iowa integration harness | pending | — |
 
