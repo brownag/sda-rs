@@ -50,6 +50,7 @@ Close the outstanding correctness gaps that block the SQLite/GeoPackage MVP: ato
 - 2026-11-17 — Extend this orchestration with G17–G20, G22, and G24 after the user noticed the original one-task decomposition omitted the remaining sequenced correctness goals. Keep G1 and broad integration-suite work for a follow-on orchestration.
 - 2026-11-17 — Amend G22 scope for the parser limitation: retain only a narrow lexical compatibility shim for the exact `geometry::STGeomFromText` syntax outside string literals, because polyglot-sql rejects that syntax before AST parsing. The semantic spatial lowering must happen on the AST; ordinary SQL and string literals remain unchanged.
 - 2026-11-17 — G20 SRID exception: when `mupolygon` metadata is absent but an explicit geometry-column override is configured, preserve the existing 4326 SRID fallback. Without an override, reject missing `mupolygon` metadata. This exception is user-directed.
+- 2026-11-17 — Amend G20 scope to expose explicit geometry-override provenance from `SpatialCapability`; the current effective-column accessor cannot distinguish an explicit override from another table's discovered geometry column.
 
 ## DAG and wave table
 
@@ -144,13 +145,13 @@ Dependencies: 3.1.1 → 3.2.1 → {3.3.1, 3.3.2} → 3.4.1 → 3.5.1 → 3.6.1. 
 #### Task 3.5.1 — Reject unsafe mukey geometry fallback (G20)
 
 - **Repo:** `/home/andrew/workspace/sda-rs`
-- **Files in scope — must edit:** `src/transpiler/spatial.rs` (implementation/unit tests), `tests/sda_mvp.rs` (focused integration regression only).
+- **Files in scope — must edit:** `src/transpiler/spatial.rs` (implementation/unit tests), `src/spatial.rs` (narrow override-provenance accessor and focused unit test only), `tests/sda_mvp.rs` (focused integration regression only).
 - **Can create:** none.
 - **Depends on:** G5; follows 3.4.1 because both goals touch `src/transpiler/spatial.rs`. G20 is scheduled before G6 to resolve the cycle in GOALS.md, as directed by the user.
-- **Spec:** If `mupolygon` geometry metadata is missing and there is no explicit geometry-column override, reject the mukey TVF with a structured error rather than selecting another layer. Add unit and integration coverage using a GeoPackage with one non-`mupolygon` geometry layer. When `mupolygon` metadata exists, use its discovered SRS. If metadata is absent but an explicit geometry-column override exists, use the overridden column and preserve the existing SRID 4326 fallback, per the user's decision.
-- **Do not touch:** `src/spatial.rs`, `src/routes.rs`, `src/transpiler/mod.rs`, `planning/*` except this task's micro-plan.
-- **Grep anchors:** `MukeyTarget`, `geometry_metadata_for_table("mupolygon")`, `mukey_srid`, `mukey_rewrite_uses_mupolygon_metadata_not_first_geometry_row`.
-- **Acceptance:** `cargo test transpiler::spatial::`; `cargo test --test sda_mvp`; `cargo fmt --check`; `git diff --check`.
+- **Spec:** Distinguish an explicit configured geometry-column override from a geometry column merely discovered on another table. Add a narrow `SpatialCapability` accessor for override provenance without changing initialization behavior. If `mupolygon` metadata is missing and there is no explicit override, reject the mukey TVF with a structured error rather than selecting another layer. Add unit and integration coverage using a GeoPackage with one non-`mupolygon` geometry layer, both with and without an explicit override. When `mupolygon` metadata exists, use its discovered SRS. If metadata is absent but an explicit override exists, use the overridden column and preserve the existing SRID 4326 fallback, per the user's decision.
+- **Do not touch:** `src/routes.rs`, `src/transpiler/mod.rs`, `planning/*` except this task's micro-plan.
+- **Grep anchors:** `SpatialCapability`, `geometry_override`, `effective_geometry_column`, `MukeyTarget`, `geometry_metadata_for_table("mupolygon")`, `mukey_rewrite_uses_mupolygon_metadata_not_first_geometry_row`.
+- **Acceptance:** `cargo test spatial::`; `cargo test transpiler::spatial::`; `cargo test --test sda_mvp`; `cargo fmt --check`; `git diff --check`.
 
 #### Task 3.6.1 — Use shared-cache in-memory test databases (G24)
 
