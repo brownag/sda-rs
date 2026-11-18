@@ -64,6 +64,7 @@ Build `sda-rs` as a Rust HTTP service that implements a tested, SQLite/GeoPackag
 - 2026-11-17 — Expand task 1.3.1 to wire the configured SQLite database path from `main.rs` through Axum state to a request-local executor connection; do not leave the runnable service bound to ephemeral in-memory databases.
 - 2026-11-17 — Authorize a test-only `tower` dev-dependency for task 1.3.1 so acceptance tests exercise the Axum router in-process without TCP.
 - 2026-11-17 — Expand task 1.4.2 beyond `src/spatial.rs` to register and initialize optional spatial support on request-local connections; task 1.5.1 consumes the resulting metadata/interface for spatial rewrites.
+- 2026-11-17 — Authorize `src/transpiler/normalize.rs` in task 1.4.1 so SQLite generation can consume rewritten AST statements instead of retranspiling the original SQL text.
 
 ## DAG and wave table
 
@@ -154,10 +155,10 @@ Dependencies: `1.1.1 -> 1.2.1 -> 1.2.2`; `1.2.1 -> 1.3.2 -> 1.3.1`; `1.2.2 -> 1.
 ### Task 1.4.1 — Batch variable and temp-table rewrites
 
 - **Repo:** same.
-- **Files in scope — must edit:** `src/transpiler/mod.rs`, `src/transpiler/vars.rs`, `src/transpiler/temp_tables.rs`.
+- **Files in scope — must edit:** `src/transpiler/mod.rs`, `src/transpiler/normalize.rs`, `src/transpiler/vars.rs`, `src/transpiler/temp_tables.rs`.
 - **Can create:** module-local tests in these files.
 - **Depends on:** 1.2.2.
-- **Spec:** Extend the validated AST pipeline to fold declared and assigned variables (`DECLARE`, `SET`, and supported `SELECT @var = expr`) across statements and rewrite `SELECT … INTO #name` plus downstream references into SQLite temp-table SQL. Preserve statement ordering and do not silently pass unsupported assignment forms through.
+- **Spec:** Extend the validated AST pipeline to fold declared and assigned variables (`DECLARE`, `SET`, and supported `SELECT @var = expr`) across statements and rewrite `SELECT … INTO #name` plus downstream references into SQLite temp-table SQL. Ensure transformations are applied to parsed ASTs used for SQLite generation; do not validate one AST then retranspile the original SQL string. Preserve statement ordering and do not silently pass unsupported assignment forms through.
 - **Do not touch:** executor/routes/serializer modules or any files outside this task's explicit list.
 - **Grep anchors:** variable/temp pseudocode and caveat in `planning/sda-rs-scoping.md` lines 23–92; `INITIAL_PROMPT.md` lines 26–31.
 - **Acceptance:** `cargo test transpiler::vars`; `cargo test transpiler::temp_tables`; test variable substitution and select-into/temp-table join batch.
