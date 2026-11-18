@@ -60,6 +60,7 @@ Build `sda-rs` as a Rust HTTP service that implements a tested, SQLite/GeoPackag
 - 2026-11-17 — Use `openai/gpt-6-luna` for all worker tasks and escalation; retain the wave-orchestration retry limits.
 - 2026-11-17 — Track orchestration artifacts; keep planning-only commits separate from implementation.
 - 2026-11-17 — Sequence tasks 1.2.1 and 1.2.2 because both require `src/lib.rs` module registration; executor/result registration belongs to 1.2.1 and transpiler registration to 1.2.2.
+- 2026-11-17 — Sequence serializer 1.3.2 before routes 1.3.1 because both require `src/lib.rs`; serializer owns module registration and routes own handler/router wiring.
 
 ## DAG and wave table
 
@@ -70,11 +71,12 @@ Tasks in each wave have disjoint file scopes. Waves are logical phases and run s
 | 1 | 1.1.1 | Scaffold crate, dependencies, config, test conventions, and executable server shell. |
 | 2 | 1.2.1 | SQLite execution/session result model. |
 | 3 | 1.2.2 | Core T-SQL parsing/transpilation and guardrails. |
-| 4 | 1.3.1, 1.3.2 | SDA request routes; result serialization formats. |
-| 5 | 1.4.1, 1.4.2 | Batch variables/temp-table compatibility; optional spatial capability and GeoPackage metadata discovery. |
-| 6 | 1.5.1 | Integrate AOI + selected UDF end to end with seeded mock tables and acceptance suite. |
+| 4 | 1.3.2 | SDA result serialization formats. |
+| 5 | 1.3.1 | SDA query request routes. |
+| 6 | 1.4.1, 1.4.2 | Batch variables/temp-table compatibility; optional spatial capability and GeoPackage metadata discovery. |
+| 7 | 1.5.1 | Integrate AOI + selected UDF end to end with seeded mock tables and acceptance suite. |
 
-Dependencies: `1.1.1 -> 1.2.1 -> 1.2.2`; `{1.2.1, 1.2.2} -> {1.3.1, 1.3.2}`; `1.2.2 -> 1.4.1`; `1.2.1 -> 1.4.2`; `{1.3.1, 1.3.2, 1.4.1, 1.4.2} -> 1.5.1`.
+Dependencies: `1.1.1 -> 1.2.1 -> 1.2.2`; `1.2.1 -> 1.3.2 -> 1.3.1`; `1.2.2 -> 1.3.1`; `1.2.2 -> 1.4.1`; `1.2.1 -> 1.4.2`; `{1.3.1, 1.3.2, 1.4.1, 1.4.2} -> 1.5.1`.
 
 ## Global hazards and execution rules
 
@@ -127,22 +129,22 @@ Dependencies: `1.1.1 -> 1.2.1 -> 1.2.2`; `{1.2.1, 1.2.2} -> {1.3.1, 1.3.2}`; `1.
 ### Task 1.3.1 — SDA query request routes
 
 - **Repo:** same.
-- **Files in scope — must edit:** `src/routes.rs`, `src/request.rs`.
+- **Files in scope — must edit:** `src/routes.rs`, `src/request.rs`, `src/lib.rs` (replace stub handlers and wire routes/serializer only).
 - **Can create:** none.
-- **Depends on:** 1.2.1, 1.2.2.
+- **Depends on:** 1.2.1, 1.2.2, 1.3.2 (serializer module/API registered first).
 - **Spec:** Implement `POST /Tabular/post.rest` and `/Tab/post.rest`; parse JSON and `application/x-www-form-urlencoded`; normalize `query`/`QUERY` and `format`/`FORMAT` case-insensitively; invoke transpiler then the SQLite executor and return structured errors. For `FORMAT=~`, return the submitted SQL as `text/plain` without executing it; macro expansion is deferred. Use in-process router tests, not a fixed TCP port. Mount router through the crate API from task 1.1.1.
-- **Do not touch:** main/config, executor, transpiler, serializer internals, planning files.
+- **Do not touch:** main/config, executor, transpiler, serializer internals, planning files; preserve serializer module registration.
 - **Grep anchors:** endpoints and content types in `planning/INITIAL_PROMPT.md` lines 12–20.
 - **Acceptance:** `cargo test routes::`; exercise both endpoints with both body encodings, mixed-case keys, missing query, and unsafe-query error.
 
 ### Task 1.3.2 — SDA result serialization
 
 - **Repo:** same.
-- **Files in scope — must edit:** `src/serializer.rs`.
+- **Files in scope — must edit:** `src/serializer.rs`, `src/lib.rs` (register serializer module only).
 - **Can create:** `tests/serializer.rs` only if module-local tests are insufficient.
 - **Depends on:** 1.2.1.
 - **Spec:** Serialize result sets into JSON, JSON+COLUMNNAME, JSON+COLUMNNAME+METADATA, and XML. JSON non-null values are strings and SQL NULL is JSON null; use `Table`, `Table1`, … for result sets; return `{}` for zero rows across all sets. For metadata format put names in row 0, metadata in row 1, then data. Include stable SQLite-to-SQL Server type metadata mapping for MVP types, clearly documenting inferred/provisional mappings rather than claiming unverified exact SDA parity.
-- **Do not touch:** route, executor, transpiler, CLI/config, planning files.
+- **Do not touch:** route wiring/handlers, executor, transpiler, CLI/config, planning files.
 - **Grep anchors:** wire-format requirements in `planning/INITIAL_PROMPT.md` lines 48–59; metadata row correction in `planning/sda-rs-scoping.md` lines 228–251.
 - **Acceptance:** `cargo test serializer::`; exact JSON/XML structure tests for values, nulls, multiple results, empty results, and metadata row offsets.
 

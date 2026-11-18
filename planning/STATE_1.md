@@ -18,9 +18,10 @@ Plan: `planning/EXECUTION_PLAN_1.md`
 | 1 | 1.1.1 | done |
 | 2 | 1.2.1 | done |
 | 3 | 1.2.2 | done |
-| 4 | 1.3.1, 1.3.2 | pending |
-| 5 | 1.4.1, 1.4.2 | pending |
-| 6 | 1.5.1 | pending |
+| 4 | 1.3.2 | pending |
+| 5 | 1.3.1 | pending |
+| 6 | 1.4.1, 1.4.2 | pending |
+| 7 | 1.5.1 | pending |
 
 ## Task reports
 
