@@ -17,6 +17,10 @@ pub enum ExecutorError {
     Spatial(spatial::SpatialError),
     Preparation(String),
     Join(tokio::task::JoinError),
+    Rollback {
+        execution: Box<Self>,
+        rollback: rusqlite::Error,
+    },
 }
 
 impl fmt::Display for ExecutorError {
@@ -26,6 +30,13 @@ impl fmt::Display for ExecutorError {
             Self::Spatial(error) => write!(f, "{error}"),
             Self::Preparation(error) => write!(f, "SQL preparation failed: {error}"),
             Self::Join(error) => write!(f, "SQLite worker failed: {error}"),
+            Self::Rollback {
+                execution,
+                rollback,
+            } => write!(
+                f,
+                "{execution}; transaction rollback also failed: {rollback}"
+            ),
         }
     }
 }
@@ -163,39 +174,64 @@ fn execute_on(
     statements: &[String],
 ) -> Result<Vec<ResultSet>, ExecutorError> {
     let transaction = connection.unchecked_transaction()?;
-    let mut result_sets = Vec::new();
+    let execution = (|| {
+        let mut result_sets = Vec::new();
 
-    for sql in statements {
-        let mut statement = transaction.prepare(sql)?;
-        let column_count = statement.column_count();
-        if column_count == 0 {
-            statement.execute([])?;
-            continue;
-        }
-
-        let columns = statement
-            .column_names()
-            .into_iter()
-            .map(str::to_owned)
-            .collect();
-        let mut rows = statement.query([])?;
-        let mut values = Vec::new();
-        while let Some(row) = rows.next()? {
-            let mut result_row = Vec::with_capacity(column_count);
-            for index in 0..column_count {
-                result_row.push(row.get::<_, Value>(index)?);
+        for sql in statements {
+            let mut statement = transaction.prepare(sql)?;
+            let column_count = statement.column_count();
+            if column_count == 0 {
+                statement.execute([])?;
+                continue;
             }
-            values.push(result_row);
-        }
-        result_sets.push(ResultSet {
-            columns,
-            rows: values,
-        });
-    }
 
-    connection.authorizer(None::<fn(rusqlite::hooks::AuthContext<'_>) -> Authorization>);
-    transaction.commit()?;
-    Ok(result_sets)
+            let columns = statement
+                .column_names()
+                .into_iter()
+                .map(str::to_owned)
+                .collect();
+            let mut rows = statement.query([])?;
+            let mut values = Vec::new();
+            while let Some(row) = rows.next()? {
+                let mut result_row = Vec::with_capacity(column_count);
+                for index in 0..column_count {
+                    result_row.push(row.get::<_, Value>(index)?);
+                }
+                values.push(result_row);
+            }
+            result_sets.push(ResultSet {
+                columns,
+                rows: values,
+            });
+        }
+        Ok::<_, ExecutorError>(result_sets)
+    })();
+
+    match execution {
+        Ok(result_sets) => {
+            // No submitted SQL runs while authorization is suspended; bypass
+            // only the synchronous executor-owned commit operation.
+            connection.authorizer(None::<fn(rusqlite::hooks::AuthContext<'_>) -> Authorization>);
+            let commit = transaction.commit();
+            connection.authorizer(Some(authorize_sqlite_action));
+            commit?;
+            Ok(result_sets)
+        }
+        Err(execution) => {
+            // Explicitly roll back before returning, with authorization
+            // suspended only for this synchronous executor-owned operation.
+            connection.authorizer(None::<fn(rusqlite::hooks::AuthContext<'_>) -> Authorization>);
+            let rollback = transaction.rollback();
+            connection.authorizer(Some(authorize_sqlite_action));
+            match rollback {
+                Ok(()) => Err(execution),
+                Err(rollback) => Err(ExecutorError::Rollback {
+                    execution: Box::new(execution),
+                    rollback,
+                }),
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -272,19 +308,18 @@ mod tests {
 
     #[test]
     fn rolls_back_failed_statement_batch() {
-        let uri = shared_memory_uri();
-        let holder = Connection::open(&uri).unwrap();
-        holder
-            .execute_batch("CREATE TABLE t(x INTEGER); INSERT INTO t VALUES (1);")
+        let (connection, _) = open_initialized(":memory:", None, None).unwrap();
+        connection
+            .execute_batch("CREATE TEMP TABLE t(x INTEGER); INSERT INTO t VALUES (1);")
             .unwrap();
 
-        let result = execute(
-            &uri,
+        let result = execute_on(
+            &connection,
             &["UPDATE t SET x = 2".into(), "SELECT * FROM missing".into()],
         );
 
         assert!(result.is_err());
-        let value: i64 = holder
+        let value: i64 = connection
             .query_row("SELECT x FROM t", [], |row| row.get(0))
             .unwrap();
         assert_eq!(value, 1);
@@ -292,21 +327,20 @@ mod tests {
 
     #[test]
     fn commits_successful_statement_batch() {
-        let uri = shared_memory_uri();
-        let holder = Connection::open(&uri).unwrap();
-        holder
-            .execute_batch("CREATE TABLE t(x INTEGER); INSERT INTO t VALUES (1);")
-            .unwrap();
-
-        let results = execute(
-            &uri,
-            &["UPDATE t SET x = 2".into(), "SELECT x FROM t".into()],
+        let (connection, _) = open_initialized(":memory:", None, None).unwrap();
+        let results = execute_on(
+            &connection,
+            &[
+                "CREATE TEMP TABLE t(x INTEGER)".into(),
+                "INSERT INTO t VALUES (1)".into(),
+                "UPDATE t SET x = 2".into(),
+                "SELECT x FROM t".into(),
+            ],
         )
         .unwrap();
 
         assert_eq!(results[0].rows, [vec![Value::Integer(2)]]);
-        let fresh = Connection::open(&uri).unwrap();
-        let value: i64 = fresh
+        let value: i64 = connection
             .query_row("SELECT x FROM t", [], |row| row.get(0))
             .unwrap();
         assert_eq!(value, 2);
