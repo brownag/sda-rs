@@ -25,7 +25,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 | 1 | 6.1.1 Spatial SQL contract; 6.1.2 SDA_Get inventory | done | `b90bd8b`, `366a02a` |
 | 2 | 6.2.1 GeoPackageBinary decoder | done | `e2eb5c2` |
 | 3 | 6.3.1 Active-client intersection TVFs | done | `4d4aa0a` |
-| 4 | 6.4.1–6.4.3 diagnostic attempts; 6.4.4 implementation; 6.4.5 regression correction | in progress | — |
+| 4 | 6.4.1–6.4.3 diagnostic attempts; 6.4.4 implementation; 6.4.5 regression correction | done | `8a54496`, `d4d867b` |
 | 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | pending | — |
 | 6 | 6.6.1 Other feature-layer intersection TVFs | pending | — |
 | 7 | 6.7.1 Scalar key-to-WKT TVFs | pending | — |
@@ -127,6 +127,13 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Next:** 6.4.5 restores the existing Mukey WGS84 metadata-SRID behavior while preserving the Web-Mercator common-CRS fix; Wave 5 remains gated.
 
 ## 6.4.5
-- **Status:** authorized focused regression correction; micro-planning.
+- **Status:** implementation verified and committed.
 - **Scope:** `src/transpiler/spatial.rs` only; preserve the WGS84 Mukey metadata-SRID contract and the new Web-Mercator correction.
 - **Authorization:** existing Plan 6 scope requires preserving the previously tested Mukey behavior; regression surfaced at the Wave 4 boundary.
+- **Change:** Mukey WGS84 source geometry uses `mupolygon` metadata SRID; its WKT remains SRID 4326. The Web-Mercator target retains common SRID 3857.
+- **Focused test:** `cargo test mukey_override_column_uses_mupolygon_metadata_srid` — passed.
+- **Checks:** `cargo fmt --check` and `git diff --check` — passed.
+- **Wave boundary:** configured `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` — passed (61 unit tests, 20 integration tests, 0 failures; configured spatial tests executed).
+- **WGS84 caveat:** earlier inconsistent `{}` observations remain unexplained as authorized; current contract passes.
+- **Code commit:** `d4d867b` (`fix(spatial): preserve Mukey metadata SRID`).
+- **Next:** Wave 4 is verified; Wave 5 may proceed.
