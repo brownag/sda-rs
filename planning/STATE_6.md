@@ -203,6 +203,8 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Gate:** no retry, behavior change, or acceptance run. A behavior fix requires separate approval; Waves 7–9 remain blocked.
 
 ## 6.7.4
-- **Status:** plan drafted in `planning/tasks/6.7.4.todo.md`; awaiting approval. No instrumentation, implementation edits, or test runs.
-- **Next evidence:** one serial local fixture diagnostic comparing final SQLite SQL and HTTP status/body for `'inside'`, `11`, and `'11'`. Identify the exact `MAX` context and whether the failure changes with the argument.
-- **Gate:** fix only an established, in-scope cause; at most one configured contract acceptance, no retries. Preserve the four-file Wave 7 diff. Waves 7–9 remain blocked.
+- **Status:** diagnostic run stopped as inconclusive; no implementation change.
+- **Diagnostic:** ran the prescribed command once. The test completed, but all three `'inside'`, `11`, and `'11'` cases returned HTTP 400 with `{"error":"SQL rejected: spatial rewrite requires GeoPackage geometry metadata or a geometry column override"}`. Preparation failed before the callback could emit generated SQL, so no SQL/status/body evidence concerning `MAX` was obtained.
+- **Cause:** fixture created `gpkg_geometry_columns` without the geometry extension metadata expected by `SpatialCapability`; the request-local route and callback therefore rejected before transpilation. The task requires stopping rather than retrying when the diagnostic lacks evidence.
+- **Cleanup:** removed temporary diagnostic test; `[DEBUG-674]` and `debug_674_scalar_mukey` absent. All four baseline hashes match: `docs/sda-get-support.md` `e54c42b04df09620c57d6875099228d086475ab056325ad92e9a662c6a7a9ec3`; `src/spatial.rs` `a7ebc463b5534fde0cf58d38e77bab40a446bf0a194c958670e1797ecadb9b2d`; `src/transpiler/spatial.rs` `463c367b021b57e3d3cf25aba527cb5152e29de3c64198ca4a33bf6764e07307`; `tests/sda_get_contract.rs` `676cd9890525c6fa8c044c189f7636b73e8ee5456d951c834af6eba2e3f8d2ca`. `git diff --check` passed; original four-file Wave 7 diff preserved.
+- **Disposition:** no cause established, no scalar rewrite fix, no focused regression, and no configured contract rerun. Waves 7–9 remain blocked pending further authorization.
