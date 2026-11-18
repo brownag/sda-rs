@@ -16,7 +16,7 @@ Plan: `planning/EXECUTION_PLAN_1.md`
 | Wave | Tasks | Status |
 |---|---|---|
 | 1 | 1.1.1 | done |
-| 2 | 1.2.1 | pending |
+| 2 | 1.2.1 | done; 1.2.2 pending |
 | 3 | 1.2.2 | pending |
 | 4 | 1.3.1, 1.3.2 | pending |
 | 5 | 1.4.1, 1.4.2 | pending |
@@ -36,3 +36,14 @@ Plan: `planning/EXECUTION_PLAN_1.md`
 - `cargo fmt --check`: passed after formatting.
 - Deviations: none.
 - Gotchas: route handlers are intentional 501 stubs; later route task replaces them.
+
+## 1.2.1
+- Status: implemented and verified on `feature/sqlite-mvp`; checkout/worktree: `/home/andrew/workspace/sda-rs` (sole worktree).
+- Planning commit: `56a5dac` (`docs(planning): sequence shared module registration`); completion update committed separately below.
+- Code commit: `ca7e0e5` (`feat(executor): add request-local SQLite execution`).
+- Files: `src/result.rs`, `src/executor/mod.rs`, `src/executor/sqlite.rs`, `src/lib.rs` (executor/result registration only).
+- Tests: `cargo test executor::` — 4 passed, 0 failed (one unrelated test filtered); binary suite 0 tests.
+- Additional checks: `cargo fmt --check` passed; `git diff --check` passed.
+- Behavior: sequential statements share one in-memory connection; row result sets preserve column order, dynamic SQLite values/NULL, and empty-set columns; async API uses `spawn_blocking`.
+- Deviations: none. Remaining untracked `target/` was pre-existing and untouched.
+- Gotchas: `src/lib.rs` does not register `transpiler`; task 1.2.2 may add only its authorized module registration.
