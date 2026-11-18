@@ -90,7 +90,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 ## 6.4.1
 - **Status:** blocked; no implementation commit.
 - **Uncommitted task-scoped files:** `src/transpiler/spatial.rs`, `src/spatial.rs`, `tests/sda_get_contract.rs`, and `docs/sda-get-support.md`. Preserve; do not discard.
-- **Acceptance:** configured `cargo test --test sda_get_contract` failed twice at the first Mukey WGS84 assertion with `{}` instead of the expected table result. No final acceptance rerun was made during escalation.
+- **Acceptance:** configured `cargo test --test sda_get_contract` failed on the first Mukey WGS84 assertion with `{}` instead of the expected table result in the worker's two attempts and the orchestrator's reproduction (3 failures total). No final acceptance rerun was made during escalation.
 - **Diagnostic:** configured `cargo test --test sda_get_contract debug_641_request_path -- --nocapture` — 1 passed; spatial intersection and generated SQL/executor returned `("inside", "text")`, so the original zero-row cause is unresolved.
 - **Independent regression evidence:** Web-Mercator predicate returned 0 with mixed SRIDs; common-SRID comparison returned 1. Fix was not made because the approved plan required stopping while WGS84 root cause remained unresolved.
 - **Checks:** `git diff --check` passed; temporary diagnostic test was removed. No implementation files were changed by the escalated worker.
