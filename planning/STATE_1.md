@@ -19,7 +19,7 @@ Plan: `planning/EXECUTION_PLAN_1.md`
 | 2 | 1.2.1 | done |
 | 3 | 1.2.2 | done |
 | 4 | 1.3.2 | done |
-| 5 | 1.3.1 | pending |
+| 5 | 1.3.1 | done |
 | 6 | 1.4.1, 1.4.2 | pending |
 | 7 | 1.5.1 | pending |
 
@@ -36,6 +36,8 @@ Plan: `planning/EXECUTION_PLAN_1.md`
 - Deviation: route handler exercised in process without TCP; no dependencies or out-of-scope files changed.
 - Acceptance follow-up: `5fc775d` (`test(routes): exercise registered router endpoints`) adds `tower` as a dev-dependency and exercises `app(config).oneshot` for both paths, both encodings, configured DB, echo, missing and unsafe queries.
 - Follow-up checks: `cargo test routes::` — 1 passed; `cargo fmt --check` and `git diff --check` passed.
+- Follow-up resolves the initial handler-level-only test deviation; registered route wiring is now covered through `app(config).oneshot`.
+- Orchestrator wave-boundary verification: `cargo fmt --check` passed; `cargo test` passed (14 passed, 0 failed; binary/doc suites 0 tests).
 
 ## 1.3.2
 - Status: implemented and verified on `feature/sqlite-mvp`.
