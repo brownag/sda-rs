@@ -95,7 +95,7 @@ Dependencies: `{2.1.1, 2.1.2} -> 2.2.1` is not required because the file scopes 
 ### Task 2.1.1 — Serializer cleanup, XML element validation, and result-set keys
 
 - **Repo:** `/home/andrew/workspace/sda-rs`
-- **Files in scope — must edit:** `src/serializer.rs`.
+- **Files in scope — must edit:** `src/serializer.rs`; `src/routes.rs` (scope amendment, 2026-11-17: only the single `serialize` call site near `src/routes.rs:101`, mapping a serializer error to HTTP 400 with the error message; no other routes change). Amendment reason: `serialize` is infallible and `routes.rs` is its only caller, so the 400 requirement in spec item 2 is otherwise unmet. Task 2.2.1 still owns the rest of `routes.rs` in wave 2.
 - **Can create:** none.
 - **Depends on:** none (wave 1).
 - **Spec:**
