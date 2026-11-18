@@ -22,7 +22,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 
 | Wave | Tasks | Status | Code commit |
 |---|---|---|---|
-| 1 | 6.1.1 Spatial SQL contract; 6.1.2 SDA_Get inventory | pending | — |
+| 1 | 6.1.1 Spatial SQL contract; 6.1.2 SDA_Get inventory | done | `b90bd8b`, `366a02a` |
 | 2 | 6.2.1 GeoPackageBinary decoder | pending | — |
 | 3 | 6.3.1 Active-client intersection TVFs | pending | — |
 | 4 | 6.4.1 Area-symbol/survey-polygon intersection TVFs | pending | — |
@@ -50,3 +50,12 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Code commit:** `b90bd8b` (`docs: define spatial SQL contract`).
 - **Checks:** `cargo fmt --check` and `git diff --check` passed; orchestrator reviewed the document against its scoped implementation/test anchors.
 - **Deviation/gotcha:** none; untested NULL/invalid geometry behavior is explicitly left unspecified.
+
+## 6.1.2
+- **Status:** complete.
+- **Files:** `docs/sda-get-support.md` (lines 1–131).
+- **Code commit:** `366a02a` (`docs: inventory SDA_Get compatibility`).
+- **Checks:** `git diff --check` passed; matrix covers 34 catalog functions and cites active package call sites.
+- **Evidence caveat:** official catalog page returned HTTP 502; entries were cross-checked against USDA-NRCS catalog search results and the existing scoping inventory.
+- **External inputs:** soilDB remains at `1eaa07178311a4ad3b80842e1ff4f10149733544` with pre-existing dirty files; py-soildb remains clean at `f070c0a410c871f8d2fde42d992d625e9e8d085a`.
+- **Deviation/gotcha:** none; all unimplemented functions are conditional on the required table/layer/columns and spatial configuration.
