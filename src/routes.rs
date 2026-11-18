@@ -84,17 +84,25 @@ pub async fn post(State(state): State<AppState>, request: Request) -> Response {
         Ok(statements) => statements,
         Err(err) => return error(StatusCode::BAD_REQUEST, err.to_string()),
     };
-    let results = match executor::execute_blocking(state.database_path, statements).await {
-        Ok(results) => results,
+    let output = match executor::execute_spatial_blocking(
+        state.database_path,
+        statements,
+        state.spatial_extension,
+        state.geometry_column,
+    )
+    .await
+    {
+        Ok(output) => output,
         Err(err) => return error(StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
     };
-    let body = serializer::serialize(&results, format);
+    let body = serializer::serialize(&output.result_sets, format);
     let content_type = if format == Format::Xml {
         "application/xml; charset=utf-8"
     } else {
         "application/json; charset=utf-8"
     };
     let mut response = Response::new(Body::from(body));
+    response.extensions_mut().insert(output.spatial);
     response
         .headers_mut()
         .insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
@@ -114,7 +122,14 @@ mod tests {
 
     static NEXT: AtomicUsize = AtomicUsize::new(0);
 
-    async fn send(path: &str, endpoint: &str, content_type: &str, body: &str) -> Response {
+    async fn send_with_spatial_config(
+        path: &str,
+        extension: Option<String>,
+        geometry_column: Option<String>,
+        endpoint: &str,
+        content_type: &str,
+        body: &str,
+    ) -> Response {
         let request = HttpRequest::builder()
             .method("POST")
             .uri(endpoint)
@@ -124,12 +139,16 @@ mod tests {
         crate::app(crate::config::Config {
             backend_url: path.to_owned(),
             port: 0,
-            spatial_extension: None,
-            geometry_column: None,
+            spatial_extension: extension,
+            geometry_column,
         })
         .oneshot(request)
         .await
         .unwrap()
+    }
+
+    async fn send(path: &str, endpoint: &str, content_type: &str, body: &str) -> Response {
+        send_with_spatial_config(path, None, None, endpoint, content_type, body).await
     }
 
     #[tokio::test]
@@ -227,6 +246,45 @@ mod tests {
         .await;
         assert_eq!(unsafe_query.status(), StatusCode::BAD_REQUEST);
 
+        fs::remove_file(path).unwrap();
+    }
+
+    #[tokio::test]
+    async fn request_exposes_spatial_metadata_and_geometry_override() {
+        let path = std::env::temp_dir().join(format!(
+            "sda-spatial-route-{}-{}.sqlite",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        let connection = Connection::open(&path).unwrap();
+        connection.execute_batch(
+            "CREATE TABLE gpkg_geometry_columns (table_name TEXT, column_name TEXT, geometry_type_name TEXT, srs_id INTEGER, z TINYINT, m TINYINT);
+             INSERT INTO gpkg_geometry_columns VALUES ('soil_map', 'shape_actual', 'MULTIPOLYGON', 4326, 0, 0);",
+        ).unwrap();
+        drop(connection);
+        let response = send_with_spatial_config(
+            &path.to_string_lossy(),
+            None,
+            Some("shape_override".into()),
+            "/Tabular/post.rest",
+            "application/json",
+            r#"{"query":"SELECT 1"}"#,
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let capability = response
+            .extensions()
+            .get::<crate::spatial::SpatialCapability>()
+            .unwrap();
+        assert!(!capability.available());
+        assert_eq!(
+            capability.geometry_metadata().unwrap().geometry_column,
+            "shape_actual"
+        );
+        assert_eq!(
+            capability.effective_geometry_column(),
+            Some("shape_override")
+        );
         fs::remove_file(path).unwrap();
     }
 }

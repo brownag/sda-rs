@@ -2,13 +2,18 @@ use std::{error::Error, fmt};
 
 use rusqlite::{types::Value, Connection};
 
-use crate::result::ResultSet;
+use crate::{
+    result::ResultSet,
+    spatial::{self, SpatialCapability},
+};
 
 /// An owned batch of SQL statements, executed on one request-local connection.
 #[derive(Debug, Clone)]
 pub struct SqliteExecutor {
     path: String,
     statements: Vec<String>,
+    spatial_extension: Option<String>,
+    geometry_column: Option<String>,
 }
 
 impl SqliteExecutor {
@@ -19,17 +24,36 @@ impl SqliteExecutor {
         Self {
             path: path.into(),
             statements: statements.into_iter().map(Into::into).collect(),
+            spatial_extension: None,
+            geometry_column: None,
         }
     }
 
+    pub fn with_spatial_config(
+        mut self,
+        extension: Option<String>,
+        geometry_column: Option<String>,
+    ) -> Self {
+        self.spatial_extension = extension;
+        self.geometry_column = geometry_column;
+        self
+    }
+
     pub fn execute(self) -> Result<Vec<ResultSet>, ExecutorError> {
-        execute(&self.path, &self.statements)
+        Ok(execute_spatial(
+            &self.path,
+            &self.statements,
+            self.spatial_extension.as_deref(),
+            self.geometry_column.as_deref(),
+        )?
+        .result_sets)
     }
 }
 
 #[derive(Debug)]
 pub enum ExecutorError {
     Sqlite(rusqlite::Error),
+    Spatial(spatial::SpatialError),
     Join(tokio::task::JoinError),
 }
 
@@ -37,6 +61,7 @@ impl fmt::Display for ExecutorError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Sqlite(error) => write!(f, "SQLite execution failed: {error}"),
+            Self::Spatial(error) => write!(f, "{error}"),
             Self::Join(error) => write!(f, "SQLite worker failed: {error}"),
         }
     }
@@ -50,6 +75,12 @@ impl From<rusqlite::Error> for ExecutorError {
     }
 }
 
+impl From<spatial::SpatialError> for ExecutorError {
+    fn from(value: spatial::SpatialError) -> Self {
+        Self::Spatial(value)
+    }
+}
+
 impl From<tokio::task::JoinError> for ExecutorError {
     fn from(value: tokio::task::JoinError) -> Self {
         Self::Join(value)
@@ -58,12 +89,32 @@ impl From<tokio::task::JoinError> for ExecutorError {
 
 /// Execute statements sequentially with a fresh in-memory connection.
 pub fn execute(path: &str, statements: &[String]) -> Result<Vec<ResultSet>, ExecutorError> {
+    Ok(execute_spatial(path, statements, None, None)?.result_sets)
+}
+
+#[derive(Debug)]
+pub struct ExecutionOutput {
+    pub result_sets: Vec<ResultSet>,
+    pub spatial: SpatialCapability,
+}
+
+pub fn execute_spatial(
+    path: &str,
+    statements: &[String],
+    extension: Option<&str>,
+    geometry_override: Option<&str>,
+) -> Result<ExecutionOutput, ExecutorError> {
     let connection = if path == ":memory:" {
         Connection::open_in_memory()?
     } else {
         Connection::open(path)?
     };
-    execute_on(&connection, statements)
+    let spatial = spatial::initialize(&connection, extension, geometry_override)?;
+    let result_sets = execute_on(&connection, statements)?;
+    Ok(ExecutionOutput {
+        result_sets,
+        spatial,
+    })
 }
 
 /// Run SQLite work on Tokio's blocking pool.
@@ -72,6 +123,23 @@ pub async fn execute_blocking(
     statements: Vec<String>,
 ) -> Result<Vec<ResultSet>, ExecutorError> {
     Ok(tokio::task::spawn_blocking(move || execute(&path, &statements)).await??)
+}
+
+pub async fn execute_spatial_blocking(
+    path: String,
+    statements: Vec<String>,
+    extension: Option<String>,
+    geometry_override: Option<String>,
+) -> Result<ExecutionOutput, ExecutorError> {
+    Ok(tokio::task::spawn_blocking(move || {
+        execute_spatial(
+            &path,
+            &statements,
+            extension.as_deref(),
+            geometry_override.as_deref(),
+        )
+    })
+    .await??)
 }
 
 fn execute_on(
@@ -165,5 +233,12 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(results[0].rows, [vec![Value::Integer(3)]]);
+    }
+
+    #[test]
+    fn ordinary_executor_exposes_missing_spatial_metadata_without_failure() {
+        let output = execute_spatial(":memory:", &["SELECT 1".into()], None, None).unwrap();
+        assert!(!output.spatial.available());
+        assert_eq!(output.spatial.geometry_metadata(), None);
     }
 }

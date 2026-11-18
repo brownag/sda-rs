@@ -1,3 +1,6 @@
 mod sqlite;
 
-pub use sqlite::{execute, execute_blocking, ExecutorError, SqliteExecutor};
+pub use sqlite::{
+    execute, execute_blocking, execute_spatial_blocking, ExecutionOutput, ExecutorError,
+    SqliteExecutor,
+};
