@@ -10,35 +10,48 @@ use super::TranspilerError;
 
 const MUKEY_FUNCTION: &str = "SDA_Get_Mukey_from_intersection_with_WktWgs84";
 
-pub(super) fn normalize_static_calls(sql: &str) -> String {
-    let needle = "geometry::STGeomFromText";
+pub(super) fn parser_compatibility(sql: &str) -> String {
+    const NEEDLE: &str = "geometry::STGeomFromText";
+
     let mut output = String::with_capacity(sql.len());
     let mut index = 0;
-    let mut quoted = false;
-    let bytes = sql.as_bytes();
-    while index < bytes.len() {
+    let mut in_string = false;
+    while index < sql.len() {
+        let bytes = sql.as_bytes();
         if bytes[index] == b'\'' {
             output.push('\'');
             index += 1;
-            if quoted && index < bytes.len() && bytes[index] == b'\'' {
+            if in_string && bytes.get(index) == Some(&b'\'') {
                 output.push('\'');
                 index += 1;
             } else {
-                quoted = !quoted;
+                in_string = !in_string;
             }
             continue;
         }
-        if !quoted
-            && sql[index..]
-                .get(..needle.len())
-                .is_some_and(|part| part.eq_ignore_ascii_case(needle))
+        let end = index + NEEDLE.len();
+        let token_boundary = |byte: Option<&u8>| {
+            !byte.is_some_and(|byte| byte.is_ascii_alphanumeric() || *byte == b'_')
+        };
+        let is_call = sql
+            .get(end..)
+            .unwrap_or_default()
+            .trim_start()
+            .starts_with('(');
+        if !in_string
+            && sql
+                .get(index..end)
+                .is_some_and(|part| part.eq_ignore_ascii_case(NEEDLE))
+            && token_boundary(index.checked_sub(1).and_then(|i| bytes.get(i)))
+            && token_boundary(bytes.get(end))
+            && is_call
         {
             output.push_str("geometry.STGeomFromText");
-            index += needle.len();
+            index = end;
         } else {
-            let ch = sql[index..].chars().next().unwrap();
-            output.push(ch);
-            index += ch.len_utf8();
+            let character = sql[index..].chars().next().unwrap();
+            output.push(character);
+            index += character.len_utf8();
         }
     }
     output
@@ -227,10 +240,14 @@ fn rewrite_node(
             ));
         }
         Expression::Function(mut function)
-            if function
-                .qualified_name
-                .last()
-                .is_some_and(|name| name.name.eq_ignore_ascii_case("STGeomFromText")) =>
+            if function.name.eq_ignore_ascii_case("STGeomFromText")
+                && function.qualified_name.len() == 2
+                && function.qualified_name[0]
+                    .name
+                    .eq_ignore_ascii_case("geometry")
+                && function.qualified_name[1]
+                    .name
+                    .eq_ignore_ascii_case("STGeomFromText") =>
         {
             require_geom_from_text_arity(function.args.len())?;
             function.name = "GeomFromText".into();
@@ -344,9 +361,12 @@ mod tests {
     }
 
     #[test]
-    fn parser_ast_rewrites_geometry_constructor_and_intersects_without_runtime_extension() {
+    fn parser_ast_rewrites_qualified_geometry_constructor_and_intersects_without_runtime_extension()
+    {
         let ast = Dialect::get(DialectType::TSQL)
-            .parse("SELECT geom.STIntersects(geometry.STGeomFromText('POINT(0 0)', 4326))")
+            .parse(&parser_compatibility(
+                "SELECT geom.STIntersects(geometry::STGeomFromText('POINT(0 0)', 4326))",
+            ))
             .unwrap();
         let output = rewrite(ast, &capability()).unwrap();
         let sql = Dialect::get(DialectType::TSQL)
@@ -356,6 +376,46 @@ mod tests {
         assert!(sql.to_ascii_lowercase().contains("geomfromtext"), "{sql}");
         assert_eq!(capability().effective_geometry_column(), Some("soil_shape"));
         assert!(capability().is_geometry_column("shape_dynamic"));
+    }
+
+    #[test]
+    fn rewrites_geometry_constructor_in_aoi_but_preserves_string_and_non_spatial_calls() {
+        let output = crate::transpiler::transpile_with_spatial(
+            "DECLARE @aoi geometry; SET @aoi = geometry::STGeomFromText('POINT(0 0)', 4326); SELECT 'geometry::STGeomFromText' AS text_value, STGeomFromText('POINT(1 1)', 4326) AS ordinary_call",
+            Some(&capability()),
+        )
+        .unwrap();
+        assert!(
+            output[0].contains("'geometry::STGeomFromText'"),
+            "{output:?}"
+        );
+        assert!(
+            output[0].contains("STGEOMFROMTEXT('POINT(1 1)', 4326)"),
+            "{output:?}"
+        );
+    }
+
+    #[test]
+    fn parser_compatibility_rewrites_only_constructor_syntax_outside_literals() {
+        assert_eq!(
+            parser_compatibility(
+                "SELECT geometry::STGeomFromText('geometry::STGeomFromText', 4326), 'x'' geometry::STGeomFromText', xgeometry::STGeomFromText, geometry::STGeomFromText"
+            ),
+            "SELECT geometry.STGeomFromText('geometry::STGeomFromText', 4326), 'x'' geometry::STGeomFromText', xgeometry::STGeomFromText, geometry::STGeomFromText"
+        );
+    }
+
+    #[test]
+    fn does_not_lower_unqualified_function_with_same_terminal_name() {
+        let ast = Dialect::get(DialectType::TSQL)
+            .parse("SELECT STGeomFromText('POINT(0 0)', 4326)")
+            .unwrap();
+        let output = rewrite(ast, &capability()).unwrap();
+        let sql = Dialect::get(DialectType::TSQL)
+            .generate(&output[0])
+            .unwrap();
+        assert!(sql.contains("STGEOMFROMTEXT("), "{sql}");
+        assert!(!sql.contains(" GEOMFROMTEXT("), "{sql}");
     }
 
     #[test]
@@ -381,15 +441,5 @@ mod tests {
             .unwrap();
         let error = rewrite(ast, &capability()).unwrap_err();
         assert!(matches!(error, TranspilerError::Rejected(_)), "{error:?}");
-    }
-
-    #[test]
-    fn normalizes_static_colon_syntax_but_not_inside_string_literals() {
-        assert_eq!(
-            normalize_static_calls(
-                "SELECT geometry::STGeomFromText('geometry::STGeomFromText', 4326)"
-            ),
-            "SELECT geometry.STGeomFromText('geometry::STGeomFromText', 4326)"
-        );
     }
 }

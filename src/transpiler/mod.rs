@@ -37,7 +37,7 @@ pub fn transpile_with_spatial(
     sql: &str,
     capability: Option<&crate::spatial::SpatialCapability>,
 ) -> Result<Vec<String>, TranspilerError> {
-    let sql = spatial::normalize_static_calls(sql);
+    let sql = spatial::parser_compatibility(sql);
     let ast = Dialect::get(DialectType::TSQL)
         .parse(&sql)
         .map_err(TranspilerError::Parse)?;
