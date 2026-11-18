@@ -28,7 +28,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 | 4 | 6.4.1–6.4.3 diagnostic attempts; 6.4.4 implementation; 6.4.5 regression correction | done | `8a54496`, `d4d867b` |
 | 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | done | `84e0138` |
 | 6 | 6.6.1 implementation; 6.6.2 diagnosis; 6.6.3 fixture correction; 6.6.4 format and boundary verification | done | `9c23a78` |
-| 7 | 6.7.1 One-key WKT TVFs (compile-blocked); 6.7.2 compile recovery (awaiting approval) | blocked | — |
+| 7 | 6.7.1 One-key WKT TVFs; 6.7.2 compile recovery | blocked on configured contract failure | — |
 | 8 | 6.8.1 Table-input WKT TVFs/macros | blocked on Wave 7 | — |
 | 9 | 6.9.1 soilDB/Iowa integration harness | blocked on Waves 7–8 | — |
 
@@ -188,7 +188,8 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Next:** discovered task 6.7.2 takes over the preserved diff only after micro-plan approval; Wave 8 remains gated.
 
 ## 6.7.2
-- **Status:** micro-plan drafted at `planning/tasks/6.7.2.todo.md`; awaiting approval. No implementation changes, compile checks, tests, or commits made.
-- **Scope:** preserve the uncommitted `docs/sda-get-support.md`, `src/spatial.rs`, `src/transpiler/spatial.rs`, and `tests/sda_get_contract.rs` diff. Correct only the new source matcher's unreachable fallbacks and `Identifier` alias handling in `src/transpiler/spatial.rs`.
-- **Acceptance gate:** optional one focused compile check and one configured contract run after correction, no retry on failure. On pass, require format and diff checks before the focused local implementation commit; record planning separately.
+- **Status:** compile blocker cleared; configured contract failed at runtime. Approved plan: `3117b8b`.
+- **Change:** used direct returns for both matcher fallbacks and passed `Option<Identifier>` through unchanged, preserving the parsed default alias when absent. The four-file Wave 7 diff remains uncommitted.
+- **Acceptance:** ran `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract` once. Compilation succeeded; `active_intersection_tvfs_return_expected_keys_for_both_crs` failed at `tests/sda_get_contract.rs:34:5`: `assertion left == right failed`, left `500`, right `200` (exit 101).
+- **Disposition:** stopped at the first failure. No optional compile check, retry, subsequent implementation edits, format or diff checks, or implementation commit.
 - **Next:** Waves 8 and 9 stay blocked until their prerequisites pass, including the orchestrator's Wave 7 boundary gate.
