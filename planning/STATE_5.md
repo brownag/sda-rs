@@ -32,6 +32,13 @@ Plan: `planning/EXECUTION_PLAN_5.md`. Active goal: explicit and tested SQLite se
 - Maximum two workers; isolated worktrees for parallel tasks. Planning artifacts are tracked and committed separately.
 - Run configured full suites serially at each wave boundary. No remote Git operations.
 
+## Worktree registry
+
+| Task | Repo/worktree | Branch state | Created | Lifecycle |
+|---|---|---|---|---|
+| 5.2.1 | `/home/andrew/workspace/sda-rs` → `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-5-task-5.2.1` | detached at `2df923c` | 2026-11-18 | active |
+| 5.2.2 | `/home/andrew/workspace/sda-rs` → `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-5-task-5.2.2` | detached at `2df923c` | 2026-11-18 | active |
+
 ## Task reports
 
 <!-- Workers append "## {{id}}" sections below, max 15 lines each. -->
