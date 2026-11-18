@@ -5,6 +5,6 @@ use tokio::net::TcpListener;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = Config::from_env();
     let listener = TcpListener::bind(("0.0.0.0", config.port)).await?;
-    axum::serve(listener, app()).await?;
+    axum::serve(listener, app(config)).await?;
     Ok(())
 }

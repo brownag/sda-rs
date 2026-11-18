@@ -7,18 +7,23 @@ use crate::result::ResultSet;
 /// An owned batch of SQL statements, executed on one request-local connection.
 #[derive(Debug, Clone)]
 pub struct SqliteExecutor {
+    path: String,
     statements: Vec<String>,
 }
 
 impl SqliteExecutor {
-    pub fn new(statements: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn new(
+        path: impl Into<String>,
+        statements: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
         Self {
+            path: path.into(),
             statements: statements.into_iter().map(Into::into).collect(),
         }
     }
 
     pub fn execute(self) -> Result<Vec<ResultSet>, ExecutorError> {
-        execute(&self.statements)
+        execute(&self.path, &self.statements)
     }
 }
 
@@ -52,14 +57,21 @@ impl From<tokio::task::JoinError> for ExecutorError {
 }
 
 /// Execute statements sequentially with a fresh in-memory connection.
-pub fn execute(statements: &[String]) -> Result<Vec<ResultSet>, ExecutorError> {
-    let connection = Connection::open_in_memory()?;
+pub fn execute(path: &str, statements: &[String]) -> Result<Vec<ResultSet>, ExecutorError> {
+    let connection = if path == ":memory:" {
+        Connection::open_in_memory()?
+    } else {
+        Connection::open(path)?
+    };
     execute_on(&connection, statements)
 }
 
 /// Run SQLite work on Tokio's blocking pool.
-pub async fn execute_blocking(statements: Vec<String>) -> Result<Vec<ResultSet>, ExecutorError> {
-    Ok(tokio::task::spawn_blocking(move || execute(&statements)).await??)
+pub async fn execute_blocking(
+    path: String,
+    statements: Vec<String>,
+) -> Result<Vec<ResultSet>, ExecutorError> {
+    Ok(tokio::task::spawn_blocking(move || execute(&path, &statements)).await??)
 }
 
 fn execute_on(
@@ -105,8 +117,11 @@ mod tests {
 
     #[test]
     fn captures_column_order_values_and_nulls() {
-        let results =
-            execute(&["SELECT 7 AS second, 'text' AS first, NULL AS absent".into()]).unwrap();
+        let results = execute(
+            ":memory:",
+            &["SELECT 7 AS second, 'text' AS first, NULL AS absent".into()],
+        )
+        .unwrap();
         assert_eq!(results[0].columns, ["second", "first", "absent"]);
         assert_eq!(
             results[0].rows,
@@ -120,12 +135,15 @@ mod tests {
 
     #[test]
     fn executes_multiple_statements_and_keeps_temp_tables_in_session() {
-        let results = execute(&[
-            "CREATE TEMP TABLE sample(value INTEGER)".into(),
-            "INSERT INTO sample VALUES (11)".into(),
-            "SELECT value FROM sample".into(),
-            "SELECT 2 AS later".into(),
-        ])
+        let results = execute(
+            ":memory:",
+            &[
+                "CREATE TEMP TABLE sample(value INTEGER)".into(),
+                "INSERT INTO sample VALUES (11)".into(),
+                "SELECT value FROM sample".into(),
+                "SELECT 2 AS later".into(),
+            ],
+        )
         .unwrap();
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].rows, [vec![Value::Integer(11)]]);
@@ -134,7 +152,8 @@ mod tests {
 
     #[test]
     fn preserves_empty_result_set_columns() {
-        let results = execute(&["SELECT 1 AS id WHERE 0".into()]).expect("empty select succeeds");
+        let results =
+            execute(":memory:", &["SELECT 1 AS id WHERE 0".into()]).expect("empty select succeeds");
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].columns, ["id"]);
         assert!(results[0].rows.is_empty());
@@ -142,7 +161,7 @@ mod tests {
 
     #[tokio::test]
     async fn exposes_blocking_execution_boundary() {
-        let results = execute_blocking(vec!["SELECT 3 AS value".into()])
+        let results = execute_blocking(":memory:".into(), vec!["SELECT 3 AS value".into()])
             .await
             .unwrap();
         assert_eq!(results[0].rows, [vec![Value::Integer(3)]]);
