@@ -77,11 +77,11 @@ External prerequisite: completed Plan 5/G32.
 | 4 | 6.4.1–6.4.3 (blocked/diagnostic); 6.4.4; 6.4.5 | Add area-symbol and soil-survey-polygon intersection/key TVFs; correct the Web-Mercator mismatch and restore Mukey metadata-SRID behavior. |
 | 5 | 6.5.1 | Add mapunit-polygon intersection/key TVFs. |
 | 6 | 6.6.1 blocked; 6.6.2 diagnostic outcome; 6.6.3 fixture correction; 6.6.4 formatting and boundary verification | Add other feasible feature-layer intersection/key TVFs, correct Web-Mercator fixtures, and verify the preserved implementation. |
-| 7 | 6.7.1 | Implement feasible scalar key-to-WKT TVFs. |
+| 7 | 6.7.1 blocked; 6.7.2 compile recovery and contract verification | Implement feasible scalar key-to-WKT TVFs. |
 | 8 | 6.8.1 | Implement feasible table-input WKT TVFs and input-table macros. |
 | 9 | 6.9.1 | Add and run the opt-in soilDB/Iowa integration harness. |
 
-Dependencies: `6.2.1` depends on `6.1.1`; `6.3.1` depends on `6.1.2` and `6.2.1`; `6.4.1` depends on `6.3.1`; recovery task `6.4.2` also depends on `6.3.1` and takes over the preserved, uncommitted in-scope work from blocked task 6.4.1; diagnostic task `6.4.3` depends on 6.3.1 and the failure evidence from 6.4.1/6.4.2, and is diagnostic-only; implementation task `6.4.4` depends on 6.3.1 and the preserved partial work/diagnostic findings from 6.4.1–6.4.3; regression correction `6.4.5` depends on 6.4.4 and the Wave 4 boundary-test evidence. `6.5.1` depends on completed Wave 4 via 6.4.5; `6.6.1` depends on 6.5.1 and is blocked by its failing configured acceptance; diagnosis/fix task `6.6.2` depends on 6.6.1 and its failure evidence. Fixture correction `6.6.3` depends on the preserved 6.6.1 diff and the recorded 6.6.2 diagnostic evidence, not resolution of the historical WGS84 failure. `6.6.4` depends on the preserved 6.6.1 diff and the fixture changes and check results from 6.6.3. `6.7.1` depends on completed Wave 6 via 6.6.4; each of `6.8.1`–`6.9.1` depends on the immediately prior implementation wave. Every task depends on completed Plan 5/G32. Wave 1 tasks have disjoint output files; all same-module SDA_Get implementation tasks are intentionally sequential.
+Dependencies: `6.2.1` depends on `6.1.1`; `6.3.1` depends on `6.1.2` and `6.2.1`; `6.4.1` depends on `6.3.1`; recovery task `6.4.2` also depends on `6.3.1` and takes over the preserved, uncommitted in-scope work from blocked task 6.4.1; diagnostic task `6.4.3` depends on 6.3.1 and the failure evidence from 6.4.1/6.4.2, and is diagnostic-only; implementation task `6.4.4` depends on 6.3.1 and the preserved partial work/diagnostic findings from 6.4.1–6.4.3; regression correction `6.4.5` depends on 6.4.4 and the Wave 4 boundary-test evidence. `6.5.1` depends on completed Wave 4 via 6.4.5; `6.6.1` depends on 6.5.1 and is blocked by its failing configured acceptance; diagnosis/fix task `6.6.2` depends on 6.6.1 and its failure evidence. Fixture correction `6.6.3` depends on the preserved 6.6.1 diff and the recorded 6.6.2 diagnostic evidence, not resolution of the historical WGS84 failure. `6.6.4` depends on the preserved 6.6.1 diff and the fixture changes and check results from 6.6.3. `6.7.1` depends on completed Wave 6 via 6.6.4; `6.7.2` depends on the preserved 6.7.1 diff and its compile failure evidence. `6.8.1` depends on Wave 7 completion via 6.7.2 and the Wave 7 boundary gate; `6.9.1` remains blocked downstream. Every task depends on completed Plan 5/G32. Wave 1 tasks have disjoint output files; all same-module SDA_Get implementation tasks are intentionally sequential.
 
 ## Global hazards and execution rules
 
@@ -281,13 +281,23 @@ Dependencies: `6.2.1` depends on `6.1.1`; `6.3.1` depends on `6.1.2` and `6.2.1`
 - **Grep anchors:** task 6.1.2 support matrix; `src/spatial.rs` `geometry_metadata_for_table`; `src/transpiler/spatial.rs` `rewrite_node`; `tests/sda_get_contract.rs`.
 - **Acceptance:** `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract`; `cargo fmt --check`; `git diff --check`.
 
+### Task 6.7.2 — Fix the scalar key-to-WKT TVF compile blocker
+
+- **ID:** 6.7.2
+- **Repo:** `/home/andrew/workspace/sda-rs`, branch `feature/sda-readiness`.
+- **Implementation scope:** take over and preserve `docs/sda-get-support.md`, `src/spatial.rs`, `src/transpiler/spatial.rs`, and `tests/sda_get_contract.rs`; correct the compiler blocker in `src/transpiler/spatial.rs` only. No new implementation files.
+- **Depends on:** completed Wave 6 via 6.6.4 and the preserved 6.7.1 diff and compile failure evidence, not a successful 6.7.1 run.
+- **Spec:** Fix unreachable tuple expressions in the scalar source matcher and carry the original `Option<Identifier>` through to the derived-table alias, preserving quoting and the default alias. Keep the eight one-key `FROM` TVFs WKT-only with exact catalog aliases; the separate `mukey` in the soilDB example is caller-supplied. Preserve exact WKT/CRS and NULL/no-match expectations and prior intersection behavior. Do not widen scope to table-input TVFs.
+- **Grep anchors:** `expand_source`, `expand_intersection_source`, `expand_scalar_wkt_source`; `planning/tasks/6.7.1.todo.md` and the 6.7.1 report in `planning/STATE_6.md`.
+- **Acceptance:** after micro-plan approval and correction, optionally run `cargo check --test sda_get_contract` once and run `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract` once with real spatial assertions. Stop on first failure without retry or implementation commit. On pass, run `cargo fmt --check` and `git diff --check`, then review and locally commit only the verified four-file Wave 7 implementation if both checks pass. Keep planning artifacts separate. The orchestrator owns the Wave 7 boundary gate.
+
 ### Task 6.8.1 — Implement feasible table-input WKT TVFs
 
 - **ID:** 6.8.1
 - **Repo:** `/home/andrew/workspace/sda-rs`
 - **Files in scope — must edit:** `src/transpiler/spatial.rs`, `src/transpiler/temp_tables.rs`, `tests/sda_get_contract.rs`, `docs/sda-get-support.md`.
 - **Can create:** none.
-- **Depends on:** 6.7.1.
+- **Depends on:** completed Wave 7 via 6.7.2 and the Wave 7 boundary gate.
 - **Spec:** Implement the feasible table-input SDA_Get variants and the `DeclareIntTable`, `DeclareVarcharTable`, and `DeclareVarchar255Table` forms required by supported catalog entries. Preserve request-local temporary-table isolation and batch rollback; test declaration, population, joins, aliases, WGS84/Web-Mercator variants, and malformed or absent inputs. Follow the task 6.1.2 matrix and document any remaining unsupported variants there.
 - **Do not touch:** executor transaction policy, external package repositories, serializer, or wire protocol.
 - **Grep anchors:** task 6.1.2 support matrix; `src/transpiler/temp_tables.rs` `rewrite`, `#temp` mapping; `src/transpiler/spatial.rs` `rewrite_node`; `tests/sql_batch_contract.rs`; `tests/sda_get_contract.rs`.
@@ -299,7 +309,7 @@ Dependencies: `6.2.1` depends on `6.1.1`; `6.3.1` depends on `6.1.2` and `6.2.1`
 - **Repo:** `/home/andrew/workspace/sda-rs`
 - **Files in scope — must edit:** `Makefile`.
 - **Can create:** `scripts/test-soildb.sh`, `tests/soildb/testthat.R`, `tests/soildb/testthat/test-sda-rs.R`, `tests/soildb/README.md`.
-- **Depends on:** 6.3.1, 6.4.1, 6.5.1, completed Wave 6 via 6.6.4, 6.7.1, 6.8.1.
+- **Depends on:** 6.3.1, 6.4.1, 6.5.1, completed Wave 6 via 6.6.4, completed Wave 7 via 6.7.2 and its boundary gate, and 6.8.1.
 - **Spec:** Add opt-in `make test-soildb` that builds/starts the server on loopback, waits for readiness, and always stops the child process. Use configurable `SOILDB_PATH`, `SDA_TEST_GEOPACKAGE`, `SDA_TEST_SPATIALITE`, and port settings with actionable prerequisite errors; pass the extension path to the server as `SDA_SPATIAL_EXTENSION` and the GeoPackage as its backend. Install the local soilDB source into a temporary R library; set the soilDB endpoint option `soilDB.sda.tabular.post.rest.url` to the child server URL ending in `/Tabular/post.rest`. Tests must be testthat-style and cover `SDA_query`, `SDA_spatialQuery`, and selected `get_SDA_*` package functions with stable Iowa fixtures (including verified `IA001`/mukey examples). Assert useful results rather than only HTTP success. Never write to or copy the Iowa GeoPackage, edit the soilDB checkout, use a fixed shared port, or add this external harness to ordinary `cargo test`.
 - **Do not touch:** any file in `/home/andrew/workspace/soilDB` or `/home/andrew/workspace/py-soildb`; Rust application code except building/running it; CI defaults.
 - **Grep anchors:** soilDB `R/SDA_query.R` endpoint option and `tests/testthat/test-SDA_query.R`; `R/SDA-spatial.R` `SDA_spatialQuery`; `R/get_SDA_muaggatt.R`; `src/main.rs`; `src/config.rs`; `Makefile`.
