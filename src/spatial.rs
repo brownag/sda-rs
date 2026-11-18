@@ -158,6 +158,30 @@ pub fn initialize(
             path: path.to_owned(),
             message: error.to_string(),
         })?;
+        // SpatiaLite's transform functions consult `spatial_ref_sys`, while
+        // GeoPackages keep equivalent definitions in `gpkg_spatial_ref_sys`.
+        // Seed missing EPSG rows in memory so read-only GeoPackages can still
+        // use Transform without modifying their database.
+        if table_exists(connection, "gpkg_spatial_ref_sys")?
+            && !table_exists(connection, "spatial_ref_sys")?
+        {
+            connection
+                .execute_batch(
+                    "CREATE TEMP TABLE spatial_ref_sys (
+                        srid INTEGER PRIMARY KEY,
+                        auth_name TEXT,
+                        auth_srid INTEGER,
+                        ref_sys_name TEXT,
+                        proj4text TEXT,
+                        srtext TEXT
+                    );
+                    INSERT INTO spatial_ref_sys
+                    SELECT srs_id, organization, organization_coordsys_id,
+                           srs_name, '', definition
+                    FROM gpkg_spatial_ref_sys;",
+                )
+                .map_err(|error| SpatialError::Metadata(error.to_string()))?;
+        }
         connection
             .query_row("SELECT spatialite_version()", [], |row| {
                 row.get::<_, String>(0)
@@ -217,6 +241,16 @@ pub fn initialize(
         effective_geometry_column,
         metadata_error,
     })
+}
+
+fn table_exists(connection: &Connection, table: &str) -> Result<bool, SpatialError> {
+    connection
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1)",
+            [table],
+            |row| row.get(0),
+        )
+        .map_err(|error| SpatialError::Metadata(error.to_string()))
 }
 
 #[cfg(test)]

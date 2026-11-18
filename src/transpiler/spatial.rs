@@ -597,6 +597,7 @@ pub(super) fn rewrite(
             }
         }
         let statement = transform_all(statement, &|node| {
+            let node = lift_intersection_select(node, &targets, &wkt_targets, &table_wkt_targets)?;
             expand_tables(node, &targets, &wkt_targets, &table_wkt_targets)
         })
         .map_err(classify_error)?;
@@ -606,6 +607,38 @@ pub(super) fn rewrite(
         );
     }
     Ok(output)
+}
+
+fn lift_intersection_select(
+    statement: Expression,
+    targets: &[IntersectionTarget],
+    wkt_targets: &[ScalarWktTarget],
+    table_wkt_targets: &[TableWktTarget],
+) -> Result<Expression, polyglot_sql::Error> {
+    let Expression::Select(mut select) = statement else {
+        return Ok(statement);
+    };
+    if select.from.is_some()
+        || select.expressions.len() != 1
+        || !matches!(&select.expressions[0], Expression::Function(function) if intersection_spec(&function.name).is_some())
+    {
+        return Ok(Expression::Select(select));
+    }
+    let derived = expand_source(
+        select.expressions[0].clone(),
+        targets,
+        wkt_targets,
+        table_wkt_targets,
+    )?;
+    let mut parsed = Dialect::get(DialectType::TSQL).parse("SELECT * FROM placeholder")?;
+    let Expression::Select(mut template) = parsed.remove(0) else {
+        unreachable!()
+    };
+    select.expressions = template.expressions;
+    let mut from = template.from.take().unwrap();
+    from.expressions[0] = derived;
+    select.from = Some(from);
+    Ok(Expression::Select(select))
 }
 
 /// Unsupported input shapes are validation failures; everything else is a generation failure.
@@ -634,25 +667,6 @@ fn expand_tables(
     let Expression::Select(mut select) = node else {
         return Ok(node);
     };
-    if select.from.is_none() && select.expressions.len() == 1 {
-        if matches!(&select.expressions[0], Expression::Function(function) if intersection_spec(&function.name).is_some())
-        {
-            let derived = expand_source(
-                select.expressions[0].clone(),
-                targets,
-                wkt_targets,
-                table_wkt_targets,
-            )?;
-            let mut parsed = Dialect::get(DialectType::TSQL).parse("SELECT * FROM placeholder")?;
-            let Expression::Select(mut template) = parsed.remove(0) else {
-                unreachable!()
-            };
-            select.expressions = template.expressions;
-            let mut from = template.from.take().unwrap();
-            from.expressions[0] = derived;
-            select.from = Some(from);
-        }
-    }
     if let Some(from) = &mut select.from {
         for source in &mut from.expressions {
             *source = expand_source(source.clone(), targets, wkt_targets, table_wkt_targets)?;

@@ -8,7 +8,7 @@ use rusqlite::{
     hooks::{AuthAction, Authorization, TransactionOperation},
     limits::Limit,
     types::Value,
-    Connection,
+    Connection, OpenFlags,
 };
 
 use crate::{
@@ -160,6 +160,13 @@ where
 fn open_connection(path: &str) -> Result<Connection, rusqlite::Error> {
     if path == ":memory:" {
         Connection::open_in_memory()
+    } else if let Some(path) = path.strip_prefix("readonly:") {
+        Connection::open_with_flags(
+            path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY
+                | OpenFlags::SQLITE_OPEN_NO_MUTEX
+                | OpenFlags::SQLITE_OPEN_URI,
+        )
     } else {
         Connection::open(path)
     }
