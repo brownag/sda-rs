@@ -30,7 +30,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 | 6 | 6.6.1 implementation; 6.6.2 diagnosis; 6.6.3 fixture correction; 6.6.4 format and boundary verification | done | `9c23a78` |
 | 7 | 6.7.1 One-key WKT TVFs; 6.7.2 compile recovery; 6.7.3 HTTP 500 diagnostic; 6.7.4 generated SQLite diagnosis / evidence-led fix | done; configured boundary suite passed | `23dea36` |
 | 8 | 6.8.1 Table-input WKT TVFs/macros | done; configured full suite passed | `f5e9541` |
-| 9 | 6.9.1 soilDB/Iowa integration harness | plan drafted; awaiting approval | — |
+| 9 | 6.9.1 soilDB/Iowa integration harness | verified locally; commits pending | — |
 
 ## Orchestration decisions and hazards
 
@@ -220,10 +220,13 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Disposition:** Wave 8 verified and committed. Wave 9 is now eligible for task planning; no Iowa or external repository/data was accessed.
 
 ## 6.9.1
-- **Status:** task approved, implementation paused pending approval of discovered bind-address scope expansion.
+- **Status:** implementation committed as `450ecac`; planning record pending separate commit.
 - **Plan:** `planning/tasks/6.9.1.todo.md`; Wave 8 prerequisite is verified via `f5e9541`.
-- **Blocker:** `src/main.rs` hardcodes `0.0.0.0`; network namespaces are unavailable. A configurable bind address is needed to satisfy loopback-only harness safety. Proposed `SDA_BIND_ADDRESS`/`--bind-address`, preserving the default and using `127.0.0.1` in harness.
-- **Safety:** soilDB checkout and Iowa GeoPackage remain read-only; no external tests or harness execution yet.
+- **Changes:** added `SDA_BIND_ADDRESS`/`--bind-address` while preserving the default, plus an opt-in harness and testthat coverage. The harness builds, uses a temporary R library, read-only SQLite URI, loopback-only listener, and cleanup traps.
+- **Acceptance:** `cargo fmt --check`, `git diff --check`, and configured full Rust suite pass. `cargo clippy --all-targets` exits successfully with one existing warning.
+- **Outcome:** initial dependency failure came from `Rscript --vanilla` ignoring the preferred user library. Harness now preserves the preferred `R_LIBS_USER` as a dependency library while installing soilDB into a temporary library. Added explicit read-only SQLite opening and in-memory GeoPackage CRS mapping for SpatiaLite transforms.
+- **Acceptance:** `make test-soildb` passed all three testthat cases using the verified local setup. Configured full Rust suite passed (65 unit tests and all integration/doc targets); `cargo fmt --check` and `git diff --check` passed. `cargo clippy --all-targets` exited successfully with one existing `needless_question_mark` warning.
+- **Safety:** soilDB checkout and Iowa GeoPackage remain read-only. Harness stopped its child server and removed temporary artifacts on completion.
 
 ## Scalar mukey WKT follow-up
 - **Correction:** direct key equality and acceptance of literal/NULL AST variants. Test fixture includes a distinct `mukey = '11'` row, separate from `mupolygonkey = 11`.
