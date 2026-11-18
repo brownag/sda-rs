@@ -25,6 +25,16 @@ Plan: `planning/EXECUTION_PLAN_1.md`
 
 ## Task reports
 
+## 1.3.1
+- Status: implemented and verified on `feature/sqlite-mvp`.
+- Planning micro-plan: `b42cac3`; code commit: `f25031b` (`feat(routes): execute SDA tabular requests`).
+- Files: six authorized source files (`routes.rs`, `request.rs`, `lib.rs`, `main.rs`, `executor/mod.rs`, `executor/sqlite.rs`).
+- Configured SQLite path flows through app state; each request opens its own connection inside `spawn_blocking`, preserving batch session semantics.
+- Supports JSON/form requests, case-insensitive fields, query echo, transpilation, execution, serialization, and structured errors.
+- `cargo test routes::`: passed, 1 passed, 0 failed; mixed-case JSON/form fields, echo, missing/unsafe query, and configured temporary database response verified.
+- `cargo fmt --check` and `git diff --check`: passed.
+- Deviation: route handler exercised in process without TCP; no dependencies or out-of-scope files changed.
+
 ## 1.3.2
 - Status: implemented and verified on `feature/sqlite-mvp`.
 - Files: `src/serializer.rs`, `src/lib.rs` (serializer module registration only).
