@@ -4,12 +4,12 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 
 ## Baseline
 
-- Branch: `feature/sda-readiness`; baseline HEAD `4198dc8` (`docs(planning): rerank pre-hosting goals`).
-- Working tree was clean before Plan 6 artifacts.
-- Plan 5/G32 is not complete: all waves remain pending in `planning/STATE_5.md`. No Plan 6 task may start until G32 acceptance is recorded.
-- `cargo fmt --check`: passed at baseline.
-- `git diff --check`: passed at baseline.
-- `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test`: passed (52 unit + 11 integration tests; 0 failures). Configured live spatial tests executed.
+- Branch: `feature/sda-readiness`; Plan 6 began at HEAD `ea46fbe` after Plan 5 integration.
+- Working tree was clean before Plan 6 task micro-plans.
+- Plan 5/G32 is complete: all waves and tasks are marked done in `planning/STATE_5.md`; security, resource limits, and configured-suite acceptance are recorded.
+- `cargo fmt --check`: passed before Wave 1.
+- `git diff --check`: passed before Wave 1.
+- `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test`: passed (57 unit + 18 integration tests; 0 failures). Configured live spatial tests executed.
 - R: 4.6.2; soilDB 2.9.4 and required testthat/sf/wk/DBI/RSQLite packages are installed.
 - Iowa GeoPackage: `/data/SSURGO/output/iowa_ssurgo.gpkg`, approximately 6.4 GB; existing read-only data includes `IA001` and mukey `1857266`.
 - soilDB source input: `/home/andrew/workspace/soilDB`, branch `feat/custom-sda1`, HEAD `1eaa0717`; pre-existing dirty files `.Rbuildignore`, `R/SDA_query.R`, `R/createSSURGO.R`, and untracked `createSSURGO_patch.diff`. Do not alter or stage.
@@ -34,7 +34,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 
 ## Orchestration decisions and hazards
 
-- Plan 6 execution is blocked until Plan 5/G32 is complete.
+- Plan 5/G32 completion was verified before Plan 6 Wave 1 started.
 - At most two workers; isolated worktrees for parallel tasks. Only Wave 1 is parallel.
 - The soilDB checkout and Iowa GeoPackage are user data; inspect read-only and leave unchanged.
 - Run configured Rust suites serially at wave boundaries; run `make test-soildb` at its milestone and final acceptance.
@@ -43,3 +43,10 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 ## Task reports
 
 <!-- Workers append "## {{id}}" sections below, max 15 lines each. -->
+
+## 6.1.1
+- **Status:** complete.
+- **Files:** `docs/spatial-sql-contract.md` (lines 1–100).
+- **Code commit:** `b90bd8b` (`docs: define spatial SQL contract`).
+- **Checks:** `cargo fmt --check` and `git diff --check` passed; orchestrator reviewed the document against its scoped implementation/test anchors.
+- **Deviation/gotcha:** none; untested NULL/invalid geometry behavior is explicitly left unspecified.
