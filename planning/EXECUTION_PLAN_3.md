@@ -48,6 +48,7 @@ Close the outstanding correctness gaps that block the SQLite/GeoPackage MVP: ato
 - 2026-11-17 — G16 is one task in wave 1. Keep its implementation narrow; the other correctness goals are subsequent waves because they have separate dependencies and file scopes.
 - 2026-11-17 — Rollback is implemented with a transaction around `execute_on`, not by per-statement savepoints. This matches the batch unit and keeps the change small.
 - 2026-11-17 — Extend this orchestration with G17–G20, G22, and G24 after the user noticed the original one-task decomposition omitted the remaining sequenced correctness goals. Keep G1 and broad integration-suite work for a follow-on orchestration.
+- 2026-11-17 — Amend G22 scope to include only removal of the pre-parse normalizer call in `src/transpiler/mod.rs`; the AST rewrite itself remains in `src/transpiler/spatial.rs`. This is required because the current call site is outside the original task scope.
 
 ## DAG and wave table
 
@@ -131,13 +132,13 @@ Dependencies: 3.1.1 → 3.2.1 → {3.3.1, 3.3.2} → 3.4.1 → 3.5.1 → 3.6.1. 
 #### Task 3.4.1 — Rewrite spatial constructor calls on the AST (G22)
 
 - **Repo:** `/home/andrew/workspace/sda-rs`
-- **Files in scope — must edit:** `src/transpiler/spatial.rs` (rewrite and unit tests).
+- **Files in scope — must edit:** `src/transpiler/spatial.rs` (rewrite and unit tests), `src/transpiler/mod.rs` (remove only the pre-parse `normalize_static_calls` invocation).
 - **Can create:** none.
 - **Depends on:** G4 (completed in plan 1).
 - **Spec:** Replace textual `geometry::STGeomFromText` normalization with a parsed-AST rewrite applied only to the constructor call that needs it. Non-spatial SQL and string literals containing that text must not be altered. Preserve existing AOI and spatial predicate behavior; add AST-level tests for constructor contexts, non-spatial statements, and string literals.
-- **Do not touch:** `src/transpiler/mod.rs`, `src/spatial.rs`, `src/routes.rs`, `tests/sda_mvp.rs`, `planning/*` except this task's micro-plan.
+- **Do not touch:** `src/spatial.rs`, `src/routes.rs`, `tests/sda_mvp.rs`, other parts of `src/transpiler/mod.rs`, `planning/*` except this task's micro-plan.
 - **Grep anchors:** `normalize_static_calls`, `rewrite_spatial`, `STGeomFromText`, `parser_ast_rewrites_geometry_constructor_and_intersects_without_runtime_extension`.
-- **Acceptance:** `cargo test transpiler::spatial::`; `cargo fmt --check`; `git diff --check`.
+- **Acceptance:** `cargo test transpiler::spatial::`; `cargo test transpiler::`; `cargo fmt --check`; `git diff --check`.
 
 #### Task 3.5.1 — Reject unsafe mukey geometry fallback (G20)
 
