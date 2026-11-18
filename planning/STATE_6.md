@@ -25,7 +25,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 | 1 | 6.1.1 Spatial SQL contract; 6.1.2 SDA_Get inventory | done | `b90bd8b`, `366a02a` |
 | 2 | 6.2.1 GeoPackageBinary decoder | done | `e2eb5c2` |
 | 3 | 6.3.1 Active-client intersection TVFs | done | `4d4aa0a` |
-| 4 | 6.4.1 blocked; 6.4.2 recovery continuation | in progress | — |
+| 4 | 6.4.1 and 6.4.2 | blocked | — |
 | 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | pending | — |
 | 6 | 6.6.1 Other feature-layer intersection TVFs | pending | — |
 | 7 | 6.7.1 Scalar key-to-WKT TVFs | pending | — |
@@ -94,9 +94,13 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Diagnostic:** configured `cargo test --test sda_get_contract debug_641_request_path -- --nocapture` — 1 passed; spatial intersection and generated SQL/executor returned `("inside", "text")`, so the original zero-row cause is unresolved.
 - **Independent regression evidence:** Web-Mercator predicate returned 0 with mixed SRIDs; common-SRID comparison returned 1. Fix was not made because the approved plan required stopping while WGS84 root cause remained unresolved.
 - **Checks:** `git diff --check` passed; temporary diagnostic test was removed. No implementation files were changed by the escalated worker.
-- **Next action:** await user direction; later Plan 6 waves remain paused.
+- **Disposition:** superseded for execution by user-authorized recovery task 6.4.2.
 
 ## 6.4.2
-- **Status:** authorized recovery continuation; micro-planning.
+- **Status:** blocked after approved diagnosis; no implementation commit.
 - **Scope:** preserve and take over the four uncommitted 6.4.1 implementation files; diagnose the WGS84 request discrepancy, fix the evidenced Web-Mercator CRS mismatch, and complete remaining Wave 4 variants only after micro-plan approval.
 - **Authorization:** user approved a new narrowly scoped diagnosis task after the mid-tier escalation could not establish the WGS84 cause.
+- **Diagnostic:** `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract debug_641_request_path -- --nocapture` — 1 passed. The same fixture/request returned HTTP 200 with `("inside", "text")`; holder and request-local geometry/SRID/intersection results matched.
+- **Unresolved:** earlier configured acceptance runs returned `{}` for the first Mukey WGS84 query, while the diagnostic path returned the expected row. The discrepancy is not explained, so acceptance was not rerun and no behavioral fix was made.
+- **Known defect:** Web-Mercator comparison still has mixed SRIDs; a common-SRID probe returned an intersection. Not fixed because the approved stop condition was met.
+- **Preservation:** the original uncommitted four-file task diff remains in the shared checkout; temporary diagnostic test was removed. Later waves remain gated on Wave 4 completion.
