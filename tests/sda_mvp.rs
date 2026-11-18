@@ -148,6 +148,56 @@ fn mukey_rewrite_uses_mupolygon_metadata_not_first_geometry_row() {
 }
 
 #[tokio::test]
+async fn router_rejects_mukey_tvf_without_mupolygon_metadata_or_override() {
+    let Ok(extension) = std::env::var("SDA_TEST_SPATIALITE") else {
+        eprintln!("SDA_TEST_SPATIALITE not set; mukey metadata route regression not tested");
+        return;
+    };
+    let path = std::env::temp_dir().join(format!(
+        "sda-mukey-metadata-{}-{}.sqlite",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    let connection = Connection::open(&path).unwrap();
+    connection
+        .execute_batch(
+            "CREATE TABLE gpkg_geometry_columns(table_name TEXT, column_name TEXT, srs_id INTEGER);
+             INSERT INTO gpkg_geometry_columns VALUES ('soil_map', 'soil_shape', 26910);",
+        )
+        .unwrap();
+    drop(connection);
+
+    let app = sda_rs::app(sda_rs::config::Config {
+        backend_url: path.to_string_lossy().into_owned(),
+        port: 0,
+        spatial_extension: Some(extension),
+        geometry_column: None,
+    });
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/Tabular/post.rest")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"query":"SELECT * FROM SDA_Get_Mukey_from_intersection_with_WktWgs84('POINT(0 0)')"}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    assert!(
+        String::from_utf8_lossy(&body).contains("requires geometry metadata for mupolygon"),
+        "{}",
+        String::from_utf8_lossy(&body)
+    );
+    fs::remove_file(path).unwrap();
+}
+
+#[tokio::test]
 async fn spatial_tvf_executes_when_test_extension_is_configured() {
     let Ok(extension) = std::env::var("SDA_TEST_SPATIALITE") else {
         eprintln!("SDA_TEST_SPATIALITE not set; live spatial execution not tested");

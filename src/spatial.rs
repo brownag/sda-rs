@@ -13,6 +13,7 @@ pub struct GeometryMetadata {
 pub struct SpatialCapability {
     available: bool,
     geometries: Vec<GeometryMetadata>,
+    geometry_override: Option<String>,
     effective_geometry_column: Option<String>,
     metadata_error: Option<String>,
 }
@@ -40,6 +41,10 @@ impl SpatialCapability {
 
     pub fn effective_geometry_column(&self) -> Option<&str> {
         self.effective_geometry_column.as_deref()
+    }
+
+    pub fn geometry_override(&self) -> Option<&str> {
+        self.geometry_override.as_deref()
     }
 
     pub fn require_spatial(&self) -> Result<(), SpatialError> {
@@ -175,6 +180,7 @@ pub fn initialize(
     Ok(SpatialCapability {
         available,
         geometries,
+        geometry_override: geometry_override.map(str::to_owned),
         effective_geometry_column,
         metadata_error,
     })
@@ -191,6 +197,7 @@ mod tests {
         let capability = initialize(&connection, None, None).unwrap();
         assert!(!capability.available());
         assert_eq!(capability.geometry_metadata_for_table("soil_map"), None);
+        assert_eq!(capability.geometry_override(), None);
         assert_eq!(capability.effective_geometry_column(), None);
         assert_eq!(
             capability.require_spatial().unwrap_err().to_string(),
@@ -237,6 +244,27 @@ mod tests {
             capability.effective_geometry_column(),
             Some("geom_override")
         );
+        assert_eq!(capability.geometry_override(), Some("geom_override"));
+    }
+
+    #[test]
+    fn geometry_override_provenance_is_distinct_from_discovered_column() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch(
+            "CREATE TABLE gpkg_geometry_columns (table_name TEXT, column_name TEXT, geometry_type_name TEXT, srs_id INTEGER, z TINYINT, m TINYINT);
+             INSERT INTO gpkg_geometry_columns VALUES ('soil_map', 'geom_custom', 'MULTIPOLYGON', 26910, 0, 0);",
+        ).unwrap();
+
+        let discovered = initialize(&connection, None, None).unwrap();
+        assert_eq!(discovered.effective_geometry_column(), Some("geom_custom"));
+        assert_eq!(discovered.geometry_override(), None);
+
+        let overridden = initialize(&connection, None, Some("geom_override")).unwrap();
+        assert_eq!(
+            overridden.effective_geometry_column(),
+            Some("geom_override")
+        );
+        assert_eq!(overridden.geometry_override(), Some("geom_override"));
     }
 
     #[test]
@@ -290,6 +318,7 @@ mod tests {
                     capability.effective_geometry_column(),
                     Some("shape_override")
                 );
+                assert_eq!(capability.geometry_override(), Some("shape_override"));
                 Ok(vec!["SELECT 1".into()])
             },
         )

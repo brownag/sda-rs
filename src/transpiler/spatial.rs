@@ -70,8 +70,7 @@ pub(super) fn rewrite(
         } else {
             None
         };
-        if has_mukey && mukey_metadata.is_none() && capability.effective_geometry_column().is_none()
-        {
+        if has_mukey && mukey_metadata.is_none() && capability.geometry_override().is_none() {
             return Err(TranspilerError::Rejected(
                 "mukey TVF requires geometry metadata for mupolygon".into(),
             ));
@@ -87,9 +86,9 @@ pub(super) fn rewrite(
             "geom"
         };
         let target = MukeyTarget {
-            column: mukey_metadata
-                .map(|metadata| metadata.geometry_column.as_str())
-                .or_else(|| capability.effective_geometry_column())
+            column: capability
+                .geometry_override()
+                .or_else(|| mukey_metadata.map(|metadata| metadata.geometry_column.as_str()))
                 .unwrap_or(geometry_column)
                 .to_owned(),
             srid: mukey_metadata.map_or(4326, |metadata| metadata.srs_id),
@@ -358,6 +357,65 @@ mod tests {
                     .contains("requires one literal WKT")
             );
         }
+    }
+
+    #[test]
+    fn mukey_requires_mupolygon_metadata_or_explicit_override() {
+        let connection = rusqlite::Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE gpkg_geometry_columns (table_name TEXT, column_name TEXT, srs_id INTEGER);
+                 INSERT INTO gpkg_geometry_columns VALUES ('soil_map', 'soil_shape', 26910);",
+            )
+            .unwrap();
+        let capability = initialize(&connection, None, None).unwrap();
+        let query = "SELECT * FROM SDA_Get_Mukey_from_intersection_with_WktWgs84('POINT(0 0)')";
+
+        let error =
+            crate::transpiler::transpile_with_spatial(query, Some(&capability)).unwrap_err();
+        assert!(matches!(&error, TranspilerError::Rejected(_)), "{error:?}");
+        assert!(
+            error
+                .to_string()
+                .contains("requires geometry metadata for mupolygon"),
+            "{error}"
+        );
+
+        let capability = initialize(&connection, None, Some("geom_override")).unwrap();
+        let output = crate::transpiler::transpile_with_spatial(query, Some(&capability)).unwrap();
+        let generated = output[0].to_ascii_uppercase();
+        assert!(generated.contains("MP.\"GEOM_OVERRIDE\""), "{generated}");
+        assert!(
+            generated.contains("ST_TRANSFORM(GEOMFROMGPB(MP.\"GEOM_OVERRIDE\"), 4326)"),
+            "{generated}"
+        );
+        assert!(!generated.contains("SOIL_SHAPE"), "{generated}");
+    }
+
+    #[test]
+    fn mukey_override_column_uses_mupolygon_metadata_srid() {
+        let connection = rusqlite::Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE gpkg_geometry_columns (table_name TEXT, column_name TEXT, srs_id INTEGER);
+                 INSERT INTO gpkg_geometry_columns VALUES ('soil_map', 'soil_shape', 26910);
+                 INSERT INTO gpkg_geometry_columns VALUES ('mupolygon', 'geom_custom', 3857);",
+            )
+            .unwrap();
+        let capability = initialize(&connection, None, Some("geom_override")).unwrap();
+        let output = crate::transpiler::transpile_with_spatial(
+            "SELECT * FROM SDA_Get_Mukey_from_intersection_with_WktWgs84('POINT(0 0)')",
+            Some(&capability),
+        )
+        .unwrap();
+        let generated = output[0].to_ascii_uppercase();
+        assert!(generated.contains("MP.\"GEOM_OVERRIDE\""), "{generated}");
+        assert!(
+            generated.contains("ST_TRANSFORM(GEOMFROMGPB(MP.\"GEOM_OVERRIDE\"), 3857)"),
+            "{generated}"
+        );
+        assert!(!generated.contains("GEOM_CUSTOM"), "{generated}");
+        assert!(!generated.contains("SOIL_SHAPE"), "{generated}");
     }
 
     #[test]
