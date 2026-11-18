@@ -65,11 +65,12 @@ async fn active_intersection_tvfs_return_expected_keys_for_both_crs() {
                  table_name TEXT, column_name TEXT, geometry_type_name TEXT,
                  srs_id INTEGER, z TINYINT, m TINYINT
              );
-             INSERT INTO gpkg_geometry_columns VALUES
-                 ('mupolygon', 'mu_shape', 'POLYGON', 4326, 0, 0),
-                 ('sapolygon', 'sa_shape', 'POLYGON', 4326, 0, 0);
-             CREATE TABLE mupolygon(mukey TEXT, areasymbol TEXT, mu_shape BLOB);
-             CREATE TABLE sapolygon(sapolygonkey INTEGER, sa_shape BLOB);
+              INSERT INTO gpkg_geometry_columns VALUES
+                  ('mupolygon', 'mu_shape', 'POLYGON', 4326, 0, 0),
+                   ('sapolygon', 'sa_shape', 'POLYGON', 4326, 0, 0);
+               CREATE TABLE mupolygon(mukey TEXT, areasymbol TEXT, mu_shape BLOB);
+               CREATE TABLE sapolygon(sapolygonkey INTEGER, areasymbol TEXT, sa_shape BLOB);
+               CREATE TABLE sastatusmap(areasymbol TEXT);
              INSERT INTO mupolygon VALUES
                  ('inside', 'CA001', AsGPB(GeomFromText(
                    'POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))', 4326))),
@@ -77,11 +78,14 @@ async fn active_intersection_tvfs_return_expected_keys_for_both_crs() {
                    'POLYGON((9 9, 11 9, 11 11, 9 11, 9 9))', 4326))),
                  ('statgo', 'US', AsGPB(GeomFromText(
                    'POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))', 4326)));
-             INSERT INTO sapolygon VALUES
-                 (101, AsGPB(GeomFromText(
-                   'POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))', 4326))),
-                 (202, AsGPB(GeomFromText(
-                   'POLYGON((9 9, 11 9, 11 11, 9 11, 9 9))', 4326)));",
+               INSERT INTO sapolygon VALUES
+                  (101, 'CA001', AsGPB(GeomFromText(
+                    'POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))', 4326))),
+                   (202, 'CA002', AsGPB(GeomFromText(
+                     'POLYGON((9 9, 11 9, 11 11, 9 11, 9 9))', 4326))),
+                   (303, 'CA003', AsGPB(GeomFromText(
+                     'POLYGON((19 19, 21 19, 21 21, 19 21, 19 19))', 4326)));
+               INSERT INTO sastatusmap VALUES ('CA001'), ('CA001'), ('CA002');",
         )
         .unwrap();
     let app = sda_rs::app(sda_rs::config::Config {
@@ -110,6 +114,28 @@ async fn active_intersection_tvfs_return_expected_keys_for_both_crs() {
         (
             "SELECT sapolygonkey, typeof(sapolygonkey) AS key_type FROM \
              SDA_Get_Sapolygonkey_from_intersection_with_WktWm('POINT(55659.745 55660.451)')",
+            r#"{"Table":[["sapolygonkey","key_type"],["101","integer"]]}"#,
+        ),
+        (
+            "SELECT areasymbol FROM \
+             SDA_Get_Areasymbol_from_intersection_with_WktWgs84('POINT(0.5 0.5)')",
+            r#"{"Table":[["areasymbol"],["CA001"]]}"#,
+        ),
+        (
+            "SELECT areasymbol FROM \
+             SDA_Get_Areasymbol_from_intersection_with_WktWm('POINT(55659.745 55660.451)')",
+            r#"{"Table":[["areasymbol"],["CA001"]]}"#,
+        ),
+        (
+            "SELECT sapolygonkey, typeof(sapolygonkey) AS key_type FROM \
+             SDA_Get_Sapolygonkey_from_intersection_with_sastatusmap_WktWgs84(\
+               'MULTIPOINT((0.5 0.5),(20 20))')",
+            r#"{"Table":[["sapolygonkey","key_type"],["101","integer"]]}"#,
+        ),
+        (
+            "SELECT sapolygonkey, typeof(sapolygonkey) AS key_type FROM \
+             SDA_Get_Sapolygonkey_from_intersection_with_sastatusmap_WktWm(\
+               'MULTIPOINT((55659.745 55660.451),(2226389.816 2273030.927))')",
             r#"{"Table":[["sapolygonkey","key_type"],["101","integer"]]}"#,
         ),
     ] {

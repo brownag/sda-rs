@@ -52,8 +52,8 @@ aliases are retained as published (including `AreasymbolWkt84` and
 
 | Catalog function | Input | Return column(s) | Required relation / geometry layer | Client use and priority | sda-rs status |
 |---|---|---|---|---|---|
-| `SDA_Get_Areasymbol_from_intersection_with_WktWgs84` | WKT, EPSG:4326 | `areasymbol` | `sapolygon` geometry | No active direct call found in named client anchors | Implementable |
-| `SDA_Get_Areasymbol_from_intersection_with_WktWm` | WKT, EPSG:3857 | `areasymbol` | `sapolygon` geometry | No active direct call found | Implementable |
+| `SDA_Get_Areasymbol_from_intersection_with_WktWgs84` | WKT, EPSG:4326 | `areasymbol` | `sapolygon` geometry | No active direct call found in named client anchors | Supported; configured contract test |
+| `SDA_Get_Areasymbol_from_intersection_with_WktWm` | WKT, EPSG:3857 | `areasymbol` | `sapolygon` geometry | No active direct call found | Supported; configured contract test |
 | `SDA_Get_AreasymbolWKTWgs84_from_Areasymbol` | One area symbol | `AreasymbolWkt84` | `sapolygon` geometry | No active direct call found | Implementable |
 | `SDA_Get_AreasymbolWKTWm_from_Areasymbol` | One area symbol | `AreasymbolWktWm` | `sapolygon` geometry | No active direct call found | Implementable |
 | `SDA_Get_AreasymbolWktWgs84_from_AreasymbolTable` | `DeclareVarcharTable`; area symbols | `areasymbol`, `AreasymbolWkt84` | `sapolygon` geometry; macro-expanded input table | No active direct call found | Implementable |
@@ -74,8 +74,8 @@ aliases are retained as published (including `AreasymbolWkt84` and
 | `SDA_Get_MulineWktWm_from_MukeyTable` | `DeclareIntTable`; mukeys | `mukey`, `MulineWktWm` | `muline` geometry; macro-expanded input table | No active direct call found | Implementable when layer exists |
 | `SDA_Get_Sapolygonkey_from_intersection_with_WktWgs84` | WKT, EPSG:4326 | `sapolygonkey` | `sapolygon` geometry | **First priority:** soilDB `R/SDA-spatial.R:488-495`; py-soildb `src/soildb/spatial.py:336-348` | **Supported; first priority** |
 | `SDA_Get_Sapolygonkey_from_intersection_with_WktWm` | WKT, EPSG:3857 | `sapolygonkey` | `sapolygon` geometry | Web-Mercator sibling of the active WGS84 client path | **Supported** |
-| `SDA_Get_Sapolygonkey_from_intersection_with_sastatusmap_WktWgs84` | WKT, EPSG:4326 | `sapolygonkey` | `sapolygon` geometry joined to `sastatusmap` by `areasymbol` | No active direct call found | Implementable when both relations and join key exist |
-| `SDA_Get_Sapolygonkey_from_intersection_with_sastatusmap_WktWm` | WKT, EPSG:3857 | `sapolygonkey` | `sapolygon` geometry joined to `sastatusmap` by `areasymbol` | No active direct call found | Implementable when both relations and join key exist |
+| `SDA_Get_Sapolygonkey_from_intersection_with_sastatusmap_WktWgs84` | WKT, EPSG:4326 | `sapolygonkey` | `sapolygon` geometry joined to `sastatusmap` by `areasymbol` | No active direct call found | Supported when both relations and join key exist; configured contract test |
+| `SDA_Get_Sapolygonkey_from_intersection_with_sastatusmap_WktWm` | WKT, EPSG:3857 | `sapolygonkey` | `sapolygon` geometry joined to `sastatusmap` by `areasymbol` | No active direct call found | Supported when both relations and join key exist; configured contract test |
 | `SDA_Get_Mupolygonkey_from_intersection_with_WktWgs84` | WKT, EPSG:4326 | `mupolygonkey` | `mupolygon` geometry and key | No active direct call found | Implementable when key is present |
 | `SDA_Get_Mupolygonkey_from_intersection_with_WktWm` | WKT, EPSG:3857 | `mupolygonkey` | `mupolygon` geometry and key | No active direct call found | Implementable when key is present |
 | `SDA_Get_Mupointkey_from_intersection_with_WktWgs84` | WKT, EPSG:4326 | `mupointkey` | `mupoint` geometry and key | No active direct call found | Implementable when layer/key exists |
@@ -98,9 +98,14 @@ vignette calls at `sda.Rmd:1178-1186` are usage examples/documented patterns,
 not additional functions called by package implementation code.
 
 The server implements all four active-client intersection TVFs: mukey and
-sapolygonkey, each with WGS84 and Web-Mercator WKT inputs.
+sapolygonkey, each with WGS84 and Web-Mercator WKT inputs. It also implements
+the two area-symbol and two status-map sapolygonkey intersection variants.
 `tests/sda_get_contract.rs` executes configured SpatiaLite queries for all four
-variants and checks key names, SQLite key types, and intersecting results.
+active-client variants and all four additional variants; assertions check exact
+result column names, SQLite key types for integer keys, and intersecting
+results. Status-map variants require `sastatusmap.areasymbol` and join it to
+`sapolygon.areasymbol`; duplicate status-map matches are collapsed by the
+distinct key result.
 `tests/mukey_contract.rs:43-101` retains coverage of the original WGS84 mukey
 query shapes. Geometry layer and CRS metadata are discovered through
 `src/spatial.rs` and the active intersection dispatch in

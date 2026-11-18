@@ -70,6 +70,10 @@ pub fn requires_spatial(sql: &str) -> bool {
         "sda_get_mukey_from_intersection_with_wktwm",
         "sda_get_sapolygonkey_from_intersection_with_wktwgs84",
         "sda_get_sapolygonkey_from_intersection_with_wktwm",
+        "sda_get_areasymbol_from_intersection_with_wktwgs84",
+        "sda_get_areasymbol_from_intersection_with_wktwm",
+        "sda_get_sapolygonkey_from_intersection_with_sastatusmap_wktwgs84",
+        "sda_get_sapolygonkey_from_intersection_with_sastatusmap_wktwm",
         "spatialite_",
     ]
     .iter()

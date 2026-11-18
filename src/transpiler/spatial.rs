@@ -12,26 +12,66 @@ const MUKEY_FUNCTION: &str = "SDA_Get_Mukey_from_intersection_with_WktWgs84";
 const MUKEY_WM_FUNCTION: &str = "SDA_Get_Mukey_from_intersection_with_WktWm";
 const SAPOLYGONKEY_FUNCTION: &str = "SDA_Get_Sapolygonkey_from_intersection_with_WktWgs84";
 const SAPOLYGONKEY_WM_FUNCTION: &str = "SDA_Get_Sapolygonkey_from_intersection_with_WktWm";
+const AREASYMBOL_FUNCTION: &str = "SDA_Get_Areasymbol_from_intersection_with_WktWgs84";
+const AREASYMBOL_WM_FUNCTION: &str = "SDA_Get_Areasymbol_from_intersection_with_WktWm";
+const SAPOLYGONKEY_STATUS_FUNCTION: &str =
+    "SDA_Get_Sapolygonkey_from_intersection_with_sastatusmap_WktWgs84";
+const SAPOLYGONKEY_STATUS_WM_FUNCTION: &str =
+    "SDA_Get_Sapolygonkey_from_intersection_with_sastatusmap_WktWm";
 
 #[derive(Clone)]
 struct IntersectionTarget {
     function: &'static str,
     table: &'static str,
     key: &'static str,
+    join_statusmap: bool,
     input_srid: i32,
     column: String,
-    feature_srid: i32,
 }
 
-fn intersection_spec(name: &str) -> Option<(&'static str, &'static str, &'static str, i32)> {
+fn intersection_spec(name: &str) -> Option<(&'static str, &'static str, &'static str, bool, i32)> {
     [
-        (MUKEY_FUNCTION, "mupolygon", "mukey", 4326),
-        (MUKEY_WM_FUNCTION, "mupolygon", "mukey", 3857),
-        (SAPOLYGONKEY_FUNCTION, "sapolygon", "sapolygonkey", 4326),
-        (SAPOLYGONKEY_WM_FUNCTION, "sapolygon", "sapolygonkey", 3857),
+        (MUKEY_FUNCTION, "mupolygon", "mukey", false, 4326),
+        (MUKEY_WM_FUNCTION, "mupolygon", "mukey", false, 3857),
+        (
+            SAPOLYGONKEY_FUNCTION,
+            "sapolygon",
+            "sapolygonkey",
+            false,
+            4326,
+        ),
+        (
+            SAPOLYGONKEY_WM_FUNCTION,
+            "sapolygon",
+            "sapolygonkey",
+            false,
+            3857,
+        ),
+        (AREASYMBOL_FUNCTION, "sapolygon", "areasymbol", false, 4326),
+        (
+            AREASYMBOL_WM_FUNCTION,
+            "sapolygon",
+            "areasymbol",
+            false,
+            3857,
+        ),
+        (
+            SAPOLYGONKEY_STATUS_FUNCTION,
+            "sapolygon",
+            "sapolygonkey",
+            true,
+            4326,
+        ),
+        (
+            SAPOLYGONKEY_STATUS_WM_FUNCTION,
+            "sapolygon",
+            "sapolygonkey",
+            true,
+            3857,
+        ),
     ]
     .into_iter()
-    .find(|(function, _, _, _)| function.eq_ignore_ascii_case(name))
+    .find(|(function, _, _, _, _)| function.eq_ignore_ascii_case(name))
 }
 
 pub(super) fn parser_compatibility(sql: &str) -> String {
@@ -101,7 +141,9 @@ pub(super) fn rewrite(
         let mut targets = Vec::new();
         for node in statement.dfs() {
             if let Expression::Function(function) = node {
-                if let Some((name, table, key, input_srid)) = intersection_spec(&function.name) {
+                if let Some((name, table, key, join_statusmap, input_srid)) =
+                    intersection_spec(&function.name)
+                {
                     if targets
                         .iter()
                         .any(|target: &IntersectionTarget| target.function == name)
@@ -118,6 +160,7 @@ pub(super) fn rewrite(
                         function: name,
                         table,
                         key,
+                        join_statusmap,
                         input_srid,
                         column: capability
                             .geometry_override()
@@ -125,7 +168,6 @@ pub(super) fn rewrite(
                             .or_else(|| capability.effective_geometry_column())
                             .unwrap_or(geometry_column)
                             .to_owned(),
-                        feature_srid: metadata.map_or(4326, |metadata| metadata.srs_id),
                     });
                 }
             }
@@ -220,23 +262,27 @@ fn expand_source(
         return Err(polyglot_sql::Error::InvalidInput(format!("{} TVF requires one literal WKT argument; correlated and other expressions are unsupported", target.function)));
     }
     let argument = function.args[0].clone();
-    let predicate = if target.function == MUKEY_FUNCTION {
-        format!("ST_Intersects(ST_Transform(GeomFromGPB(mp.__geom__), {}), GeomFromText(__wkt__, 4326))", target.feature_srid)
-    } else {
-        format!(
-            "ST_Intersects(ST_Transform(GeomFromGPB(mp.__geom__), {}), GeomFromText(__wkt__, {}))",
-            target.input_srid, target.input_srid
-        )
-    };
+    let predicate = format!(
+        "ST_Intersects(ST_Transform(GeomFromGPB(mp.__geom__), {}), GeomFromText(__wkt__, {}))",
+        target.input_srid, target.input_srid
+    );
     let filter = if target.table == "mupolygon" {
         "mp.areasymbol <> 'US' AND "
     } else {
         ""
     };
-    let mut parsed = Dialect::get(DialectType::TSQL).parse(&format!(
-        "SELECT * FROM (SELECT DISTINCT mp.{} FROM {} AS mp WHERE {}{}) AS __sda",
-        target.key, target.table, filter, predicate
-    ))?;
+    let query = if target.join_statusmap {
+        format!(
+            "SELECT * FROM (SELECT DISTINCT mp.{} FROM {} AS mp INNER JOIN sastatusmap AS sm ON mp.areasymbol = sm.areasymbol WHERE {}{}) AS __sda",
+            target.key, target.table, filter, predicate
+        )
+    } else {
+        format!(
+            "SELECT * FROM (SELECT DISTINCT mp.{} FROM {} AS mp WHERE {}{}) AS __sda",
+            target.key, target.table, filter, predicate
+        )
+    };
+    let mut parsed = Dialect::get(DialectType::TSQL).parse(&query)?;
     let Expression::Select(mut outer) = parsed.remove(0) else {
         unreachable!()
     };
