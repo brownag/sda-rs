@@ -6,8 +6,8 @@ Source State: STATE_2.md (plan 2 complete); code review of `master...feature/sql
 ## Circled Goal (Active)
 
 - **[G16]** A failed batch commits nothing: multi-statement execution runs in one transaction and rolls back on any statement error.
-  - Why now: This is the only item from the review that can lose or corrupt data, and it is confined to the executor. Batch tests in G7 cannot be trusted until it is fixed. It is also small enough to finish in one plan.
-  - Exit criteria: A failing batch leaves rows unchanged and returns 500; a successful batch still commits. Decision D3 governs the rule. Test covers `UPDATE t SET x=1; SELECT * FROM missing` (expect zero rows changed) and a successful multi-statement batch.
+  - Why now: This is the highest-priority outstanding MVP correctness gap because a failed batch can otherwise partially commit writes. It is confined to the executor, and batch tests in G7 cannot be trusted until it is fixed. Native SQLite spatial optimization is attractive, but should follow MVP correctness rather than expand the active scope.
+  - Exit criteria: A failing batch leaves rows unchanged and returns 500; a successful multi-statement batch still commits. Decision D3 governs the rule. Test covers `UPDATE t SET x=1; SELECT * FROM missing` (expect zero rows changed) and a successful multi-statement batch.
   - First action: Write the failing rollback test in `src/executor/sqlite.rs` tests, then wrap `execute_on` in `BEGIN`/`COMMIT` with rollback on error.
 
 ## Sequenced Goals (Dependency DAG)
@@ -58,6 +58,22 @@ Source State: STATE_2.md (plan 2 complete); code review of `master...feature/sql
   - Evidence: Standards hard breach. `planning/EXECUTION_PLAN_1.md:48` and `planning/INITIAL_PROMPT.md:62` require in-memory DBs. The current tests use temp-file SQLite (`src/routes.rs`, `tests/sda_mvp.rs:16`, `:117`).
   - Exit criteria: Tests use shared-cache in-memory DBs with a unique name per test.
 
+- **[G29]** The supported spatial SQL contract documents method coverage, NULL/error behavior, CRS assumptions, and intentional semantic differences.
+  - Depends on: G1
+  - Why: Research confirms SQL Server geometry/geography and PostGIS geometry/geography semantics are not interchangeable; define the compatibility boundary before expanding supported spatial calls.
+
+- **[G30]** GeoPackageBinary decoding and validation are covered for headers, envelope flags, empty geometries, malformed blobs, and WKB payload extraction.
+  - Depends on: G1
+  - Why: GPB is a container around WKB, not raw WKB; a tested decoder is foundational to any native SQLite spatial path.
+
+- **[G31]** Spatial metadata is resolved for each referenced table and geometry column, with missing or ambiguous metadata rejected explicitly.
+  - Depends on: G20
+  - Why: Avoid selecting another layer's geometry or assuming a global effective geometry column/SRID.
+
+- **[G32]** SQLite execution safeguards for read-only access, authorizer policy, extension loading, UDF flags, and resource limits are explicit and tested.
+  - Depends on: G1
+  - Why: User-submitted SQL and registered functions require a deliberate execution boundary; determinism alone is not a security guarantee.
+
 ## Independent Backlog
 
 - **[G8]** The server provides CLI and environment configuration for backend URL, port, and geometry settings.
@@ -67,8 +83,16 @@ Source State: STATE_2.md (plan 2 complete); code review of `master...feature/sql
   - Depends on: G22
 - **[G26]** The dependency list matches INITIAL_PROMPT, or the deviation is recorded.
   - Evidence: `planning/INITIAL_PROMPT.md` names `serde_json`, `quick-xml`, and `urlencoded`. None are in `Cargo.toml`; the serializer is hand-rolled. Only the JSON deviation is recorded in STATE_1.md.
+- **[G33]** A focused spike validates whether terrio provides the geometry parsing, operations, CRS handling, and memory behavior required by the SQLite spatial MVP.
+  - Depends on: G29, G30
+  - Exit criteria: Record supported APIs and gaps using a small representative GeoPackage fixture; do not adopt terrio as a SQL engine without evidence.
 
 ## Deferred
+
+- **[G28]** SQLite accelerates supported spatial predicates without requiring SpatiaLite, using GeoPackage metadata/R-tree candidate filtering followed by exact geometry evaluation.
+  - Depends on: G29, G30, G31, G33
+  - Trigger: MVP correctness gaps are closed and the supported geometry representation, exact-predicate implementation, and GeoPackage R-tree availability/maintenance assumptions are validated. Keep this separate from general PostGIS parity.
+  - Exit criteria: Queries use a valid R-tree only to filter conservative bounding-box candidates, then apply exact predicates; results match the non-indexed path, including when no usable index exists.
 
 - **[G10]** PostgreSQL/PostGIS backend executes the same supported query surface.
   - Trigger: SQLite/GeoPackage MVP passes its acceptance suite and backend interfaces are stable.
