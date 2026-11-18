@@ -111,10 +111,15 @@ mod tests {
         .unwrap();
         assert_eq!(output.len(), 2);
         assert!(
-            output[0].contains("CREATE TEMPORARY TABLE selected AS SELECT"),
+            output[0].contains("CREATE TEMPORARY TABLE __sda_temp_"),
             "{output:?}"
         );
         assert!(output[0].contains("id > 2"), "{output:?}");
-        assert!(output[1].contains("FROM selected"), "{output:?}");
+        let name = output[0]
+            .split("CREATE TEMPORARY TABLE ")
+            .nth(1)
+            .and_then(|sql| sql.split(" AS SELECT").next())
+            .unwrap();
+        assert!(output[1].contains(&format!("FROM {name}")), "{output:?}");
     }
 }
