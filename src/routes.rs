@@ -297,4 +297,46 @@ mod tests {
             .unwrap()
             .contains("Spatial capability unavailable: SpatiaLite is not loaded"));
     }
+
+    #[tokio::test]
+    async fn malformed_spatial_metadata_does_not_block_ordinary_sql() {
+        let path = std::env::temp_dir().join(format!(
+            "sda-malformed-spatial-route-{}-{}.sqlite",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch("CREATE TABLE gpkg_geometry_columns (table_name TEXT);")
+            .unwrap();
+        drop(connection);
+        let path = path.to_string_lossy().into_owned();
+
+        let ordinary = send(
+            &path,
+            "/Tabular/post.rest",
+            "application/json",
+            r#"{"query":"SELECT 1"}"#,
+        )
+        .await;
+        assert_eq!(ordinary.status(), StatusCode::OK);
+        assert_eq!(
+            to_bytes(ordinary.into_body(), usize::MAX).await.unwrap(),
+            r#"{"Table":[["1"]]}"#
+        );
+
+        let spatial = send(
+            &path,
+            "/Tabular/post.rest",
+            "application/json",
+            r#"{"query":"SELECT STGeomFromText('POINT(0 0)', 4326)"}"#,
+        )
+        .await;
+        assert_eq!(spatial.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        let body = to_bytes(spatial.into_body(), usize::MAX).await.unwrap();
+        assert!(std::str::from_utf8(&body)
+            .unwrap()
+            .contains("Unable to inspect GeoPackage geometry metadata:"));
+        fs::remove_file(path).unwrap();
+    }
 }

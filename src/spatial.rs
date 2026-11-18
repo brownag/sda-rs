@@ -14,6 +14,7 @@ pub struct SpatialCapability {
     available: bool,
     geometries: Vec<GeometryMetadata>,
     effective_geometry_column: Option<String>,
+    metadata_error: Option<String>,
 }
 
 impl SpatialCapability {
@@ -42,6 +43,9 @@ impl SpatialCapability {
     }
 
     pub fn require_spatial(&self) -> Result<(), SpatialError> {
+        if let Some(message) = &self.metadata_error {
+            return Err(SpatialError::Metadata(message.clone()));
+        }
         if self.available {
             Ok(())
         } else {
@@ -68,7 +72,7 @@ pub fn requires_spatial(sql: &str) -> bool {
 pub enum SpatialError {
     Unavailable,
     ExtensionLoad { path: String, message: String },
-    Metadata(rusqlite::Error),
+    Metadata(String),
 }
 
 impl fmt::Display for SpatialError {
@@ -81,8 +85,11 @@ impl fmt::Display for SpatialError {
             Self::ExtensionLoad { path, message } => {
                 write!(f, "Unable to load spatial extension '{path}': {message}")
             }
-            Self::Metadata(error) => {
-                write!(f, "Unable to inspect GeoPackage geometry metadata: {error}")
+            Self::Metadata(message) => {
+                write!(
+                    f,
+                    "Unable to inspect GeoPackage geometry metadata: {message}"
+                )
             }
         }
     }
@@ -126,10 +133,10 @@ pub fn initialize(
         false
     };
 
-    let geometries = match connection
+    let (geometries, metadata_error) = match connection
         .prepare("SELECT table_name, column_name, srs_id FROM gpkg_geometry_columns")
     {
-        Ok(mut statement) => statement
+        Ok(mut statement) => match statement
             .query_map([], |row| {
                 Ok(GeometryMetadata {
                     table_name: row.get(0)?,
@@ -137,9 +144,14 @@ pub fn initialize(
                     srs_id: row.get(2)?,
                 })
             })
-            .map_err(SpatialError::Metadata)?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(SpatialError::Metadata)?,
+            .map_err(|error| error.to_string())
+            .and_then(|rows| {
+                rows.collect::<Result<Vec<_>, _>>()
+                    .map_err(|error| error.to_string())
+            }) {
+            Ok(geometries) => (geometries, None),
+            Err(error) => (Vec::new(), Some(error)),
+        },
         Err(rusqlite::Error::SqliteFailure(_, _)) | Err(rusqlite::Error::InvalidQuery) => {
             let exists: bool = connection
                 .query_row(
@@ -147,15 +159,14 @@ pub fn initialize(
                     [],
                     |row| row.get(0),
                 )
-                .map_err(SpatialError::Metadata)?;
+                .map_err(|error| SpatialError::Metadata(error.to_string()))?;
             if exists {
-                return Err(SpatialError::Metadata(rusqlite::Error::InvalidQuery));
+                (Vec::new(), Some(rusqlite::Error::InvalidQuery.to_string()))
+            } else {
+                (Vec::new(), None)
             }
-            Vec::new()
         }
-        Err(error) => {
-            return Err(SpatialError::Metadata(error));
-        }
+        Err(error) => (Vec::new(), Some(error.to_string())),
     };
     let effective_geometry_column = geometry_override
         .map(str::to_owned)
@@ -165,6 +176,7 @@ pub fn initialize(
         available,
         geometries,
         effective_geometry_column,
+        metadata_error,
     })
 }
 
@@ -184,6 +196,25 @@ mod tests {
             capability.require_spatial().unwrap_err().to_string(),
             "Spatial capability unavailable: SpatiaLite is not loaded"
         );
+    }
+
+    #[test]
+    fn malformed_metadata_is_deferred_until_spatial_capability_is_required() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch("CREATE TABLE gpkg_geometry_columns (table_name TEXT);")
+            .unwrap();
+        let capability = initialize(&connection, None, None).unwrap();
+        assert!(!capability.available());
+        assert!(matches!(
+            capability.require_spatial(),
+            Err(SpatialError::Metadata(_))
+        ));
+        assert!(capability
+            .require_spatial()
+            .unwrap_err()
+            .to_string()
+            .starts_with("Unable to inspect GeoPackage geometry metadata:"));
     }
 
     #[test]
