@@ -187,7 +187,7 @@ async fn router_rejects_mukey_tvf_without_mupolygon_metadata_or_override() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     assert!(
         String::from_utf8_lossy(&body).contains("requires geometry metadata for mupolygon"),
