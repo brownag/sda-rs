@@ -23,7 +23,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 | Wave | Tasks | Status | Code commit |
 |---|---|---|---|
 | 1 | 6.1.1 Spatial SQL contract; 6.1.2 SDA_Get inventory | done | `b90bd8b`, `366a02a` |
-| 2 | 6.2.1 GeoPackageBinary decoder | pending | — |
+| 2 | 6.2.1 GeoPackageBinary decoder | done | `e2eb5c2` |
 | 3 | 6.3.1 Active-client intersection TVFs | pending | — |
 | 4 | 6.4.1 Area-symbol/survey-polygon intersection TVFs | pending | — |
 | 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | pending | — |
@@ -62,3 +62,12 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Evidence caveat:** official catalog page returned HTTP 502; entries were cross-checked against USDA-NRCS catalog search results and the existing scoping inventory.
 - **External inputs:** soilDB remains at `1eaa07178311a4ad3b80842e1ff4f10149733544` with pre-existing dirty files; py-soildb remains clean at `f070c0a410c871f8d2fde42d992d625e9e8d085a`.
 - **Deviation/gotcha:** none; all unimplemented functions are conditional on the required table/layer/columns and spatial configuration.
+
+## 6.2.1
+- **Status:** complete.
+- **Files:** `src/gpkg_geometry.rs` (lines 1–184); `src/lib.rs` (module export).
+- **Code commit:** `e2eb5c2` (`feat: decode GeoPackageBinary geometry headers`).
+- **Targeted test:** `cargo test gpkg_geometry` — 4 passed; orchestrator rerun passed.
+- **Checks:** `cargo fmt --check` and `git diff --check` passed.
+- **Coverage:** magic/version/flags, byte order/SRS, all envelope sizes, empty flag, payload extraction, and malformed/truncated values.
+- **Deviation/gotcha:** none; decoder is independent of SpatiaLite and does not alter query semantics.
