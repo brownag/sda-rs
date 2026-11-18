@@ -47,3 +47,14 @@ Plan: `planning/EXECUTION_PLAN_1.md`
 - Behavior: sequential statements share one in-memory connection; row result sets preserve column order, dynamic SQLite values/NULL, and empty-set columns; async API uses `spawn_blocking`.
 - Deviations: none. Remaining untracked `target/` was pre-existing and untouched.
 - Gotchas: `src/lib.rs` does not register `transpiler`; task 1.2.2 may add only its authorized module registration.
+
+## 1.2.2
+- Status: implemented and verified on `feature/sqlite-mvp`; worktree `/home/andrew/workspace/sda-rs`.
+- API verified from `polyglot-sql 0.14.1`: `Dialect::parse`, `Dialect::transpile`, `Dialect::generate`, `ExpressionWalk::dfs`, `transform_all`.
+- Files: `src/transpiler/{mod.rs,normalize.rs,security.rs}`, `src/lib.rs` (module registration only).
+- `cargo test transpiler::`: 4 passed, 0 failed (5 filtered); binary suite 0 tests.
+- `cargo fmt` and `git diff --check` passed.
+- AST safety rejects DROP/ALTER/TRUNCATE/GRANT/EXEC/WAITFOR; permits only temporary `#name` CREATE TABLE.
+- SQLite dialect pipeline handles bracket identifiers, TOP, IIF, STRING_AGG; AST pass maps ISNULL to COALESCE.
+- Planning report and implementation commits are separate; no remote actions.
+- Deviations: none.
