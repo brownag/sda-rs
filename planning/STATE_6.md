@@ -220,9 +220,10 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Disposition:** Wave 8 verified and committed. Wave 9 is now eligible for task planning; no Iowa or external repository/data was accessed.
 
 ## 6.9.1
-- **Status:** task plan drafted; awaiting approval. No harness code or external data access.
+- **Status:** task approved, implementation paused pending approval of discovered bind-address scope expansion.
 - **Plan:** `planning/tasks/6.9.1.todo.md`; Wave 8 prerequisite is verified via `f5e9541`.
-- **Safety:** the soilDB checkout and Iowa GeoPackage remain read-only. The harness is opt-in, uses a temporary R library and ephemeral loopback port, and is excluded from ordinary Cargo tests/CI.
+- **Blocker:** `src/main.rs` hardcodes `0.0.0.0`; network namespaces are unavailable. A configurable bind address is needed to satisfy loopback-only harness safety. Proposed `SDA_BIND_ADDRESS`/`--bind-address`, preserving the default and using `127.0.0.1` in harness.
+- **Safety:** soilDB checkout and Iowa GeoPackage remain read-only; no external tests or harness execution yet.
 
 ## Scalar mukey WKT follow-up
 - **Correction:** direct key equality and acceptance of literal/NULL AST variants. Test fixture includes a distinct `mukey = '11'` row, separate from `mupolygonkey = 11`.
