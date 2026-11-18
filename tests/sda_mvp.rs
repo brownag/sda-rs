@@ -82,6 +82,45 @@ async fn router_keeps_nonspatial_query_working_and_reports_spatial_unavailable()
     fs::remove_file(path).unwrap();
 }
 
+#[tokio::test]
+async fn router_rolls_back_failed_statement_batch() {
+    let uri = format!(
+        "file:g16_router_{}_{}?mode=memory&cache=shared",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    );
+    let holder = Connection::open(&uri).unwrap();
+    holder
+        .execute_batch("CREATE TABLE t(x INTEGER); INSERT INTO t VALUES (1);")
+        .unwrap();
+    let app = sda_rs::app(sda_rs::config::Config {
+        backend_url: uri,
+        port: 0,
+        spatial_extension: None,
+        geometry_column: None,
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/Tabular/post.rest")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"query":"UPDATE t SET x = 2; SELECT * FROM missing"}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let value: i64 = holder
+        .query_row("SELECT x FROM t", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(value, 1);
+}
+
 #[test]
 fn mukey_rewrite_uses_mupolygon_metadata_not_first_geometry_row() {
     let connection = Connection::open_in_memory().unwrap();

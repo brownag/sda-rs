@@ -133,10 +133,11 @@ fn execute_on(
     connection: &Connection,
     statements: &[String],
 ) -> Result<Vec<ResultSet>, ExecutorError> {
+    let transaction = connection.unchecked_transaction()?;
     let mut result_sets = Vec::new();
 
     for sql in statements {
-        let mut statement = connection.prepare(sql)?;
+        let mut statement = transaction.prepare(sql)?;
         let column_count = statement.column_count();
         if column_count == 0 {
             statement.execute([])?;
@@ -163,12 +164,24 @@ fn execute_on(
         });
     }
 
+    transaction.commit()?;
     Ok(result_sets)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static NEXT_SHARED_DB: AtomicUsize = AtomicUsize::new(0);
+
+    fn shared_memory_uri() -> String {
+        format!(
+            "file:g16_{}_{}?mode=memory&cache=shared",
+            std::process::id(),
+            NEXT_SHARED_DB.fetch_add(1, Ordering::Relaxed)
+        )
+    }
 
     #[test]
     fn captures_column_order_values_and_nulls() {
@@ -203,6 +216,48 @@ mod tests {
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].rows, [vec![Value::Integer(11)]]);
         assert_eq!(results[1].columns, ["later"]);
+    }
+
+    #[test]
+    fn rolls_back_failed_statement_batch() {
+        let uri = shared_memory_uri();
+        let holder = Connection::open(&uri).unwrap();
+        holder
+            .execute_batch("CREATE TABLE t(x INTEGER); INSERT INTO t VALUES (1);")
+            .unwrap();
+
+        let result = execute(
+            &uri,
+            &["UPDATE t SET x = 2".into(), "SELECT * FROM missing".into()],
+        );
+
+        assert!(result.is_err());
+        let value: i64 = holder
+            .query_row("SELECT x FROM t", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(value, 1);
+    }
+
+    #[test]
+    fn commits_successful_statement_batch() {
+        let uri = shared_memory_uri();
+        let holder = Connection::open(&uri).unwrap();
+        holder
+            .execute_batch("CREATE TABLE t(x INTEGER); INSERT INTO t VALUES (1);")
+            .unwrap();
+
+        let results = execute(
+            &uri,
+            &["UPDATE t SET x = 2".into(), "SELECT x FROM t".into()],
+        )
+        .unwrap();
+
+        assert_eq!(results[0].rows, [vec![Value::Integer(2)]]);
+        let fresh = Connection::open(&uri).unwrap();
+        let value: i64 = fresh
+            .query_row("SELECT x FROM t", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(value, 2);
     }
 
     #[test]
