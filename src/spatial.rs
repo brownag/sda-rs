@@ -32,6 +32,16 @@ impl SpatialCapability {
             .find(|metadata| metadata.table_name.eq_ignore_ascii_case(table))
     }
 
+    pub fn is_geometry_column(&self, column: &str) -> bool {
+        self.geometries
+            .iter()
+            .any(|metadata| metadata.geometry_column.eq_ignore_ascii_case(column))
+            || self
+                .effective_geometry_column
+                .as_deref()
+                .is_some_and(|override_column| override_column.eq_ignore_ascii_case(column))
+    }
+
     pub fn effective_geometry_column(&self) -> Option<&str> {
         self.effective_geometry_column.as_deref()
     }

@@ -84,7 +84,7 @@ pub(super) fn rewrite(
         })
         .map_err(TranspilerError::Generate)?;
         output.push(
-            transform_all(statement, &|node| rewrite_node(node, geometry_column))
+            transform_all(statement, &|node| rewrite_node(node, capability))
                 .map_err(TranspilerError::Generate)?,
         );
     }
@@ -204,7 +204,7 @@ fn is_spatial_expression(expression: &Expression) -> bool {
 
 fn rewrite_node(
     node: Expression,
-    geometry_column: &str,
+    capability: &SpatialCapability,
 ) -> Result<Expression, polyglot_sql::Error> {
     Ok(match node {
         Expression::MethodCall(call) if call.method.name.eq_ignore_ascii_case(MUKEY_FUNCTION) => {
@@ -213,7 +213,7 @@ fn rewrite_node(
             ));
         }
         Expression::Function(function) if function.name.eq_ignore_ascii_case(MUKEY_FUNCTION) => {
-            let _ = (function, geometry_column);
+            let _ = function;
             return Err(polyglot_sql::Error::InvalidInput(
                 "SDA_Get_Mukey_from_intersection_with_WktWgs84 is unsupported in this AST context"
                     .into(),
@@ -244,9 +244,7 @@ fn rewrite_node(
                 ));
             }
             let wrap = |expression| match &expression {
-                Expression::Column(column)
-                    if column.name.name.eq_ignore_ascii_case(geometry_column) =>
-                {
+                Expression::Column(column) if capability.is_geometry_column(&column.name.name) => {
                     Expression::Function(Box::new(Function::new("GeomFromGPB", vec![expression])))
                 }
                 _ => expression,
@@ -278,6 +276,7 @@ mod tests {
         let connection = rusqlite::Connection::open_in_memory().unwrap();
         connection.execute_batch(
             "CREATE TABLE gpkg_geometry_columns (table_name TEXT, column_name TEXT, srs_id INTEGER);
+             INSERT INTO gpkg_geometry_columns VALUES ('soil_map', 'soil_shape', 26910);
              INSERT INTO gpkg_geometry_columns VALUES ('mupolygon', 'shape_dynamic', 4326);",
         ).unwrap();
         initialize(&connection, None, None).unwrap()
@@ -359,10 +358,8 @@ mod tests {
             .unwrap();
         assert!(sql.to_ascii_lowercase().contains("st_intersects"), "{sql}");
         assert!(sql.to_ascii_lowercase().contains("geomfromtext"), "{sql}");
-        assert_eq!(
-            capability().effective_geometry_column(),
-            Some("shape_dynamic")
-        );
+        assert_eq!(capability().effective_geometry_column(), Some("soil_shape"));
+        assert!(capability().is_geometry_column("shape_dynamic"));
     }
 
     #[test]
