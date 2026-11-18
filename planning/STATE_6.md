@@ -28,8 +28,8 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 | 4 | 6.4.1–6.4.3 diagnostic attempts; 6.4.4 implementation; 6.4.5 regression correction | done | `8a54496`, `d4d867b` |
 | 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | done | `84e0138` |
 | 6 | 6.6.1 implementation; 6.6.2 diagnosis; 6.6.3 fixture correction; 6.6.4 format and boundary verification | done | `9c23a78` |
-| 7 | 6.7.1 One-key WKT TVFs; 6.7.2 compile recovery; 6.7.3 HTTP 500 diagnostic; 6.7.4 generated SQLite diagnosis / evidence-led fix | implementation verified; boundary review pending | `23dea36` |
-| 8 | 6.8.1 Table-input WKT TVFs/macros | blocked on Wave 7 | — |
+| 7 | 6.7.1 One-key WKT TVFs; 6.7.2 compile recovery; 6.7.3 HTTP 500 diagnostic; 6.7.4 generated SQLite diagnosis / evidence-led fix | done; configured boundary suite passed | `23dea36` |
+| 8 | 6.8.1 Table-input WKT TVFs/macros | plan drafted; awaiting task approval | — |
 | 9 | 6.9.1 soilDB/Iowa integration harness | blocked on Waves 7–8 | — |
 
 ## Orchestration decisions and hazards
@@ -209,7 +209,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Fixture diagnosis/correction:** SpatiaLite initialization did not create `gpkg_geometry_columns` in this fixture. The test now creates its GeoPackage metadata table once and inserts geometry metadata before starting the router. Earlier recorded inference that initialization created this table was incorrect.
 - **Regression:** focused transpiler assertions cover `'inside'`, numeric `11`, and string `'11'` with generated SQL free of `VARCHAR`/`MAX`; configured contract covers actual WKT, aliases, CRS variants, NULL/no-match, and prior intersection cases.
 - **Acceptance:** configured `cargo test --test sda_get_contract -- --nocapture --test-threads=1` passed. Configured full `cargo test` passed (62 unit tests and all integration/doc targets). `cargo fmt --check` and `git diff --check` passed after formatting. `cargo clippy --all-targets` passed with warnings for `needless_question_mark` in `src/executor/sqlite.rs` and `collapsible_if` in the existing `expand_tables` condition.
-- **Disposition:** Wave 7 implementation verified and committed. Waves 8–9 remain gated on the separate Wave 7 boundary review.
+- **Disposition:** Wave 7 implementation verified and committed; configured full suite passed the boundary gate. Wave 8 may proceed after its task plan is approved; Wave 9 remains gated on Wave 8.
 
 ## Scalar mukey WKT follow-up
 - **Correction:** direct key equality and acceptance of literal/NULL AST variants. Test fixture includes a distinct `mukey = '11'` row, separate from `mupolygonkey = 11`.
