@@ -28,7 +28,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 | 4 | 6.4.1–6.4.3 diagnostic attempts; 6.4.4 implementation; 6.4.5 regression correction | done | `8a54496`, `d4d867b` |
 | 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | done | `84e0138` |
 | 6 | 6.6.1 implementation; 6.6.2 diagnosis; 6.6.3 fixture correction; 6.6.4 format and boundary verification | done | `9c23a78` |
-| 7 | 6.7.1 One-key WKT TVFs | in progress—contract clarification | — |
+| 7 | 6.7.1 One-key WKT TVFs | blocked | — |
 | 8 | 6.8.1 Table-input WKT TVFs/macros | pending | — |
 | 9 | 6.9.1 soilDB/Iowa integration harness | pending | — |
 
@@ -178,3 +178,11 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Wave 6 commit:** `9c23a78` (`feat(spatial): add feature-layer intersection TVFs`).
 - **Caveat:** the historical Mupoint WGS84 `{}` observation remains unexplained; current diagnostic passed. Iowa has `featpoint` but lacks required `featpointkey`.
 - **Next:** Wave 6 is verified; Wave 7 may proceed.
+
+## 6.7.1
+- **Status:** blocked on compile failure; implementation diff uncommitted.
+- **Contract evidence:** `planning/sda-rs-scoping.md` and the USDA Advanced Queries guide specify one-key functions as `FROM` TVF sources with WKT output aliases. The soilDB vignette query adds a separate `mukey` expression; the function output remains the WKT column.
+- **Attempted changes:** added eight scalar/one-key WKT function specifications, metadata-aware source rewrites, fixture `mukey` columns for point/line layers, exact WKT/alias and empty-result assertions, and support-matrix statuses. No commit.
+- **Acceptance:** configured `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract` failed to compile before test execution. The rewrite has unreachable-expression warnings in the source matcher and an alias type mismatch (`Option<Identifier>` vs `Option<String>`, and `String` assigned where `Identifier` is expected).
+- **Disposition:** stopped per approved plan; no formatting checks, correction, or retry. Preserve uncommitted scoped changes.
+- **Next:** await user direction; Wave 8 remains gated.
