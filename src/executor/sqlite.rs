@@ -1,6 +1,10 @@
 use std::{error::Error, fmt};
 
-use rusqlite::{types::Value, Connection};
+use rusqlite::{
+    hooks::{AuthAction, Authorization, TransactionOperation},
+    types::Value,
+    Connection,
+};
 
 use crate::{
     result::ResultSet,
@@ -126,7 +130,32 @@ fn open_initialized(
 ) -> Result<(Connection, SpatialCapability), ExecutorError> {
     let connection = open_connection(path)?;
     let spatial = spatial::initialize(&connection, extension, geometry_override)?;
+    connection.authorizer(Some(authorize_sqlite_action));
     Ok((connection, spatial))
+}
+
+fn authorize_sqlite_action(context: rusqlite::hooks::AuthContext<'_>) -> Authorization {
+    let temp_database = context.database_name == Some("temp");
+    let allowed = match context.action {
+        AuthAction::Select | AuthAction::Read { .. } => true,
+        AuthAction::CreateTempTable { .. } | AuthAction::DropTempTable { .. } => temp_database,
+        AuthAction::Insert { .. } | AuthAction::Update { .. } | AuthAction::Delete { .. } => {
+            temp_database
+        }
+        AuthAction::Transaction {
+            operation: TransactionOperation::Begin,
+        } => true,
+        AuthAction::Function { function_name } => {
+            !function_name.eq_ignore_ascii_case("load_extension")
+        }
+        _ => false,
+    };
+
+    if allowed {
+        Authorization::Allow
+    } else {
+        Authorization::Deny
+    }
 }
 
 fn execute_on(
@@ -164,6 +193,7 @@ fn execute_on(
         });
     }
 
+    connection.authorizer(None::<fn(rusqlite::hooks::AuthContext<'_>) -> Authorization>);
     transaction.commit()?;
     Ok(result_sets)
 }
