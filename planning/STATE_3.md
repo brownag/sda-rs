@@ -68,3 +68,13 @@ Wave-boundary verification: waves 1–2 — passed. Latest serial run: `cargo fm
 - `cargo fmt --check`: passed.
 - `git diff --check`: passed.
 - Deviations: none. Full suite not run as instructed.
+
+## 3.3.2
+- Status: complete; implementation commit `3f9d0b2` (`fix(spatial): defer malformed metadata errors`).
+- Planning TODO commit: `706ab37` (`docs(planning): record spatial metadata task plan`).
+- Changed `src/spatial.rs:13-18,45-54,72-98,136-183,201-220`: defer metadata discovery errors; spatial requirement prefers metadata error to unavailable capability.
+- Changed `src/routes.rs:301-341`: malformed-metadata route regression verifies `SELECT 1` succeeds and spatial query returns structured metadata error.
+- `cargo test spatial::`: 13 passed, 0 failed (31 filtered); `cargo test routes::`: 4 passed, 0 failed (40 filtered).
+- `cargo fmt --check`: passed; `git diff --check`: passed. Full suite not run.
+- Initial spatial test run failed once because SQLite reported “Query is not read-only” rather than the assumed missing-column text; assertion was made error-text-agnostic, then it passed.
+- Deviations: none. Valid/absent metadata with unavailable extension continues to return the existing capability error.
