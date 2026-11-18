@@ -31,14 +31,16 @@ async fn query(app: &axum::Router, sql: &str) -> String {
         )
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    String::from_utf8(
+    let status = response.status();
+    let body = String::from_utf8(
         to_bytes(response.into_body(), usize::MAX)
             .await
             .unwrap()
             .to_vec(),
     )
-    .unwrap()
+    .unwrap();
+    assert_eq!(status, StatusCode::OK, "SQL: {sql}\nResponse body: {body}");
+    body
 }
 
 #[tokio::test]
@@ -65,17 +67,18 @@ async fn active_intersection_tvfs_return_expected_keys_for_both_crs() {
                  table_name TEXT, column_name TEXT, geometry_type_name TEXT,
                  srs_id INTEGER, z TINYINT, m TINYINT
              );
-               INSERT INTO gpkg_geometry_columns VALUES
-                   ('mupolygon', 'mu_shape', 'POLYGON', 4326, 0, 0),
-                    ('sapolygon', 'sa_shape', 'POLYGON', 4326, 0, 0),
-                    ('mupoint', 'mp_shape', 'POINT', 4326, 0, 0),
+             INSERT INTO gpkg_geometry_columns
+                (table_name, column_name, geometry_type_name, srs_id, z, m) VALUES
+                    ('mupolygon', 'mu_shape', 'POLYGON', 4326, 0, 0),
+                     ('sapolygon', 'sa_shape', 'POLYGON', 4326, 0, 0),
+                     ('mupoint', 'mp_shape', 'POINT', 4326, 0, 0),
                     ('muline', 'ml_shape', 'LINESTRING', 4326, 0, 0),
                     ('featline', 'fl_shape', 'LINESTRING', 4326, 0, 0),
                     ('featpoint', 'fp_shape', 'POINT', 4326, 0, 0);
                  CREATE TABLE mupolygon(mukey TEXT, mupolygonkey INTEGER, areasymbol TEXT, mu_shape BLOB);
                 CREATE TABLE sapolygon(sapolygonkey INTEGER, areasymbol TEXT, sa_shape BLOB);
-                CREATE TABLE mupoint(mupointkey INTEGER, mp_shape BLOB);
-                CREATE TABLE muline(mulinekey INTEGER, ml_shape BLOB);
+                CREATE TABLE mupoint(mupointkey INTEGER, mukey TEXT, mp_shape BLOB);
+                CREATE TABLE muline(mulinekey INTEGER, mukey TEXT, ml_shape BLOB);
                 CREATE TABLE featline(featlinekey INTEGER, fl_shape BLOB);
                 CREATE TABLE featpoint(featpointkey INTEGER, fp_shape BLOB);
                 CREATE TABLE sastatusmap(areasymbol TEXT);
@@ -94,9 +97,9 @@ async fn active_intersection_tvfs_return_expected_keys_for_both_crs() {
                     (303, 'CA003', AsGPB(GeomFromText(
                       'POLYGON((19 19, 21 19, 21 21, 19 21, 19 19))', 4326)));
                 INSERT INTO mupoint VALUES
-                    (401, AsGPB(GeomFromText('POINT(0.5 0.5)', 4326)));
+                    (401, 'inside', AsGPB(GeomFromText('POINT(0.5 0.5)', 4326)));
                 INSERT INTO muline VALUES
-                    (501, AsGPB(GeomFromText('LINESTRING(0 0, 1 1)', 4326)));
+                    (501, 'inside', AsGPB(GeomFromText('LINESTRING(0 0, 1 1)', 4326)));
                 INSERT INTO featline VALUES
                     (601, AsGPB(GeomFromText('LINESTRING(0 0, 1 1)', 4326)));
                 INSERT INTO featpoint VALUES
@@ -224,6 +227,134 @@ async fn active_intersection_tvfs_return_expected_keys_for_both_crs() {
     for sql in [
         "SELECT featpointkey FROM SDA_Get_Featpointkey_from_intersection_with_WktWgs84('POINT(5 5)')",
         "SELECT featpointkey FROM SDA_Get_Featpointkey_from_intersection_with_WktWm('POINT(556597.45 557305.257)')",
+    ] {
+        assert_eq!(query(&app, sql).await, "{}");
+    }
+
+    for (sql, alias, table, geometry_column, key_column, key, srid) in [
+        (
+            "SELECT * FROM SDA_Get_AreasymbolWKTWgs84_from_Areasymbol('CA001')",
+            "AreasymbolWkt84",
+            "sapolygon",
+            "sa_shape",
+            "areasymbol",
+            "CA001",
+            4326,
+        ),
+        (
+            "SELECT * FROM SDA_Get_AreasymbolWKTWm_from_Areasymbol('CA001')",
+            "AreasymbolWktWm",
+            "sapolygon",
+            "sa_shape",
+            "areasymbol",
+            "CA001",
+            3857,
+        ),
+        (
+            "SELECT * FROM SDA_Get_MupolygonWktWgs84_from_Mukey('inside')",
+            "MupolygonWktWgs84",
+            "mupolygon",
+            "mu_shape",
+            "mukey",
+            "inside",
+            4326,
+        ),
+        (
+            "SELECT * FROM SDA_Get_MupolygonWktWm_from_Mukey('inside')",
+            "MupolygonWktWm",
+            "mupolygon",
+            "mu_shape",
+            "mukey",
+            "inside",
+            3857,
+        ),
+        (
+            "SELECT * FROM SDA_Get_MupointWktWgs84_from_Mukey('inside')",
+            "MupointWktWgs84",
+            "mupoint",
+            "mp_shape",
+            "mukey",
+            "inside",
+            4326,
+        ),
+        (
+            "SELECT * FROM SDA_Get_MupointWktWm_from_Mukey('inside')",
+            "MupointWktWm",
+            "mupoint",
+            "mp_shape",
+            "mukey",
+            "inside",
+            3857,
+        ),
+        (
+            "SELECT * FROM SDA_Get_MulineWktWgs84_from_Mukey('inside')",
+            "MulineWktWgs84",
+            "muline",
+            "ml_shape",
+            "mukey",
+            "inside",
+            4326,
+        ),
+        (
+            "SELECT * FROM SDA_Get_MulineWktWm_from_Mukey('inside')",
+            "MulineWktWm",
+            "muline",
+            "ml_shape",
+            "mukey",
+            "inside",
+            3857,
+        ),
+    ] {
+        let wkt: String = holder
+            .query_row(
+                &format!(
+                    "SELECT AsText(ST_Transform(GeomFromGPB(\"{geometry_column}\"), ?1)) \
+                     FROM \"{table}\" WHERE \"{key_column}\" = ?2 LIMIT 1"
+                ),
+                rusqlite::params![srid, key],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let expected = format!(r#"{{"Table":[["{alias}"],["{wkt}"]]}}"#);
+        assert_eq!(query(&app, sql).await, expected);
+    }
+
+    holder
+        .execute(
+            "INSERT INTO mupolygon VALUES
+             ('11', 11, 'CA001', AsGPB(GeomFromText(
+               'POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))', 4326)))",
+            [],
+        )
+        .unwrap();
+    let mukey_wkt: String = holder
+        .query_row(
+            "SELECT AsText(ST_Transform(GeomFromGPB(mu_shape), 4326)) \
+             FROM mupolygon WHERE mukey = '11' LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    for sql in [
+        "SELECT * FROM SDA_Get_MupolygonWktWgs84_from_Mukey('inside')",
+        "SELECT * FROM SDA_Get_MupolygonWktWgs84_from_Mukey(11)",
+        "SELECT * FROM SDA_Get_MupolygonWktWgs84_from_Mukey('11')",
+    ] {
+        assert_eq!(
+            query(&app, sql).await,
+            format!(r#"{{"Table":[["MupolygonWktWgs84"],["{mukey_wkt}"]]}}"#)
+        );
+    }
+
+    for sql in [
+        "SELECT * FROM SDA_Get_AreasymbolWKTWgs84_from_Areasymbol('ZZ999')",
+        "SELECT * FROM SDA_Get_AreasymbolWKTWm_from_Areasymbol(NULL)",
+        "SELECT * FROM SDA_Get_MupolygonWktWgs84_from_Mukey('missing')",
+        "SELECT * FROM SDA_Get_MupolygonWktWm_from_Mukey(NULL)",
+        "SELECT * FROM SDA_Get_MupointWktWgs84_from_Mukey('missing')",
+        "SELECT * FROM SDA_Get_MupointWktWm_from_Mukey(NULL)",
+        "SELECT * FROM SDA_Get_MulineWktWgs84_from_Mukey('missing')",
+        "SELECT * FROM SDA_Get_MulineWktWm_from_Mukey(NULL)",
     ] {
         assert_eq!(query(&app, sql).await, "{}");
     }

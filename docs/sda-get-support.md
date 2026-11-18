@@ -54,22 +54,22 @@ aliases are retained as published (including `AreasymbolWkt84` and
 |---|---|---|---|---|---|
 | `SDA_Get_Areasymbol_from_intersection_with_WktWgs84` | WKT, EPSG:4326 | `areasymbol` | `sapolygon` geometry | No active direct call found in named client anchors | Supported; configured contract test |
 | `SDA_Get_Areasymbol_from_intersection_with_WktWm` | WKT, EPSG:3857 | `areasymbol` | `sapolygon` geometry | No active direct call found | Supported; configured contract test |
-| `SDA_Get_AreasymbolWKTWgs84_from_Areasymbol` | One area symbol | `AreasymbolWkt84` | `sapolygon` geometry | No active direct call found | Implementable |
-| `SDA_Get_AreasymbolWKTWm_from_Areasymbol` | One area symbol | `AreasymbolWktWm` | `sapolygon` geometry | No active direct call found | Implementable |
+| `SDA_Get_AreasymbolWKTWgs84_from_Areasymbol` | One area symbol | `AreasymbolWkt84` | `sapolygon` geometry | No active direct call found | Supported when SpatiaLite, `sapolygon.areasymbol`, and geometry metadata or a supported override are present; configured contract test |
+| `SDA_Get_AreasymbolWKTWm_from_Areasymbol` | One area symbol | `AreasymbolWktWm` | `sapolygon` geometry | No active direct call found | Supported when SpatiaLite, `sapolygon.areasymbol`, and geometry metadata or a supported override are present; configured contract test |
 | `SDA_Get_AreasymbolWktWgs84_from_AreasymbolTable` | `DeclareVarcharTable`; area symbols | `areasymbol`, `AreasymbolWkt84` | `sapolygon` geometry; macro-expanded input table | No active direct call found | Implementable |
 | `SDA_Get_AreasymbolWktWm_from_AreasymbolTable` | `DeclareVarcharTable`; area symbols | `areasymbol`, `AreasymbolWktWm` | `sapolygon` geometry; macro-expanded input table | No active direct call found | Implementable |
 | `SDA_Get_Mukey_from_intersection_with_WktWgs84` | WKT, EPSG:4326 | `mukey` | `mupolygon` geometry | **First priority:** soilDB `R/SDA-spatial.R:469-476, 488-495`; `R/SDA_query.R:94-101` (documented query example); py-soildb `src/soildb/spatial.py:322-334` | **Already supported; first priority** |
 | `SDA_Get_Mukey_from_intersection_with_WktWm` | WKT, EPSG:3857 | `mukey` | `mupolygon` geometry | Web-Mercator sibling of the active WGS84 client path | **Supported** |
-| `SDA_Get_MupolygonWktWgs84_from_Mukey` | One mukey | `MupolygonWktWgs84` | `mupolygon` geometry | soilDB vignette example only: `vignettes/sda.Rmd:1178-1212`; not counted as active package call | Implementable |
-| `SDA_Get_MupolygonWktWm_from_Mukey` | One mukey | `MupolygonWktWm` | `mupolygon` geometry | No active direct call found | Implementable |
+| `SDA_Get_MupolygonWktWgs84_from_Mukey` | One mukey | `MupolygonWktWgs84` | `mupolygon` geometry | soilDB vignette example only: `vignettes/sda.Rmd:1178-1212`; not counted as active package call | Supported when SpatiaLite, `mupolygon.mukey`, and geometry metadata or a supported override are present; configured contract test |
+| `SDA_Get_MupolygonWktWm_from_Mukey` | One mukey | `MupolygonWktWm` | `mupolygon` geometry | No active direct call found | Supported when SpatiaLite, `mupolygon.mukey`, and geometry metadata or a supported override are present; configured contract test |
 | `SDA_Get_MupolygonWktWgs84_from_MukeyTable` | `DeclareIntTable`; mukeys | `mukey`, `MupolygonWktWgs84` | `mupolygon` geometry; macro-expanded input table | No active direct call found | Implementable |
 | `SDA_Get_MupolygonWktWm_from_MukeyTable` | `DeclareIntTable`; mukeys | `mukey`, `MupolygonWktWm` | `mupolygon` geometry; macro-expanded input table | No active direct call found | Implementable |
-| `SDA_Get_MupointWktWgs84_from_Mukey` | One mukey | `MupointWktWgs84` | `mupoint` geometry | No active direct call found | Implementable when layer exists |
-| `SDA_Get_MupointWktWm_from_Mukey` | One mukey | `MupointWktWm` | `mupoint` geometry | No active direct call found | Implementable when layer exists |
+| `SDA_Get_MupointWktWgs84_from_Mukey` | One mukey | `MupointWktWgs84` | `mupoint` geometry | No active direct call found | Supported when SpatiaLite, `mupoint.mukey`, and the geometry layer/metadata are present; configured in-memory contract test |
+| `SDA_Get_MupointWktWm_from_Mukey` | One mukey | `MupointWktWm` | `mupoint` geometry | No active direct call found | Supported when SpatiaLite, `mupoint.mukey`, and the geometry layer/metadata are present; configured in-memory contract test |
 | `SDA_Get_MupointWktWgs84_from_MukeyTable` | `DeclareIntTable`; mukeys | `mukey`, `MupointWktWgs84` | `mupoint` geometry; macro-expanded input table | No active direct call found | Implementable when layer exists |
 | `SDA_Get_MupointWktWm_from_MukeyTable` | `DeclareIntTable`; mukeys | `mukey`, `MupointWktWm` | `mupoint` geometry; macro-expanded input table | No active direct call found | Implementable when layer exists |
-| `SDA_Get_MulineWktWgs84_from_Mukey` | One mukey | `MulineWktWgs84` | `muline` geometry | No active direct call found | Implementable when layer exists |
-| `SDA_Get_MulineWktWm_from_Mukey` | One mukey | `MulineWktWm` | `muline` geometry | No active direct call found | Implementable when layer exists |
+| `SDA_Get_MulineWktWgs84_from_Mukey` | One mukey | `MulineWktWgs84` | `muline` geometry | No active direct call found | Supported when SpatiaLite, `muline.mukey`, and the geometry layer/metadata are present; configured in-memory contract test |
+| `SDA_Get_MulineWktWm_from_Mukey` | One mukey | `MulineWktWm` | `muline` geometry | No active direct call found | Supported when SpatiaLite, `muline.mukey`, and the geometry layer/metadata are present; configured in-memory contract test |
 | `SDA_Get_MulineWktWgs84_from_MukeyTable` | `DeclareIntTable`; mukeys | `mukey`, `MulineWktWgs84` | `muline` geometry; macro-expanded input table | No active direct call found | Implementable when layer exists |
 | `SDA_Get_MulineWktWm_from_MukeyTable` | `DeclareIntTable`; mukeys | `mukey`, `MulineWktWm` | `muline` geometry; macro-expanded input table | No active direct call found | Implementable when layer exists |
 | `SDA_Get_Sapolygonkey_from_intersection_with_WktWgs84` | WKT, EPSG:4326 | `sapolygonkey` | `sapolygon` geometry | **First priority:** soilDB `R/SDA-spatial.R:488-495`; py-soildb `src/soildb/spatial.py:336-348` | **Supported; first priority** |
@@ -101,17 +101,18 @@ The server implements all four active-client intersection TVFs: mukey and
 sapolygonkey, each with WGS84 and Web-Mercator WKT inputs. It also implements
 the two area-symbol and two status-map sapolygonkey intersection variants.
 `tests/sda_get_contract.rs` executes configured SpatiaLite queries for all four
-active-client variants and all fourteen additional variants; assertions check exact
+active-client variants and all fourteen additional intersection variants; assertions check exact
 result column names, SQLite key types for integer keys, and intersecting
-results. Status-map variants require `sastatusmap.areasymbol` and join it to
+results. It also exercises the eight one-key WKT TVFs using deterministic
+in-memory geometry tables and exact aliases/transformed WKT. Status-map variants require `sastatusmap.areasymbol` and join it to
 `sapolygon.areasymbol`; duplicate status-map matches are collapsed by the
 distinct key result. The eight feature-layer variants use deterministic
 in-memory schemas for their catalog relations and keys.
 `tests/mukey_contract.rs:43-101` retains coverage of the original WGS84 mukey
 query shapes. Geometry layer and CRS metadata are discovered through
 `src/spatial.rs` and the active intersection dispatch in
-`src/transpiler/spatial.rs`. Other matrix rows remain prospective targets, not
-an implicit support promise.
+`src/transpiler/spatial.rs`. Table-input matrix rows remain prospective Wave 8
+targets, not an implicit support promise.
 
 The source-data model bounds implementation. `sapolygon` and `mupolygon` are
 the primary layers; `mupoint`, `muline`, `featline`, `featpoint`, and

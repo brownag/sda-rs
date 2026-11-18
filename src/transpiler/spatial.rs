@@ -1,5 +1,5 @@
 use polyglot_sql::{
-    expressions::{Expression, Function, Literal},
+    expressions::{Expression, Function, Identifier, Literal},
     traversal::{transform_all, ExpressionWalk},
     Dialect, DialectType,
 };
@@ -28,6 +28,14 @@ const SAPOLYGONKEY_STATUS_FUNCTION: &str =
     "SDA_Get_Sapolygonkey_from_intersection_with_sastatusmap_WktWgs84";
 const SAPOLYGONKEY_STATUS_WM_FUNCTION: &str =
     "SDA_Get_Sapolygonkey_from_intersection_with_sastatusmap_WktWm";
+const AREASYMBOL_WKT_84_FUNCTION: &str = "SDA_Get_AreasymbolWKTWgs84_from_Areasymbol";
+const AREASYMBOL_WKT_WM_FUNCTION: &str = "SDA_Get_AreasymbolWKTWm_from_Areasymbol";
+const MUPOLYGON_WKT_84_FUNCTION: &str = "SDA_Get_MupolygonWktWgs84_from_Mukey";
+const MUPOLYGON_WKT_WM_FUNCTION: &str = "SDA_Get_MupolygonWktWm_from_Mukey";
+const MUPOINT_WKT_84_FUNCTION: &str = "SDA_Get_MupointWktWgs84_from_Mukey";
+const MUPOINT_WKT_WM_FUNCTION: &str = "SDA_Get_MupointWktWm_from_Mukey";
+const MULINE_WKT_84_FUNCTION: &str = "SDA_Get_MulineWktWgs84_from_Mukey";
+const MULINE_WKT_WM_FUNCTION: &str = "SDA_Get_MulineWktWm_from_Mukey";
 
 #[derive(Clone)]
 struct IntersectionTarget {
@@ -37,6 +45,16 @@ struct IntersectionTarget {
     join_statusmap: bool,
     input_srid: i32,
     geometry_srid: Option<i32>,
+    column: String,
+}
+
+#[derive(Clone)]
+struct ScalarWktTarget {
+    function: &'static str,
+    table: &'static str,
+    key: &'static str,
+    output: &'static str,
+    srid: i32,
     column: String,
 }
 
@@ -125,6 +143,71 @@ fn intersection_spec(name: &str) -> Option<(&'static str, &'static str, &'static
     .find(|(function, _, _, _, _)| function.eq_ignore_ascii_case(name))
 }
 
+fn scalar_wkt_spec(
+    name: &str,
+) -> Option<(&'static str, &'static str, &'static str, &'static str, i32)> {
+    [
+        (
+            AREASYMBOL_WKT_84_FUNCTION,
+            "sapolygon",
+            "areasymbol",
+            "AreasymbolWkt84",
+            4326,
+        ),
+        (
+            AREASYMBOL_WKT_WM_FUNCTION,
+            "sapolygon",
+            "areasymbol",
+            "AreasymbolWktWm",
+            3857,
+        ),
+        (
+            MUPOLYGON_WKT_84_FUNCTION,
+            "mupolygon",
+            "mukey",
+            "MupolygonWktWgs84",
+            4326,
+        ),
+        (
+            MUPOLYGON_WKT_WM_FUNCTION,
+            "mupolygon",
+            "mukey",
+            "MupolygonWktWm",
+            3857,
+        ),
+        (
+            MUPOINT_WKT_84_FUNCTION,
+            "mupoint",
+            "mukey",
+            "MupointWktWgs84",
+            4326,
+        ),
+        (
+            MUPOINT_WKT_WM_FUNCTION,
+            "mupoint",
+            "mukey",
+            "MupointWktWm",
+            3857,
+        ),
+        (
+            MULINE_WKT_84_FUNCTION,
+            "muline",
+            "mukey",
+            "MulineWktWgs84",
+            4326,
+        ),
+        (
+            MULINE_WKT_WM_FUNCTION,
+            "muline",
+            "mukey",
+            "MulineWktWm",
+            3857,
+        ),
+    ]
+    .into_iter()
+    .find(|(function, ..)| function.eq_ignore_ascii_case(name))
+}
+
 pub(super) fn parser_compatibility(sql: &str) -> String {
     const NEEDLE: &str = "geometry::STGeomFromText";
 
@@ -190,8 +273,37 @@ pub(super) fn rewrite(
             "geom"
         };
         let mut targets = Vec::new();
+        let mut wkt_targets = Vec::new();
         for node in statement.dfs() {
             if let Expression::Function(function) = node {
+                if let Some((name, table, key, output, srid)) = scalar_wkt_spec(&function.name) {
+                    if wkt_targets
+                        .iter()
+                        .any(|target: &ScalarWktTarget| target.function == name)
+                    {
+                        continue;
+                    }
+                    let metadata = capability.geometry_metadata_for_table(table);
+                    if metadata.is_none() && capability.geometry_override().is_none() {
+                        return Err(TranspilerError::Rejected(format!(
+                            "{name} TVF requires geometry metadata for {table}"
+                        )));
+                    }
+                    wkt_targets.push(ScalarWktTarget {
+                        function: name,
+                        table,
+                        key,
+                        output,
+                        srid,
+                        column: capability
+                            .geometry_override()
+                            .or_else(|| metadata.map(|metadata| metadata.geometry_column.as_str()))
+                            .or_else(|| capability.effective_geometry_column())
+                            .unwrap_or(geometry_column)
+                            .to_owned(),
+                    });
+                    continue;
+                }
                 if let Some((name, table, key, join_statusmap, input_srid)) =
                     intersection_spec(&function.name)
                 {
@@ -228,8 +340,10 @@ pub(super) fn rewrite(
                 }
             }
         }
-        let statement = transform_all(statement, &|node| expand_tables(node, &targets))
-            .map_err(classify_error)?;
+        let statement = transform_all(statement, &|node| {
+            expand_tables(node, &targets, &wkt_targets)
+        })
+        .map_err(classify_error)?;
         output.push(
             transform_all(statement, &|node| rewrite_node(node, capability))
                 .map_err(classify_error)?,
@@ -258,6 +372,7 @@ fn require_geom_from_text_arity(arg_count: usize) -> Result<(), polyglot_sql::Er
 fn expand_tables(
     node: Expression,
     targets: &[IntersectionTarget],
+    wkt_targets: &[ScalarWktTarget],
 ) -> Result<Expression, polyglot_sql::Error> {
     let Expression::Select(mut select) = node else {
         return Ok(node);
@@ -265,7 +380,7 @@ fn expand_tables(
     if select.from.is_none() && select.expressions.len() == 1 {
         if matches!(&select.expressions[0], Expression::Function(function) if intersection_spec(&function.name).is_some())
         {
-            let derived = expand_source(select.expressions[0].clone(), targets)?;
+            let derived = expand_source(select.expressions[0].clone(), targets, wkt_targets)?;
             let mut parsed = Dialect::get(DialectType::TSQL).parse("SELECT * FROM placeholder")?;
             let Expression::Select(mut template) = parsed.remove(0) else {
                 unreachable!()
@@ -278,16 +393,36 @@ fn expand_tables(
     }
     if let Some(from) = &mut select.from {
         for source in &mut from.expressions {
-            *source = expand_source(source.clone(), targets)?;
+            *source = expand_source(source.clone(), targets, wkt_targets)?;
         }
     }
     for join in &mut select.joins {
-        join.this = expand_source(join.this.clone(), targets)?;
+        join.this = expand_source(join.this.clone(), targets, wkt_targets)?;
     }
     Ok(Expression::Select(select))
 }
 
 fn expand_source(
+    source: Expression,
+    targets: &[IntersectionTarget],
+    wkt_targets: &[ScalarWktTarget],
+) -> Result<Expression, polyglot_sql::Error> {
+    let (wkt_function, wkt_alias) = match &source {
+        Expression::Function(function) if scalar_wkt_spec(&function.name).is_some() => {
+            (function, None)
+        }
+        Expression::Alias(alias) => match &alias.this {
+            Expression::Function(function) if scalar_wkt_spec(&function.name).is_some() => {
+                (function, Some(alias.alias.clone()))
+            }
+            _ => return expand_intersection_source(source, targets),
+        },
+        _ => return expand_intersection_source(source, targets),
+    };
+    expand_scalar_wkt_source(wkt_function, wkt_alias, wkt_targets)
+}
+
+fn expand_intersection_source(
     source: Expression,
     targets: &[IntersectionTarget],
 ) -> Result<Expression, polyglot_sql::Error> {
@@ -364,13 +499,74 @@ fn expand_source(
     })
 }
 
+fn expand_scalar_wkt_source(
+    function: &Function,
+    alias: Option<Identifier>,
+    targets: &[ScalarWktTarget],
+) -> Result<Expression, polyglot_sql::Error> {
+    let target = targets
+        .iter()
+        .find(|target| target.function.eq_ignore_ascii_case(&function.name))
+        .ok_or_else(|| {
+            polyglot_sql::Error::InvalidInput("missing scalar WKT target metadata".into())
+        })?;
+    if function.args.len() != 1
+        || !matches!(
+            &function.args[0],
+            Expression::Literal(_) | Expression::Null(_)
+        )
+    {
+        return Err(polyglot_sql::Error::InvalidInput(format!(
+            "{} TVF requires one literal key argument; correlated and other expressions are unsupported",
+            target.function
+        )));
+    }
+    let argument = function.args[0].clone();
+    let key_filter = "mp.__key__ = __arg__";
+    let query = format!(
+        "SELECT * FROM (SELECT AsText(ST_Transform(GeomFromGPB(mp.__geom__), {})) AS {} FROM {} AS mp WHERE {}) AS __sda",
+        target.srid, target.output, target.table, key_filter
+    );
+    let mut parsed = Dialect::get(DialectType::TSQL).parse(&query)?;
+    let Expression::Select(mut outer) = parsed.remove(0) else {
+        unreachable!()
+    };
+    let mut derived = outer.from.take().unwrap().expressions.remove(0);
+    if let Expression::Subquery(subquery) = &mut derived {
+        if let Some(alias) = alias {
+            subquery.alias = Some(alias);
+        }
+    } else {
+        return Err(polyglot_sql::Error::InvalidInput(
+            "unexpected scalar WKT derived table AST".into(),
+        ));
+    }
+    transform_all(derived, &|node| match node {
+        Expression::Column(mut column) if column.name.name == "__geom__" => {
+            column.name.name = target.column.clone();
+            column.name.quoted = true;
+            Ok(Expression::Column(column))
+        }
+        Expression::Column(column) if column.name.name == "__key__" => {
+            let mut column = column;
+            column.name.name = target.key.to_owned();
+            Ok(Expression::Column(column))
+        }
+        Expression::Column(column) if column.name.name == "__arg__" => Ok(argument.clone()),
+        other => Ok(other),
+    })
+}
+
 fn is_spatial_expression(expression: &Expression) -> bool {
     match expression {
-        Expression::Function(function) => intersection_spec(&function.name).is_some(),
+        Expression::Function(function) => {
+            intersection_spec(&function.name).is_some() || scalar_wkt_spec(&function.name).is_some()
+        }
         Expression::MethodCall(call) => {
             call.method.name.eq_ignore_ascii_case("STIntersects")
                 || call.method.name.eq_ignore_ascii_case("STGeomFromText")
                 || intersection_spec(&call.method.name).is_some()
+                || scalar_wkt_spec(&call.method.name).is_some()
         }
         _ => false,
     }
@@ -381,6 +577,16 @@ fn rewrite_node(
     capability: &SpatialCapability,
 ) -> Result<Expression, polyglot_sql::Error> {
     Ok(match node {
+        Expression::MethodCall(call) if scalar_wkt_spec(&call.method.name).is_some() => {
+            return Err(polyglot_sql::Error::InvalidInput(
+                "qualified scalar WKT TVF syntax is unsupported".into(),
+            ));
+        }
+        Expression::Function(function) if scalar_wkt_spec(&function.name).is_some() => {
+            return Err(polyglot_sql::Error::InvalidInput(
+                "scalar WKT TVFs must be used as a FROM source".into(),
+            ));
+        }
         Expression::MethodCall(call) if intersection_spec(&call.method.name).is_some() => {
             return Err(polyglot_sql::Error::InvalidInput(
                 "qualified mukey TVF syntax is unsupported".into(),
@@ -463,6 +669,29 @@ mod tests {
             assert!(generated.contains("ST_TRANSFORM"), "{generated}");
             assert!(generated.contains("areasymbol <> 'US'"), "{generated}");
             assert!(!generated.contains(MUKEY_FUNCTION), "{generated}");
+        }
+    }
+
+    #[test]
+    fn scalar_mukey_wkt_uses_sqlite_compatible_key_comparison() {
+        for argument in ["'inside'", "11", "'11'"] {
+            let sql = format!("SELECT * FROM SDA_Get_MupolygonWktWgs84_from_Mukey({argument})");
+            let generated =
+                crate::transpiler::transpile_with_spatial(&sql, Some(&capability())).unwrap();
+            let generated = &generated[0];
+            assert!(
+                generated.to_ascii_lowercase().contains("mp.mukey ="),
+                "{generated}"
+            );
+            assert!(
+                !generated.to_ascii_uppercase().contains("VARCHAR"),
+                "{generated}"
+            );
+            assert!(
+                !generated.to_ascii_uppercase().contains("MAX"),
+                "{generated}"
+            );
+            assert!(!generated.contains("__arg__"), "{generated}");
         }
     }
 
