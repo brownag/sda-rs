@@ -118,3 +118,4 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Status:** user-authorized implementation continuation; micro-planning.
 - **Scope:** finish the four remaining area-symbol/status-map intersection variants, fix the confirmed Web-Mercator CRS mismatch, and retain the WGS84 expected result without claiming the earlier inconsistent responses are explained.
 - **Authorization:** user approved proceeding with the confirmed Web-Mercator fix and remaining Wave 4 work while preserving the WGS84 assertion.
+- **WGS84 caveat:** user confirmed that earlier `{}` responses may remain recorded as unexplained if the post-fix configured contract passes.
