@@ -63,12 +63,6 @@ pub(super) fn rewrite(
                 "mukey TVF requires geometry metadata for mupolygon".into(),
             ));
         }
-        let mukey_column = mukey_metadata
-            .map(|metadata| metadata.geometry_column.as_str())
-            .or_else(|| capability.effective_geometry_column());
-        let mukey_srid = mukey_metadata
-            .map(|metadata| metadata.srs_id)
-            .unwrap_or(4326);
         let geometry_column = if spatial_statement {
             capability.effective_geometry_column().ok_or_else(|| {
                 TranspilerError::Rejected(
@@ -79,23 +73,49 @@ pub(super) fn rewrite(
         } else {
             "geom"
         };
-        let statement = transform_all(statement, &|node| {
-            expand_tables(node, geometry_column, mukey_column, Some(mukey_srid))
-        })
-        .map_err(TranspilerError::Generate)?;
+        let target = MukeyTarget {
+            column: mukey_metadata
+                .map(|metadata| metadata.geometry_column.as_str())
+                .or_else(|| capability.effective_geometry_column())
+                .unwrap_or(geometry_column)
+                .to_owned(),
+            srid: mukey_metadata.map_or(4326, |metadata| metadata.srs_id),
+        };
+        let statement = transform_all(statement, &|node| expand_tables(node, &target))
+            .map_err(classify_error)?;
         output.push(
             transform_all(statement, &|node| rewrite_node(node, capability))
-                .map_err(TranspilerError::Generate)?,
+                .map_err(classify_error)?,
         );
     }
     Ok(output)
 }
 
+struct MukeyTarget {
+    column: String,
+    srid: i32,
+}
+
+/// Unsupported input shapes are validation failures; everything else is a generation failure.
+fn classify_error(error: polyglot_sql::Error) -> TranspilerError {
+    match error {
+        polyglot_sql::Error::InvalidInput(message) => TranspilerError::Rejected(message),
+        other => TranspilerError::Generate(other),
+    }
+}
+
+fn require_geom_from_text_arity(arg_count: usize) -> Result<(), polyglot_sql::Error> {
+    if arg_count != 2 {
+        return Err(polyglot_sql::Error::InvalidInput(
+            "geometry::STGeomFromText requires WKT and SRID arguments".into(),
+        ));
+    }
+    Ok(())
+}
+
 fn expand_tables(
     node: Expression,
-    geometry_column: &str,
-    mukey_column: Option<&str>,
-    mukey_srid: Option<i32>,
+    target: &MukeyTarget,
 ) -> Result<Expression, polyglot_sql::Error> {
     let Expression::Select(mut select) = node else {
         return Ok(node);
@@ -103,11 +123,7 @@ fn expand_tables(
     if select.from.is_none() && select.expressions.len() == 1 {
         if matches!(&select.expressions[0], Expression::Function(function) if function.name.eq_ignore_ascii_case(MUKEY_FUNCTION))
         {
-            let derived = expand_source(
-                select.expressions[0].clone(),
-                mukey_column.unwrap_or(geometry_column),
-                mukey_srid.unwrap_or(4326),
-            )?;
+            let derived = expand_source(select.expressions[0].clone(), target)?;
             let mut parsed = Dialect::get(DialectType::TSQL).parse("SELECT * FROM placeholder")?;
             let Expression::Select(mut template) = parsed.remove(0) else {
                 unreachable!()
@@ -120,28 +136,20 @@ fn expand_tables(
     }
     if let Some(from) = &mut select.from {
         for source in &mut from.expressions {
-            *source = expand_source(
-                source.clone(),
-                mukey_column.unwrap_or(geometry_column),
-                mukey_srid.unwrap_or(4326),
-            )?;
+            *source = expand_source(source.clone(), target)?;
         }
     }
     for join in &mut select.joins {
-        join.this = expand_source(
-            join.this.clone(),
-            mukey_column.unwrap_or(geometry_column),
-            mukey_srid.unwrap_or(4326),
-        )?;
+        join.this = expand_source(join.this.clone(), target)?;
     }
     Ok(Expression::Select(select))
 }
 
 fn expand_source(
     source: Expression,
-    geometry_column: &str,
-    srid: i32,
+    target: &MukeyTarget,
 ) -> Result<Expression, polyglot_sql::Error> {
+    let srid = target.srid;
     let (function, alias) = match &source {
         Expression::Function(function) if function.name.eq_ignore_ascii_case(MUKEY_FUNCTION) => {
             (function, None)
@@ -181,7 +189,7 @@ fn expand_source(
     }
     transform_all(derived, &|node| match node {
         Expression::Column(mut column) if column.name.name == "__geom__" => {
-            column.name.name = geometry_column.to_owned();
+            column.name.name = target.column.clone();
             column.name.quoted = true;
             Ok(Expression::Column(column))
         }
@@ -213,7 +221,6 @@ fn rewrite_node(
             ));
         }
         Expression::Function(function) if function.name.eq_ignore_ascii_case(MUKEY_FUNCTION) => {
-            let _ = function;
             return Err(polyglot_sql::Error::InvalidInput(
                 "SDA_Get_Mukey_from_intersection_with_WktWgs84 is unsupported in this AST context"
                     .into(),
@@ -223,16 +230,9 @@ fn rewrite_node(
             if function
                 .qualified_name
                 .last()
-                .is_some_and(|name| name.name.eq_ignore_ascii_case("STGeomFromText"))
-                || function
-                    .name
-                    .eq_ignore_ascii_case("geometry::STGeomFromText") =>
+                .is_some_and(|name| name.name.eq_ignore_ascii_case("STGeomFromText")) =>
         {
-            if function.args.len() != 2 {
-                return Err(polyglot_sql::Error::InvalidInput(
-                    "geometry::STGeomFromText requires WKT and SRID arguments".into(),
-                ));
-            }
+            require_geom_from_text_arity(function.args.len())?;
             function.name = "GeomFromText".into();
             function.qualified_name.clear();
             Expression::Function(function)
@@ -255,11 +255,7 @@ fn rewrite_node(
             )))
         }
         Expression::MethodCall(call) if call.method.name.eq_ignore_ascii_case("STGeomFromText") => {
-            if call.args.len() != 2 {
-                return Err(polyglot_sql::Error::InvalidInput(
-                    "geometry::STGeomFromText requires WKT and SRID arguments".into(),
-                ));
-            }
+            require_geom_from_text_arity(call.args.len())?;
             Expression::Function(Box::new(Function::new("GeomFromText", call.args)))
         }
         other => other,
@@ -371,6 +367,20 @@ mod tests {
         assert!(error
             .to_string()
             .contains("unsupported in this AST context"));
+    }
+
+    #[test]
+    fn validation_failures_are_rejected_not_generate() {
+        let ast = Dialect::get(DialectType::TSQL)
+            .parse(&format!("SELECT * FROM {MUKEY_FUNCTION}(m.wkt)"))
+            .unwrap();
+        let error = rewrite(ast, &capability()).unwrap_err();
+        assert!(matches!(error, TranspilerError::Rejected(_)), "{error:?}");
+        let ast = Dialect::get(DialectType::TSQL)
+            .parse("SELECT geom.STIntersects(geometry.STGeomFromText('POINT(0 0)'))")
+            .unwrap();
+        let error = rewrite(ast, &capability()).unwrap_err();
+        assert!(matches!(error, TranspilerError::Rejected(_)), "{error:?}");
     }
 
     #[test]
