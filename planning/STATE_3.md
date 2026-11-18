@@ -81,3 +81,14 @@ Wave-boundary verification: waves 1–3 — passed. Latest serial run: `cargo fm
 - `cargo fmt --check`: passed; `git diff --check`: passed. Full suite not run.
 - Initial spatial test run failed once because SQLite reported “Query is not read-only” rather than the assumed missing-column text; assertion was made error-text-agnostic, then it passed.
 - Deviations: none. Valid/absent metadata with unavailable extension continues to return the existing capability error.
+
+## 3.4.1
+- Status: complete; implementation commit `0dd85f4` (`fix(transpiler): rewrite spatial constructors on AST`).
+- Planning TODO commits: `9dcbbbc` (revised plan), `c7be0b4` (completed plan).
+- Changed `src/transpiler/mod.rs:36-43`: apply narrow parser compatibility shim at parse boundary.
+- Changed `src/transpiler/spatial.rs:13-58,242-255,363-419`: shim rewrites only qualified constructor call syntax outside strings; AST lowering checks exact geometry qualification; coverage includes AOI, preserved literals, ordinary calls, and unqualified same-name function.
+- `cargo test transpiler::spatial::`: 9 passed, 0 failed (40 filtered).
+- `cargo test transpiler::`: 24 passed, 0 failed (25 filtered).
+- `cargo fmt --check`: passed. `git diff --check`: passed.
+- Initial targeted run had 3 test failures because the direct parser fixture bypassed the shim and generated SQL assertions assumed mixed case; fixtures/assertions corrected, rerun passed.
+- Deviations: none. Full suite not run as instructed.
