@@ -65,6 +65,7 @@ Build `sda-rs` as a Rust HTTP service that implements a tested, SQLite/GeoPackag
 - 2026-11-17 — Authorize a test-only `tower` dev-dependency for task 1.3.1 so acceptance tests exercise the Axum router in-process without TCP.
 - 2026-11-17 — Expand task 1.4.2 beyond `src/spatial.rs` to register and initialize optional spatial support on request-local connections; task 1.5.1 consumes the resulting metadata/interface for spatial rewrites.
 - 2026-11-17 — Authorize `src/transpiler/normalize.rs` in task 1.4.1 so SQLite generation can consume rewritten AST statements instead of retranspiling the original SQL text.
+- 2026-11-17 — Authorize enabling rusqlite's existing `load_extension` feature in task 1.4.2 so configured optional SpatiaLite loading is implementable and testable.
 
 ## DAG and wave table
 
@@ -166,11 +167,11 @@ Dependencies: `1.1.1 -> 1.2.1 -> 1.2.2`; `1.2.1 -> 1.3.2 -> 1.3.1`; `1.2.2 -> 1.
 ### Task 1.4.2 — Optional spatial initialization and GeoPackage metadata
 
 - **Repo:** same.
-- **Files in scope — must edit:** `src/spatial.rs`, `src/lib.rs` (register module/app state), `src/routes.rs` (pass spatial config and metadata seam), `src/executor/mod.rs`, `src/executor/sqlite.rs` (initialize per-request spatial capability and expose discovered metadata).
+- **Files in scope — must edit:** `src/spatial.rs`, `src/lib.rs` (register module/app state), `src/routes.rs` (pass spatial config and metadata seam), `src/executor/mod.rs`, `src/executor/sqlite.rs` (initialize per-request spatial capability and expose discovered metadata), `Cargo.toml`, `Cargo.lock` (enable rusqlite's existing `load_extension` feature only).
 - **Can create:** module-local tests.
 - **Depends on:** 1.2.1.
 - **Spec:** Add SQLite spatial capability initialization behind configured optional SpatiaLite extension; propagate extension and geometry override from `Config` through app/request-local executor state. Inspect `gpkg_geometry_columns` for table, geometry-column name, and SRS ID; allow ordinary SQLite without spatial metadata. Return a structured capability error when a spatial query requires absent functions/extension. Keep connection initialization request-local and blocking-boundary-safe; expose discovered metadata through a stable interface for task 1.5.1 spatial rewrites. Do not implement AOI/UDF AST rewriting here.
-- **Do not touch:** transpiler, serializer, Cargo dependencies, planning source docs; task 1.4.1 owns only the transpiler module files.
+- **Do not touch:** transpiler, serializer, or planning source docs; do not add dependencies beyond enabling the authorized rusqlite feature. Task 1.4.1 owns only the transpiler module files.
 - **Grep anchors:** dynamic GeoPackage metadata requirement in `planning/sda-rs-scoping.md` lines 1–4 and 183–205.
 - **Acceptance:** `cargo test spatial::` and `cargo test routes::`; fixture tests cover no metadata, discovered metadata/SRID and geometry override, configured extension unavailable, clear spatial-required capability error, and request-level integration without a fixed port. If extension exists in environment, run a real function smoke test; report availability. Verify `cargo fmt --check`.
 
