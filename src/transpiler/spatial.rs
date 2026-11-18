@@ -36,6 +36,14 @@ const MUPOINT_WKT_84_FUNCTION: &str = "SDA_Get_MupointWktWgs84_from_Mukey";
 const MUPOINT_WKT_WM_FUNCTION: &str = "SDA_Get_MupointWktWm_from_Mukey";
 const MULINE_WKT_84_FUNCTION: &str = "SDA_Get_MulineWktWgs84_from_Mukey";
 const MULINE_WKT_WM_FUNCTION: &str = "SDA_Get_MulineWktWm_from_Mukey";
+const AREASYMBOL_TABLE_WKT_84_FUNCTION: &str = "SDA_Get_AreasymbolWktWgs84_from_AreasymbolTable";
+const AREASYMBOL_TABLE_WKT_WM_FUNCTION: &str = "SDA_Get_AreasymbolWktWm_from_AreasymbolTable";
+const MUPOLYGON_TABLE_WKT_84_FUNCTION: &str = "SDA_Get_MupolygonWktWgs84_from_MukeyTable";
+const MUPOLYGON_TABLE_WKT_WM_FUNCTION: &str = "SDA_Get_MupolygonWktWm_from_MukeyTable";
+const MUPOINT_TABLE_WKT_84_FUNCTION: &str = "SDA_Get_MupointWktWgs84_from_MukeyTable";
+const MUPOINT_TABLE_WKT_WM_FUNCTION: &str = "SDA_Get_MupointWktWm_from_MukeyTable";
+const MULINE_TABLE_WKT_84_FUNCTION: &str = "SDA_Get_MulineWktWgs84_from_MukeyTable";
+const MULINE_TABLE_WKT_WM_FUNCTION: &str = "SDA_Get_MulineWktWm_from_MukeyTable";
 
 #[derive(Clone)]
 struct IntersectionTarget {
@@ -55,6 +63,18 @@ struct ScalarWktTarget {
     key: &'static str,
     output: &'static str,
     srid: i32,
+    column: String,
+}
+
+#[derive(Clone)]
+struct TableWktTarget {
+    function: &'static str,
+    table: &'static str,
+    key: &'static str,
+    input_key: &'static str,
+    output: &'static str,
+    srid: i32,
+    key_is_text: bool,
     column: String,
 }
 
@@ -208,7 +228,97 @@ fn scalar_wkt_spec(
     .find(|(function, ..)| function.eq_ignore_ascii_case(name))
 }
 
+fn table_wkt_spec(
+    name: &str,
+) -> Option<(
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+    i32,
+    bool,
+)> {
+    [
+        (
+            AREASYMBOL_TABLE_WKT_84_FUNCTION,
+            "sapolygon",
+            "areasymbol",
+            "v",
+            "AreasymbolWkt84",
+            4326,
+            true,
+        ),
+        (
+            AREASYMBOL_TABLE_WKT_WM_FUNCTION,
+            "sapolygon",
+            "areasymbol",
+            "v",
+            "AreasymbolWktWm",
+            3857,
+            true,
+        ),
+        (
+            MUPOLYGON_TABLE_WKT_84_FUNCTION,
+            "mupolygon",
+            "mukey",
+            "i",
+            "MupolygonWktWgs84",
+            4326,
+            false,
+        ),
+        (
+            MUPOLYGON_TABLE_WKT_WM_FUNCTION,
+            "mupolygon",
+            "mukey",
+            "i",
+            "MupolygonWktWm",
+            3857,
+            false,
+        ),
+        (
+            MUPOINT_TABLE_WKT_84_FUNCTION,
+            "mupoint",
+            "mukey",
+            "i",
+            "MupointWktWgs84",
+            4326,
+            false,
+        ),
+        (
+            MUPOINT_TABLE_WKT_WM_FUNCTION,
+            "mupoint",
+            "mukey",
+            "i",
+            "MupointWktWm",
+            3857,
+            false,
+        ),
+        (
+            MULINE_TABLE_WKT_84_FUNCTION,
+            "muline",
+            "mukey",
+            "i",
+            "MulineWktWgs84",
+            4326,
+            false,
+        ),
+        (
+            MULINE_TABLE_WKT_WM_FUNCTION,
+            "muline",
+            "mukey",
+            "i",
+            "MulineWktWm",
+            3857,
+            false,
+        ),
+    ]
+    .into_iter()
+    .find(|(function, ..)| function.eq_ignore_ascii_case(name))
+}
+
 pub(super) fn parser_compatibility(sql: &str) -> String {
+    let sql = expand_table_macros(sql);
     const NEEDLE: &str = "geometry::STGeomFromText";
 
     let mut output = String::with_capacity(sql.len());
@@ -255,6 +365,119 @@ pub(super) fn parser_compatibility(sql: &str) -> String {
     output
 }
 
+fn expand_table_macros(sql: &str) -> String {
+    let mut output = String::with_capacity(sql.len());
+    let mut declarations = Vec::new();
+    let mut index = 0;
+    let mut in_string = false;
+
+    while index < sql.len() {
+        let bytes = sql.as_bytes();
+        if bytes[index] == b'\'' {
+            output.push('\'');
+            index += 1;
+            if in_string && bytes.get(index) == Some(&b'\'') {
+                output.push('\'');
+                index += 1;
+            } else {
+                in_string = !in_string;
+            }
+            continue;
+        }
+        if !in_string && bytes[index] == b'~' {
+            if let Some(end_offset) = sql[index + 1..].find('~') {
+                let end = index + 1 + end_offset;
+                let macro_text = &sql[index + 1..end];
+                if let Some((name, declaration)) = parse_table_macro(macro_text) {
+                    declarations.push(name.clone());
+                    output.push_str(&declaration);
+                    output.push(';');
+                    index = end + 1;
+                    continue;
+                }
+            }
+        }
+        let character = sql[index..].chars().next().unwrap();
+        output.push(character);
+        index += character.len_utf8();
+    }
+
+    if declarations.is_empty() {
+        return output;
+    }
+    replace_table_variables(&output, &declarations)
+}
+
+fn parse_table_macro(input: &str) -> Option<(String, String)> {
+    let open = input.find('(')?;
+    let close = input.rfind(')');
+    if close != Some(input.len() - 1) {
+        return None;
+    }
+    let macro_name = input[..open].trim();
+    let variable = input[open + 1..close?].trim();
+    if !variable.starts_with('@')
+        || !variable[1..]
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '_')
+    {
+        return None;
+    }
+    let (column, data_type) = if macro_name.eq_ignore_ascii_case("DeclareIntTable") {
+        ("i", "INT")
+    } else if macro_name.eq_ignore_ascii_case("DeclareVarcharTable")
+        || macro_name.eq_ignore_ascii_case("DeclareVarchar255Table")
+    {
+        ("v", "VARCHAR(255)")
+    } else {
+        return None;
+    };
+    let table = format!("#{}", &variable[1..]);
+    Some((
+        variable.to_ascii_lowercase(),
+        format!("CREATE TABLE {table} ({column} {data_type})"),
+    ))
+}
+
+fn replace_table_variables(sql: &str, variables: &[String]) -> String {
+    let mut output = String::with_capacity(sql.len());
+    let mut index = 0;
+    let mut in_string = false;
+    while index < sql.len() {
+        let bytes = sql.as_bytes();
+        if bytes[index] == b'\'' {
+            output.push('\'');
+            index += 1;
+            if in_string && bytes.get(index) == Some(&b'\'') {
+                output.push('\'');
+                index += 1;
+            } else {
+                in_string = !in_string;
+            }
+            continue;
+        }
+        if !in_string && bytes[index] == b'@' {
+            let end = sql[index..]
+                .find(|character: char| {
+                    !(character == '@' || character.is_ascii_alphanumeric() || character == '_')
+                })
+                .map(|offset| index + offset)
+                .unwrap_or(sql.len());
+            let variable = sql[index..end].to_ascii_lowercase();
+            if variables.iter().any(|known| known == &variable) {
+                output.push('#');
+                output.push_str(&sql[index + 1..end]);
+                index = end;
+                continue;
+            }
+        }
+        let character = sql[index..].chars().next().unwrap();
+        output.push(character);
+        index += character.len_utf8();
+    }
+    output
+}
+
 pub(super) fn rewrite(
     statements: Vec<Expression>,
     capability: &SpatialCapability,
@@ -274,8 +497,41 @@ pub(super) fn rewrite(
         };
         let mut targets = Vec::new();
         let mut wkt_targets = Vec::new();
+        let mut table_wkt_targets = Vec::new();
         for node in statement.dfs() {
             if let Expression::Function(function) = node {
+                if let Some((name, table, key, input_key, output, srid, key_is_text)) =
+                    table_wkt_spec(&function.name)
+                {
+                    if table_wkt_targets
+                        .iter()
+                        .any(|target: &TableWktTarget| target.function == name)
+                    {
+                        continue;
+                    }
+                    let metadata = capability.geometry_metadata_for_table(table);
+                    if metadata.is_none() && capability.geometry_override().is_none() {
+                        return Err(TranspilerError::Rejected(format!(
+                            "{name} TVF requires geometry metadata for {table}"
+                        )));
+                    }
+                    table_wkt_targets.push(TableWktTarget {
+                        function: name,
+                        table,
+                        key,
+                        input_key,
+                        output,
+                        srid,
+                        key_is_text,
+                        column: capability
+                            .geometry_override()
+                            .or_else(|| metadata.map(|metadata| metadata.geometry_column.as_str()))
+                            .or_else(|| capability.effective_geometry_column())
+                            .unwrap_or(geometry_column)
+                            .to_owned(),
+                    });
+                    continue;
+                }
                 if let Some((name, table, key, output, srid)) = scalar_wkt_spec(&function.name) {
                     if wkt_targets
                         .iter()
@@ -341,7 +597,7 @@ pub(super) fn rewrite(
             }
         }
         let statement = transform_all(statement, &|node| {
-            expand_tables(node, &targets, &wkt_targets)
+            expand_tables(node, &targets, &wkt_targets, &table_wkt_targets)
         })
         .map_err(classify_error)?;
         output.push(
@@ -373,6 +629,7 @@ fn expand_tables(
     node: Expression,
     targets: &[IntersectionTarget],
     wkt_targets: &[ScalarWktTarget],
+    table_wkt_targets: &[TableWktTarget],
 ) -> Result<Expression, polyglot_sql::Error> {
     let Expression::Select(mut select) = node else {
         return Ok(node);
@@ -380,7 +637,12 @@ fn expand_tables(
     if select.from.is_none() && select.expressions.len() == 1 {
         if matches!(&select.expressions[0], Expression::Function(function) if intersection_spec(&function.name).is_some())
         {
-            let derived = expand_source(select.expressions[0].clone(), targets, wkt_targets)?;
+            let derived = expand_source(
+                select.expressions[0].clone(),
+                targets,
+                wkt_targets,
+                table_wkt_targets,
+            )?;
             let mut parsed = Dialect::get(DialectType::TSQL).parse("SELECT * FROM placeholder")?;
             let Expression::Select(mut template) = parsed.remove(0) else {
                 unreachable!()
@@ -393,11 +655,11 @@ fn expand_tables(
     }
     if let Some(from) = &mut select.from {
         for source in &mut from.expressions {
-            *source = expand_source(source.clone(), targets, wkt_targets)?;
+            *source = expand_source(source.clone(), targets, wkt_targets, table_wkt_targets)?;
         }
     }
     for join in &mut select.joins {
-        join.this = expand_source(join.this.clone(), targets, wkt_targets)?;
+        join.this = expand_source(join.this.clone(), targets, wkt_targets, table_wkt_targets)?;
     }
     Ok(Expression::Select(select))
 }
@@ -406,7 +668,23 @@ fn expand_source(
     source: Expression,
     targets: &[IntersectionTarget],
     wkt_targets: &[ScalarWktTarget],
+    table_wkt_targets: &[TableWktTarget],
 ) -> Result<Expression, polyglot_sql::Error> {
+    let table_match = match &source {
+        Expression::Function(function) if table_wkt_spec(&function.name).is_some() => {
+            Some((function, None))
+        }
+        Expression::Alias(alias) => match &alias.this {
+            Expression::Function(function) if table_wkt_spec(&function.name).is_some() => {
+                Some((function, Some(alias.alias.clone())))
+            }
+            _ => None,
+        },
+        _ => None,
+    };
+    if let Some((function, alias)) = table_match {
+        return expand_table_wkt_source(function, alias, table_wkt_targets);
+    }
     let (wkt_function, wkt_alias) = match &source {
         Expression::Function(function) if scalar_wkt_spec(&function.name).is_some() => {
             (function, None)
@@ -557,16 +835,86 @@ fn expand_scalar_wkt_source(
     })
 }
 
+fn expand_table_wkt_source(
+    function: &Function,
+    alias: Option<Identifier>,
+    targets: &[TableWktTarget],
+) -> Result<Expression, polyglot_sql::Error> {
+    let target = targets
+        .iter()
+        .find(|target| target.function.eq_ignore_ascii_case(&function.name))
+        .ok_or_else(|| {
+            polyglot_sql::Error::InvalidInput("missing table WKT target metadata".into())
+        })?;
+    let [Expression::Column(input_table)] = function.args.as_slice() else {
+        return Err(polyglot_sql::Error::InvalidInput(format!(
+            "{} TVF requires one declared table argument",
+            target.function
+        )));
+    };
+    let input_table = &input_table.name.name;
+    if !input_table.starts_with("__sda_temp_")
+        || !input_table
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '_')
+    {
+        return Err(polyglot_sql::Error::InvalidInput(format!(
+            "{} TVF requires a table declared by an SDA input-table macro",
+            target.function
+        )));
+    }
+    let join = if target.key_is_text {
+        format!("mp.{} = input.{}", target.key, target.input_key)
+    } else {
+        format!(
+            "CAST(mp.{} AS INTEGER) = input.{}",
+            target.key, target.input_key
+        )
+    };
+    let query = format!(
+        "SELECT * FROM (SELECT mp.{key}, AsText(ST_Transform(GeomFromGPB(mp.__geom__), {srid})) AS {output} FROM {table} AS mp INNER JOIN {input_table} AS input ON {join}) AS __sda",
+        key = target.key,
+        srid = target.srid,
+        output = target.output,
+        table = target.table,
+    );
+    let mut parsed = Dialect::get(DialectType::TSQL).parse(&query)?;
+    let Expression::Select(mut outer) = parsed.remove(0) else {
+        unreachable!()
+    };
+    let mut derived = outer.from.take().unwrap().expressions.remove(0);
+    if let Expression::Subquery(subquery) = &mut derived {
+        if let Some(alias) = alias {
+            subquery.alias = Some(alias);
+        }
+    } else {
+        return Err(polyglot_sql::Error::InvalidInput(
+            "unexpected table WKT derived table AST".into(),
+        ));
+    }
+    transform_all(derived, &|node| match node {
+        Expression::Column(mut column) if column.name.name == "__geom__" => {
+            column.name.name = target.column.clone();
+            column.name.quoted = true;
+            Ok(Expression::Column(column))
+        }
+        other => Ok(other),
+    })
+}
+
 fn is_spatial_expression(expression: &Expression) -> bool {
     match expression {
         Expression::Function(function) => {
-            intersection_spec(&function.name).is_some() || scalar_wkt_spec(&function.name).is_some()
+            intersection_spec(&function.name).is_some()
+                || scalar_wkt_spec(&function.name).is_some()
+                || table_wkt_spec(&function.name).is_some()
         }
         Expression::MethodCall(call) => {
             call.method.name.eq_ignore_ascii_case("STIntersects")
                 || call.method.name.eq_ignore_ascii_case("STGeomFromText")
                 || intersection_spec(&call.method.name).is_some()
                 || scalar_wkt_spec(&call.method.name).is_some()
+                || table_wkt_spec(&call.method.name).is_some()
         }
         _ => false,
     }
@@ -580,6 +928,16 @@ fn rewrite_node(
         Expression::MethodCall(call) if scalar_wkt_spec(&call.method.name).is_some() => {
             return Err(polyglot_sql::Error::InvalidInput(
                 "qualified scalar WKT TVF syntax is unsupported".into(),
+            ));
+        }
+        Expression::MethodCall(call) if table_wkt_spec(&call.method.name).is_some() => {
+            return Err(polyglot_sql::Error::InvalidInput(
+                "qualified table WKT TVF syntax is unsupported".into(),
+            ));
+        }
+        Expression::Function(function) if table_wkt_spec(&function.name).is_some() => {
+            return Err(polyglot_sql::Error::InvalidInput(
+                "table WKT TVFs must be used as a FROM source".into(),
             ));
         }
         Expression::Function(function) if scalar_wkt_spec(&function.name).is_some() => {
@@ -693,6 +1051,46 @@ mod tests {
             );
             assert!(!generated.contains("__arg__"), "{generated}");
         }
+    }
+
+    #[test]
+    fn table_input_macros_expand_and_join_through_request_temp_tables() {
+        let sql = "~DeclareIntTable(@mu)~ INSERT INTO @mu VALUES (11); \
+                   SELECT mukey, MupolygonWktWgs84 \
+                   FROM SDA_Get_MupolygonWktWgs84_from_MukeyTable(@mu)";
+        let generated =
+            crate::transpiler::transpile_with_spatial(sql, Some(&capability())).unwrap();
+        assert_eq!(generated.len(), 3, "{generated:?}");
+        assert!(
+            generated[0].contains("CREATE TEMPORARY TABLE __sda_temp_"),
+            "{generated:?}"
+        );
+        assert!(
+            generated[1].contains("INSERT INTO __sda_temp_"),
+            "{generated:?}"
+        );
+        assert!(
+            generated[2].contains("INNER JOIN __sda_temp_"),
+            "{generated:?}"
+        );
+        assert!(
+            generated[2].contains("CAST(mp.mukey AS INTEGER) = input.i"),
+            "{generated:?}"
+        );
+        assert!(generated[2].contains("MupolygonWktWgs84"), "{generated:?}");
+        assert!(generated
+            .iter()
+            .all(|sql| !sql.contains("@mu") && !sql.contains("#mu")));
+    }
+
+    #[test]
+    fn varchar255_macro_expands_without_rewriting_string_contents() {
+        assert_eq!(
+            parser_compatibility(
+                "~DeclareVarchar255Table(@names)~ INSERT INTO @names VALUES ('@names')"
+            ),
+            "CREATE TABLE #names (v VARCHAR(255)); INSERT INTO #names VALUES ('@names')"
+        );
     }
 
     #[test]

@@ -358,4 +358,131 @@ async fn active_intersection_tvfs_return_expected_keys_for_both_crs() {
     ] {
         assert_eq!(query(&app, sql).await, "{}");
     }
+
+    holder
+        .execute(
+            "INSERT INTO mupoint VALUES
+             (402, '11', AsGPB(GeomFromText('POINT(0.5 0.5)', 4326)))",
+            [],
+        )
+        .unwrap();
+    holder
+        .execute(
+            "INSERT INTO muline VALUES
+             (502, '11', AsGPB(GeomFromText('LINESTRING(0 0, 1 1)', 4326)))",
+            [],
+        )
+        .unwrap();
+
+    for (table_sql, first_column, second_column, values) in [
+        (
+            "~DeclareVarcharTable(@areas)~ INSERT INTO @areas VALUES ('CA001'); \
+             SELECT * FROM SDA_Get_AreasymbolWktWgs84_from_AreasymbolTable(@areas)",
+            "areasymbol",
+            "AreasymbolWkt84",
+            "CA001",
+        ),
+        (
+            "~DeclareVarcharTable(@areas)~ INSERT INTO @areas VALUES ('CA001'); \
+             SELECT * FROM SDA_Get_AreasymbolWktWm_from_AreasymbolTable(@areas)",
+            "areasymbol",
+            "AreasymbolWktWm",
+            "CA001",
+        ),
+        (
+            "~DeclareIntTable(@mu)~ INSERT INTO @mu VALUES (11); \
+             SELECT * FROM SDA_Get_MupolygonWktWgs84_from_MukeyTable(@mu)",
+            "mukey",
+            "MupolygonWktWgs84",
+            "11",
+        ),
+        (
+            "~DeclareIntTable(@mu)~ INSERT INTO @mu VALUES (11); \
+             SELECT * FROM SDA_Get_MupolygonWktWm_from_MukeyTable(@mu)",
+            "mukey",
+            "MupolygonWktWm",
+            "11",
+        ),
+        (
+            "~DeclareIntTable(@mu)~ INSERT INTO @mu VALUES (11); \
+             SELECT * FROM SDA_Get_MupointWktWgs84_from_MukeyTable(@mu)",
+            "mukey",
+            "MupointWktWgs84",
+            "11",
+        ),
+        (
+            "~DeclareIntTable(@mu)~ INSERT INTO @mu VALUES (11); \
+             SELECT * FROM SDA_Get_MupointWktWm_from_MukeyTable(@mu)",
+            "mukey",
+            "MupointWktWm",
+            "11",
+        ),
+        (
+            "~DeclareIntTable(@mu)~ INSERT INTO @mu VALUES (11); \
+             SELECT * FROM SDA_Get_MulineWktWgs84_from_MukeyTable(@mu)",
+            "mukey",
+            "MulineWktWgs84",
+            "11",
+        ),
+        (
+            "~DeclareIntTable(@mu)~ INSERT INTO @mu VALUES (11); \
+             SELECT * FROM SDA_Get_MulineWktWm_from_MukeyTable(@mu)",
+            "mukey",
+            "MulineWktWm",
+            "11",
+        ),
+    ] {
+        let expected = if first_column == "areasymbol" {
+            let wkt: String = holder
+                .query_row(
+                    &format!(
+                        "SELECT AsText(ST_Transform(GeomFromGPB(sa_shape), {})) \
+                         FROM sapolygon WHERE areasymbol = ?1 LIMIT 1",
+                        if second_column.ends_with("84") {
+                            4326
+                        } else {
+                            3857
+                        }
+                    ),
+                    [values],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            format!(r#"{{"Table":[["{first_column}","{second_column}"],["CA001","{wkt}"]]}}"#)
+        } else {
+            let (table, geometry) = if second_column.starts_with("Mupolygon") {
+                ("mupolygon", "mu_shape")
+            } else if second_column.starts_with("Mupoint") {
+                ("mupoint", "mp_shape")
+            } else {
+                ("muline", "ml_shape")
+            };
+            let srid = if second_column.ends_with("Wgs84") {
+                4326
+            } else {
+                3857
+            };
+            let wkt: String = holder
+                .query_row(
+                    &format!(
+                        "SELECT AsText(ST_Transform(GeomFromGPB({geometry}), {srid})) \
+                         FROM {table} WHERE mukey = '11' LIMIT 1"
+                    ),
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            format!(r#"{{"Table":[["{first_column}","{second_column}"],["11","{wkt}"]]}}"#)
+        };
+        assert_eq!(query(&app, table_sql).await, expected, "{table_sql}");
+    }
+
+    for sql in [
+        "~DeclareVarcharTable(@areas)~ SELECT * FROM \
+         SDA_Get_AreasymbolWktWgs84_from_AreasymbolTable(@areas)",
+        "~DeclareIntTable(@mu)~ SELECT * FROM \
+         SDA_Get_MupolygonWktWgs84_from_MukeyTable(@mu)",
+    ] {
+        assert_eq!(query(&app, sql).await, "{}");
+    }
 }

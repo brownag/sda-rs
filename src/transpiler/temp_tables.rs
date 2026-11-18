@@ -70,6 +70,7 @@ pub(super) fn rewrite(statements: Vec<Expression>) -> Result<Vec<Expression>, Tr
                             if create.name.name.name.starts_with('#') =>
                         {
                             create.name.name.name = create_name.clone().unwrap();
+                            create.temporary = true;
                             Expression::CreateTable(create)
                         }
                         Expression::Table(mut table)
@@ -78,6 +79,15 @@ pub(super) fn rewrite(statements: Vec<Expression>) -> Result<Vec<Expression>, Tr
                         {
                             table.name.name = known[&table.name.name.to_ascii_lowercase()].clone();
                             Expression::Table(table)
+                        }
+                        Expression::Column(mut column)
+                            if column.table.is_none()
+                                && column.name.name.starts_with('#')
+                                && known.contains_key(&column.name.name.to_ascii_lowercase()) =>
+                        {
+                            column.name.name =
+                                known[&column.name.name.to_ascii_lowercase()].clone();
+                            Expression::Column(column)
                         }
                         other => other,
                     })
