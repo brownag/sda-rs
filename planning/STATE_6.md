@@ -25,7 +25,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 | 1 | 6.1.1 Spatial SQL contract; 6.1.2 SDA_Get inventory | done | `b90bd8b`, `366a02a` |
 | 2 | 6.2.1 GeoPackageBinary decoder | done | `e2eb5c2` |
 | 3 | 6.3.1 Active-client intersection TVFs | done | `4d4aa0a` |
-| 4 | 6.4.1 Area-symbol/survey-polygon intersection TVFs | pending | — |
+| 4 | 6.4.1 Area-symbol/survey-polygon intersection TVFs | blocked | — |
 | 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | pending | — |
 | 6 | 6.6.1 Other feature-layer intersection TVFs | pending | — |
 | 7 | 6.7.1 Scalar key-to-WKT TVFs | pending | — |
@@ -86,3 +86,12 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Checks:** `cargo fmt --check`, `git diff --check`, and configured full suite passed (61 unit + 19 integration; 0 failures).
 - **Spatial evidence:** configured SpatiaLite initialized and real WGS84/Web-Mercator mukey and sapolygonkey intersections executed; key names/types and existing mukey behavior verified.
 - **Deviation/gotcha:** none; task owns the four basic mukey/sapolygonkey CRS variants, so subsequent intersection work must avoid duplicating them.
+
+## 6.4.1
+- **Status:** blocked; no implementation commit.
+- **Uncommitted task-scoped files:** `src/transpiler/spatial.rs`, `src/spatial.rs`, `tests/sda_get_contract.rs`, and `docs/sda-get-support.md`. Preserve; do not discard.
+- **Acceptance:** configured `cargo test --test sda_get_contract` failed twice at the first Mukey WGS84 assertion with `{}` instead of the expected table result. No final acceptance rerun was made during escalation.
+- **Diagnostic:** configured `cargo test --test sda_get_contract debug_641_request_path -- --nocapture` — 1 passed; spatial intersection and generated SQL/executor returned `("inside", "text")`, so the original zero-row cause is unresolved.
+- **Independent regression evidence:** Web-Mercator predicate returned 0 with mixed SRIDs; common-SRID comparison returned 1. Fix was not made because the approved plan required stopping while WGS84 root cause remained unresolved.
+- **Checks:** `git diff --check` passed; temporary diagnostic test was removed. No implementation files were changed by the escalated worker.
+- **Next action:** await user direction; later Plan 6 waves remain paused.
