@@ -16,10 +16,10 @@ Plan: `planning/EXECUTION_PLAN_3.md`. Initial goal: `planning/GOALS.md` [G16] (c
 | 2 | 3.2.1 Isolate temporary table names (G17) | done | `a7b0849`, `790ccc5` |
 | 3 | 3.3.1 G18 declarations; 3.3.2 G19 metadata scoping | done | `f9347c3`, `cda51c3` |
 | 4 | 3.4.1 AST-level constructor rewrite (G22) | done | `ec9b984` |
-| 5 | 3.5.1 Mukey metadata fallback (G20) | pending | — |
+| 5 | 3.5.1 Mukey metadata fallback (G20) | done | `b4791e5`, `a1ef6ca` |
 | 6 | 3.6.1 Shared-cache in-memory test databases (G24) | pending | — |
 
-Wave-boundary verification: waves 1–4 — passed. Latest serial run: `cargo fmt --check` passed; `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed (49 unit + 4 integration, 0 failures).
+Wave-boundary verification: waves 1–5 — passed. Latest serial run: `cargo fmt --check` passed; `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed (52 unit + 5 integration, 0 failures).
 
 ## Orchestration update
 
@@ -34,6 +34,8 @@ Wave-boundary verification: waves 1–4 — passed. Latest serial run: `cargo fm
 - Wave 3 boundary: `cargo fmt --check` passed; `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed (47 unit + 4 integration, 0 failures).
 - Wave 4 worktree `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-3-task-3.4.1`, detached at task commits `d7ce704`, `9dcbbbc`, `c7be0b4`, `0dd85f4`, `64e1ee0`; integrated as planning commits `8c1eafe`, `f56bf64`, `c5ca273`, implementation commit `ec9b984`, and state commit `6c639f8`. Worktree retained; no cleanup performed.
 - Wave 4 boundary: `cargo fmt --check` passed; `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed (49 unit + 4 integration, 0 failures).
+- Wave 5 worktree `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-3-task-3.5.1`, detached at worker commits `8c2f742`, `7ab9167`, `1bb4aaa`, `bca11bf`; integrated as planning/report commits `b5d4beb`, `3f664f3` and implementation/test commits `b4791e5`, `a1ef6ca`. Worktree retained; no cleanup performed.
+- Wave 5 boundary: `cargo fmt --check` passed; `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed (52 unit + 5 integration, 0 failures).
 
 ## Task reports
 
@@ -109,3 +111,4 @@ Wave-boundary verification: waves 1–4 — passed. Latest serial run: `cargo fm
 - Deviations: none to scope or precedence. Full suite not run as instructed.
 - Addendum: the orchestrator's serial full-suite check failed because the regression expected HTTP 500; `TranspilerError::Rejected` correctly maps to HTTP 400. Corrected the assertion in commit `1bb4aaa` (`test(routes): expect rejection as bad request`).
 - `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_mvp router_rejects_mukey_tvf_without_mupolygon_metadata_or_override`: 1 passed, 0 failed. `cargo fmt --check` and `git diff --check`: passed. No full suite run in worker.
+- Wave-boundary serial full suite after correcting the route status assertion: 52 unit + 5 integration passed, 0 failed; `cargo fmt --check` passed.
