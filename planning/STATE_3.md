@@ -107,3 +107,5 @@ Wave-boundary verification: waves 1–4 — passed. Latest serial run: `cargo fm
 - `cargo fmt --check`: passed; `git diff --check`: passed.
 - Initial route-test attempt failed because no spatial extension was configured; regression now uses `SDA_TEST_SPATIALITE` as the existing live spatial test does, and the targeted rerun passed.
 - Deviations: none to scope or precedence. Full suite not run as instructed.
+- Addendum: the orchestrator's serial full-suite check failed because the regression expected HTTP 500; `TranspilerError::Rejected` correctly maps to HTTP 400. Corrected the assertion in commit `1bb4aaa` (`test(routes): expect rejection as bad request`).
+- `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_mvp router_rejects_mukey_tvf_without_mupolygon_metadata_or_override`: 1 passed, 0 failed. `cargo fmt --check` and `git diff --check`: passed. No full suite run in worker.
