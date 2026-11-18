@@ -26,7 +26,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 | 2 | 6.2.1 GeoPackageBinary decoder | done | `e2eb5c2` |
 | 3 | 6.3.1 Active-client intersection TVFs | done | `4d4aa0a` |
 | 4 | 6.4.1–6.4.3 diagnostic attempts; 6.4.4 implementation; 6.4.5 regression correction | done | `8a54496`, `d4d867b` |
-| 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | in progress | — |
+| 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | done | `84e0138` |
 | 6 | 6.6.1 Other feature-layer intersection TVFs | pending | — |
 | 7 | 6.7.1 Scalar key-to-WKT TVFs | pending | — |
 | 8 | 6.8.1 Table-input WKT TVFs/macros | pending | — |
@@ -137,3 +137,12 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **WGS84 caveat:** earlier inconsistent `{}` observations remain unexplained as authorized; current contract passes.
 - **Code commit:** `d4d867b` (`fix(spatial): preserve Mukey metadata SRID`).
 - **Next:** Wave 4 is verified; Wave 5 may proceed.
+
+## 6.5.1
+- **Status:** implementation verified and committed.
+- **Scope:** added the two Mupolygonkey WGS84/Web-Mercator intersection variants, exact fixture/type and no-match assertions, and conditional support-matrix entries.
+- **Behavior:** no-match serializes as `{}` per `src/serializer.rs::column_names_format_and_all_empty`; test expectation reflects established response behavior.
+- **Acceptance:** first configured contract attempt stopped at the no-match assertion because it expected a column header. Following evidence review and user authorization, expected no-match body was corrected to `{}`; `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract` passed (1 test, both new CRS cases included).
+- **Checks:** `cargo fmt --check` and `git diff --check` passed.
+- **Code commit:** `84e0138` (`feat(spatial): add Mupolygonkey intersection TVFs`).
+- **Next:** Wave 6 may begin.
