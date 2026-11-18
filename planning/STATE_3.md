@@ -15,11 +15,11 @@ Plan: `planning/EXECUTION_PLAN_3.md`. Initial goal: `planning/GOALS.md` [G16] (c
 | 1 | 3.1.1 Roll back failed batches | done | `1a3b62d` |
 | 2 | 3.2.1 Isolate temporary table names (G17) | done | `a7b0849`, `790ccc5` |
 | 3 | 3.3.1 G18 declarations; 3.3.2 G19 metadata scoping | done | `f9347c3`, `cda51c3` |
-| 4 | 3.4.1 AST-level constructor rewrite (G22) | pending | — |
+| 4 | 3.4.1 AST-level constructor rewrite (G22) | done | `ec9b984` |
 | 5 | 3.5.1 Mukey metadata fallback (G20) | pending | — |
 | 6 | 3.6.1 Shared-cache in-memory test databases (G24) | pending | — |
 
-Wave-boundary verification: waves 1–3 — passed. Latest serial run: `cargo fmt --check` passed; `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed (47 unit + 4 integration, 0 failures).
+Wave-boundary verification: waves 1–4 — passed. Latest serial run: `cargo fmt --check` passed; `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed (49 unit + 4 integration, 0 failures).
 
 ## Orchestration update
 
@@ -30,6 +30,8 @@ Wave-boundary verification: waves 1–3 — passed. Latest serial run: `cargo fm
 - Task worktree `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-3-task-3.2.1`, detached at task commits `3b7c001`, `73a7415`, `693b674`, `7356810`, `adb7e06`; integrated as planning commits `5e7b710`, `ee546bb`, `4344ea6`, implementation/test commits `a7b0849`, `790ccc5`. Worktree retained; no cleanup performed.
 - Wave 3 worktrees `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-3-task-3.3.1` and `.../plan-3-task-3.3.2`, detached at worker commits `8969f04`, `23cacc1`, `b98c80f` and `706ab37`, `3f9d0b2`, `150b768`, respectively. Integrated implementation commits `f9347c3` and `cda51c3`; the two task reports were combined during integration as `dd9e041`. Both worktrees retained; no cleanup performed.
 - Wave 3 boundary: `cargo fmt --check` passed; `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed (47 unit + 4 integration, 0 failures).
+- Wave 4 worktree `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-3-task-3.4.1`, detached at task commits `d7ce704`, `9dcbbbc`, `c7be0b4`, `0dd85f4`, `64e1ee0`; integrated as planning commits `8c1eafe`, `f56bf64`, `c5ca273`, implementation commit `ec9b984`, and state commit `6c639f8`. Worktree retained; no cleanup performed.
+- Wave 4 boundary: `cargo fmt --check` passed; `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed (49 unit + 4 integration, 0 failures).
 
 ## Task reports
 
