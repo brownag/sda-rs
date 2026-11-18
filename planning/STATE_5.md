@@ -38,6 +38,8 @@ Plan: `planning/EXECUTION_PLAN_5.md`. Active goal: explicit and tested SQLite se
 |---|---|---|---|---|
 | 5.2.1 | `/home/andrew/workspace/sda-rs` → `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-5-task-5.2.1` | detached; commits integrated | 2026-11-18 | retained; cleanup not authorized |
 | 5.2.2 | `/home/andrew/workspace/sda-rs` → `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-5-task-5.2.2` | detached; commits integrated | 2026-11-18 | retained; cleanup not authorized |
+| 5.3.1 | `/home/andrew/workspace/sda-rs` → `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-5-task-5.3.1` | detached at `8ad2889` | 2026-11-18 | active |
+| 5.3.2 | `/home/andrew/workspace/sda-rs` → `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-5-task-5.3.2` | detached at `8ad2889` | 2026-11-18 | active |
 
 ## Task reports
 
