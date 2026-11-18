@@ -155,7 +155,7 @@ Dependencies: `6.2.1` depends on `6.1.1`; `6.3.1` depends on `6.1.2` and `6.2.1`
 - **Can create:** none.
 - **Must edit:** `tests/sda_get_contract.rs`.
 - **Depends on:** 6.3.1.
-- **Spec:** Implement catalog-classified-feasible `areasymbol` and `sapolygonkey` intersection functions, including WGS84/Web-Mercator forms and status-map joins where supported by the source data model. Use the task 6.1.2 matrix as the bounded list; every feasible entry added must have an execution test and exact result-column assertion. If a supposedly feasible entry requires a schema/semantic capability not present, stop and report rather than widening scope silently.
+- **Spec:** Implement catalog-classified-feasible `areasymbol` intersection functions and the remaining `sapolygonkey` status-map intersection functions, including WGS84/Web-Mercator forms where supported by the source data model. The basic WGS84/Web-Mercator `sapolygonkey` intersection variants are owned by completed task 6.3.1 and must not be repeated. Use the task 6.1.2 matrix as the bounded list; every feasible entry added must have an execution test and exact result-column assertion. If a supposedly feasible entry requires a schema/semantic capability not present, stop and report rather than widening scope silently.
 - **Do not touch:** external package repositories, geometry decoder, serializer, or route/wire behavior.
 - **Grep anchors:** task 6.1.2 support matrix; `src/transpiler/spatial.rs` `rewrite_node`; `src/spatial.rs` spatial function dispatch; `tests/sda_get_contract.rs`.
 - **Acceptance:** `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract`; `cargo fmt --check`; `git diff --check`.

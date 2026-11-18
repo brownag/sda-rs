@@ -24,7 +24,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 |---|---|---|---|
 | 1 | 6.1.1 Spatial SQL contract; 6.1.2 SDA_Get inventory | done | `b90bd8b`, `366a02a` |
 | 2 | 6.2.1 GeoPackageBinary decoder | done | `e2eb5c2` |
-| 3 | 6.3.1 Active-client intersection TVFs | pending | — |
+| 3 | 6.3.1 Active-client intersection TVFs | done | `4d4aa0a` |
 | 4 | 6.4.1 Area-symbol/survey-polygon intersection TVFs | pending | — |
 | 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | pending | — |
 | 6 | 6.6.1 Other feature-layer intersection TVFs | pending | — |
@@ -41,6 +41,9 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - Wave 2 boundary: `cargo fmt --check` passed; `git diff --check` passed;
   `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test`
   passed (61 unit + 18 integration tests; 0 failures, configured spatial queries executed).
+- Wave 3 boundary: `cargo fmt --check` passed; `git diff --check` passed;
+  `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test`
+  passed (61 unit + 19 integration tests; 0 failures, configured spatial queries executed).
 - At most two workers; isolated worktrees for parallel tasks. Only Wave 1 is parallel.
 - The soilDB checkout and Iowa GeoPackage are user data; inspect read-only and leave unchanged.
 - Run configured Rust suites serially at wave boundaries; run `make test-soildb` at its milestone and final acceptance.
@@ -74,3 +77,12 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Checks:** `cargo fmt --check` and `git diff --check` passed.
 - **Coverage:** magic/version/flags, byte order/SRS, all envelope sizes, empty flag, payload extraction, and malformed/truncated values.
 - **Deviation/gotcha:** none; decoder is independent of SpatiaLite and does not alter query semantics.
+
+## 6.3.1
+- **Status:** complete.
+- **Files:** `src/transpiler/spatial.rs` (lines 11–300); `src/spatial.rs` (lines 64–74); `tests/sda_get_contract.rs` (lines 1–118); `docs/sda-get-support.md` (updated support evidence).
+- **Code commit:** `4d4aa0a` (`feat: support active SDA intersection TVFs`).
+- **Targeted tests:** configured `cargo test --test sda_get_contract` — 1 passed; configured `cargo test --test mukey_contract` — 1 passed.
+- **Checks:** `cargo fmt --check`, `git diff --check`, and configured full suite passed (61 unit + 19 integration; 0 failures).
+- **Spatial evidence:** configured SpatiaLite initialized and real WGS84/Web-Mercator mukey and sapolygonkey intersections executed; key names/types and existing mukey behavior verified.
+- **Deviation/gotcha:** none; task owns the four basic mukey/sapolygonkey CRS variants, so subsequent intersection work must avoid duplicating them.
