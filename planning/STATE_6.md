@@ -28,7 +28,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 | 4 | 6.4.1–6.4.3 diagnostic attempts; 6.4.4 implementation; 6.4.5 regression correction | done | `8a54496`, `d4d867b` |
 | 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | done | `84e0138` |
 | 6 | 6.6.1 implementation; 6.6.2 diagnosis; 6.6.3 fixture correction; 6.6.4 format and boundary verification | done | `9c23a78` |
-| 7 | 6.7.1 One-key WKT TVFs; 6.7.2 compile recovery; 6.7.3 HTTP 500 diagnostic only | blocked on configured contract failure; diagnostic complete | — |
+| 7 | 6.7.1 One-key WKT TVFs; 6.7.2 compile recovery; 6.7.3 HTTP 500 diagnostic; 6.7.4 generated SQLite diagnosis / evidence-led fix | blocked on configured contract failure; 6.7.4 pending approval | — |
 | 8 | 6.8.1 Table-input WKT TVFs/macros | blocked on Wave 7 | — |
 | 9 | 6.9.1 soilDB/Iowa integration harness | blocked on Waves 7–8 | — |
 
@@ -201,3 +201,8 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Not reached (13 requests):** Web-Mercator Mupolygon with `inside`; both CRS variants for Mupoint and Muline with `inside`; all eight missing-key/NULL one-key WKT cases.
 - **Cleanup:** removed the temporary test-helper reporting; its tag is absent from the test source, all four Wave 7 SHA-256 hashes match their baselines, and `git diff --check` passed. The four-file diff remains unstaged and uncommitted.
 - **Gate:** no retry, behavior change, or acceptance run. A behavior fix requires separate approval; Waves 7–9 remain blocked.
+
+## 6.7.4
+- **Status:** plan drafted in `planning/tasks/6.7.4.todo.md`; awaiting approval. No instrumentation, implementation edits, or test runs.
+- **Next evidence:** one serial local fixture diagnostic comparing final SQLite SQL and HTTP status/body for `'inside'`, `11`, and `'11'`. Identify the exact `MAX` context and whether the failure changes with the argument.
+- **Gate:** fix only an established, in-scope cause; at most one configured contract acceptance, no retries. Preserve the four-file Wave 7 diff. Waves 7–9 remain blocked.
