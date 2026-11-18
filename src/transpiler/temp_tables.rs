@@ -1,4 +1,7 @@
-use std::collections::HashSet;
+use std::{
+    collections::HashMap,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 use polyglot_sql::{
     expressions::{Expression, Raw},
@@ -7,8 +10,18 @@ use polyglot_sql::{
 
 use super::{normalize, TranspilerError};
 
+static NEXT_TEMP_TABLE: AtomicUsize = AtomicUsize::new(0);
+
+fn generated_name() -> String {
+    format!(
+        "__sda_temp_{}_{}",
+        std::process::id(),
+        NEXT_TEMP_TABLE.fetch_add(1, Ordering::Relaxed)
+    )
+}
+
 pub(super) fn rewrite(statements: Vec<Expression>) -> Result<Vec<Expression>, TranspilerError> {
-    let mut known = HashSet::new();
+    let mut known = HashMap::new();
     let mut output = Vec::with_capacity(statements.len());
     for statement in statements {
         match statement {
@@ -25,24 +38,45 @@ pub(super) fn rewrite(statements: Vec<Expression>) -> Result<Vec<Expression>, Tr
                         "SELECT INTO is supported only for temporary tables".into(),
                     ));
                 }
-                let clean = name.trim_start_matches('#').to_string();
-                known.insert(clean.to_ascii_lowercase());
-                table.name.name = clean;
+                let generated = generated_name();
+                known.insert(name.to_ascii_lowercase(), generated.clone());
+                table.name.name = generated;
                 let query = normalize::generate_sqlite(Expression::Select(select))?;
                 output.push(Expression::Raw(Raw {
                     sql: format!("CREATE TEMP TABLE {} AS {query}", table.name.name),
                 }));
             }
             expression => {
+                let mut create_name = None;
+                if let Expression::CreateTable(create) = &expression {
+                    if create.name.name.name.starts_with('#') {
+                        let key = create.name.name.name.to_ascii_lowercase();
+                        let generated = known.entry(key).or_insert_with(generated_name).clone();
+                        create_name = Some(generated);
+                    }
+                }
                 let expression = transform_all(expression, &|node| {
                     Ok(match node {
+                        Expression::Insert(mut insert)
+                            if insert.table.name.name.starts_with('#')
+                                && known
+                                    .contains_key(&insert.table.name.name.to_ascii_lowercase()) =>
+                        {
+                            insert.table.name.name =
+                                known[&insert.table.name.name.to_ascii_lowercase()].clone();
+                            Expression::Insert(insert)
+                        }
+                        Expression::CreateTable(mut create)
+                            if create.name.name.name.starts_with('#') =>
+                        {
+                            create.name.name.name = create_name.clone().unwrap();
+                            Expression::CreateTable(create)
+                        }
                         Expression::Table(mut table)
                             if table.name.name.starts_with('#')
-                                && known.contains(
-                                    &table.name.name.trim_start_matches('#').to_ascii_lowercase(),
-                                ) =>
+                                && known.contains_key(&table.name.name.to_ascii_lowercase()) =>
                         {
-                            table.name.name = table.name.name.trim_start_matches('#').to_string();
+                            table.name.name = known[&table.name.name.to_ascii_lowercase()].clone();
                             Expression::Table(table)
                         }
                         other => other,
@@ -70,11 +104,35 @@ mod tests {
         assert_eq!(rewritten.len(), 2);
         let first = normalize::generate_sqlite(rewritten[0].clone()).unwrap();
         let second = normalize::generate_sqlite(rewritten[1].clone()).unwrap();
-        assert!(
-            first.contains("CREATE TEMPORARY TABLE t AS SELECT"),
-            "{first}"
-        );
-        assert!(second.contains("FROM t"), "{second}");
+        let name = first
+            .split("CREATE TEMPORARY TABLE ")
+            .nth(1)
+            .unwrap()
+            .split(" AS SELECT")
+            .next()
+            .unwrap();
+        assert!(name.starts_with("__sda_temp_"), "{first}");
+        assert!(second.contains(&format!("FROM {name}")), "{second}");
+    }
+
+    #[test]
+    fn rewrites_create_table_and_later_insert() {
+        let ast = Dialect::get(DialectType::TSQL)
+            .parse("CREATE TABLE #x (id INT); INSERT INTO #x VALUES (1)")
+            .unwrap();
+        let rewritten = rewrite(ast).unwrap();
+        let create = normalize::generate_sqlite(rewritten[0].clone()).unwrap();
+        let insert = normalize::generate_sqlite(rewritten[1].clone()).unwrap();
+        let name = create
+            .split("CREATE TABLE ")
+            .nth(1)
+            .or_else(|| create.split("CREATE TEMPORARY TABLE ").nth(1))
+            .unwrap()
+            .split(" ")
+            .next()
+            .unwrap();
+        assert!(name.starts_with("__sda_temp_"), "{create}");
+        assert!(insert.contains(&format!("INTO {name}")), "{insert}");
     }
 
     #[test]

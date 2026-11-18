@@ -219,6 +219,28 @@ mod tests {
     }
 
     #[test]
+    fn isolates_select_into_temp_name_from_persistent_table() {
+        let uri = shared_memory_uri();
+        let holder = Connection::open(&uri).unwrap();
+        holder
+            .execute_batch(
+                "CREATE TABLE sample(value INTEGER);
+                 INSERT INTO sample VALUES (10), (20);",
+            )
+            .unwrap();
+        let statements = crate::transpiler::transpile(
+            "SELECT 99 AS value INTO #sample; \
+             SELECT COUNT(*) AS count FROM sample; \
+             SELECT COUNT(*) AS count FROM #sample",
+        )
+        .unwrap();
+
+        let results = execute(&uri, &statements).unwrap();
+        assert_eq!(results[0].rows, [vec![Value::Integer(2)]]);
+        assert_eq!(results[1].rows, [vec![Value::Integer(1)]]);
+    }
+
+    #[test]
     fn rolls_back_failed_statement_batch() {
         let uri = shared_memory_uri();
         let holder = Connection::open(&uri).unwrap();
