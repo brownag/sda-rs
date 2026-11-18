@@ -27,7 +27,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 | 3 | 6.3.1 Active-client intersection TVFs | done | `4d4aa0a` |
 | 4 | 6.4.1–6.4.3 diagnostic attempts; 6.4.4 implementation; 6.4.5 regression correction | done | `8a54496`, `d4d867b` |
 | 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | done | `84e0138` |
-| 6 | 6.6.1 preserved; 6.6.2 diagnostic outcome; 6.6.3 fixture correction; 6.6.4 formatting and boundary verification | blocked pending 6.6.4 approval and acceptance | — |
+| 6 | 6.6.1 implementation; 6.6.2 diagnosis; 6.6.3 fixture correction; 6.6.4 format and boundary verification | done | `9c23a78` |
 | 7 | 6.7.1 Scalar key-to-WKT TVFs | pending | — |
 | 8 | 6.8.1 Table-input WKT TVFs/macros | pending | — |
 | 9 | 6.9.1 soilDB/Iowa integration harness | pending | — |
@@ -149,33 +149,32 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Next:** Wave 6 may begin.
 
 ## 6.6.1
-- **Status:** blocked; implementation diff preserved uncommitted.
+- **Status:** implementation completed and included in Wave 6 commit `9c23a78`.
 - **Scope:** attempted generic key intersections for mupoint, muline, featline, and featpoint in WGS84/Web-Mercator.
 - **Acceptance:** configured `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract` stopped at the new Mupoint WGS84 request: expected key `401`, endpoint returned `{}`. No format checks or commit followed.
 - **Schema evidence:** the local Iowa GeoPackage has `featpoint` but lacks required `featpointkey`; it is not evidence of support for that catalog function. No Iowa data was modified.
-- **Preservation:** uncommitted changes remain in `src/transpiler/spatial.rs`, `src/spatial.rs`, `tests/sda_get_contract.rs`, and `docs/sda-get-support.md`.
-- **Next:** task 6.6.2 investigates the request/geometry/SRID/predicate path and only proceeds with an evidence-established correction; downstream waves remain gated.
+- **Initial acceptance:** failed at Mupoint WGS84; see 6.6.2 diagnostic outcome below.
 
 ## 6.6.2
-- **Status:** blocked; no implementation commit.
+- **Status:** diagnostic completed; reported WGS84 failure did not reproduce.
 - **Scope:** diagnose the failed Mupoint WGS84 case and correct its established cause while preserving the 6.6.1 diff.
 - **Prior diagnostic attempt:** an initial invocation failed during compilation before reaching the test because temporary instrumentation borrowed `extension` after it was moved; no evidence was captured.
 - **Approved GPT-6.2 Sol diagnostic:** corrected one-time serial invocation compiled and reached the test. The Mupoint WGS84 request returned HTTP 200 with key `401`; generated SQL used `mupoint.mp_shape`, SRID 4326, and the request-local predicate returned 1. Thus the reported WGS84 failure did not reproduce.
 - **Additional observation:** the following Mupoint Web-Mercator assertion returned `{}`. Request-local replay showed the stored point transformed to `55659.745396636783,55660.451865421521`, versus rounded fixture WKT `55659.745,55660.451`; `ST_Intersects` returned 0.
-- **Disposition:** probes removed and all four pre-existing implementation-file hashes verified unchanged. Per approved stop condition, no production behavior changed and no acceptance rerun or commit was made.
-- **Preservation:** original uncommitted 6.6.1 changes remain in `src/transpiler/spatial.rs`, `src/spatial.rs`, `tests/sda_get_contract.rs`, and `docs/sda-get-support.md`; expected key `401` remains.
-- **Next:** 6.6.3 plans the user-authorized Web-Mercator fixture follow-up; Waves 7–9 remain gated.
+- **Disposition:** probes removed and all four pre-existing implementation-file hashes verified unchanged. No production behavior change was needed for WGS84; the Web-Mercator fixture precision issue was addressed in 6.6.3.
 
 ## 6.6.3
-- **Status:** fixture correction and configured contract passed; Wave 6 remains blocked.
+- **Status:** fixture correction completed and included in `9c23a78`.
 - **Change:** only four positive Web-Mercator query literals changed in `tests/sda_get_contract.rs`: full-precision projected points for Mupoint/Featpoint and a transverse segment crossing for Muline/Featline. Expected keys and production code unchanged.
 - **Acceptance:** `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --test sda_get_contract` — passed (1 test; all contract assertions passed).
-- **Checks:** `git diff --check` passed. `cargo fmt --check` failed on three formatting differences in the preserved 6.6.1 production diff at `src/transpiler/spatial.rs`. No production formatting edits were made because task 6.6.3 scope is test-only.
+- **Checks:** `git diff --check` passed. `cargo fmt --check` initially failed on three formatting differences in the preserved 6.6.1 production diff; task 6.6.4 resolved those formatting-only differences.
 - **Caveat:** the earlier Mupoint WGS84 `{}` result did not reproduce in the approved diagnostic and remains unexplained. Iowa has `featpoint` but lacks required `featpointkey`.
-- **Disposition:** no implementation commit; Wave 6 awaits a separately scoped resolution of formatting and the configured full-suite boundary check. Waves 7–9 remain gated.
+- **Disposition:** expected keys and production behavior unchanged; four Web-Mercator fixture queries now exercise true intersections.
 
 ## 6.6.4
-- **Status:** micro-plan prepared; execution awaits approval. No implementation changes or acceptance runs in this planning step.
-- **Scope:** format only the three reported `intersection_spec` entries in `src/transpiler/spatial.rs` under Rust 2021 conventions. Preserve the 6.6.1 four-file diff and the 6.6.3 fixture correction.
-- **Planned checks:** `cargo fmt --check`, `git diff --check`, then one configured `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` run, serially. Stop at the first failure; no retry or implementation commit.
-- **Disposition:** after successful checks, review the whole Wave 6 diff before any focused local implementation commit. Waves 7–9 remain gated.
+- **Status:** complete; included in Wave 6 implementation commit `9c23a78`.
+- **Change:** applied only rustfmt's three requested line wraps in `intersection_spec`; reviewed the full four-file Wave 6 diff. Documentation count corrected to fourteen additional variants.
+- **Checks:** `cargo fmt --check` passed; `git diff --check` passed; configured full `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed (61 unit tests, 20 integration tests, 0 failures; configured spatial contract executed).
+- **Wave 6 commit:** `9c23a78` (`feat(spatial): add feature-layer intersection TVFs`).
+- **Caveat:** the historical Mupoint WGS84 `{}` observation remains unexplained; current diagnostic passed. Iowa has `featpoint` but lacks required `featpointkey`.
+- **Next:** Wave 6 is verified; Wave 7 may proceed.
