@@ -27,7 +27,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 | 3 | 6.3.1 Active-client intersection TVFs | done | `4d4aa0a` |
 | 4 | 6.4.1–6.4.3 diagnostic attempts; 6.4.4 implementation; 6.4.5 regression correction | done | `8a54496`, `d4d867b` |
 | 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | done | `84e0138` |
-| 6 | 6.6.1 blocked; 6.6.2 diagnosis/fix | in progress | — |
+| 6 | 6.6.1 and 6.6.2 | blocked | — |
 | 7 | 6.7.1 Scalar key-to-WKT TVFs | pending | — |
 | 8 | 6.8.1 Table-input WKT TVFs/macros | pending | — |
 | 9 | 6.9.1 soilDB/Iowa integration harness | pending | — |
@@ -157,5 +157,9 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Next:** task 6.6.2 investigates the request/geometry/SRID/predicate path and only proceeds with an evidence-established correction; downstream waves remain gated.
 
 ## 6.6.2
-- **Status:** discovered follow-up task; user requested investigation and fix.
+- **Status:** blocked; no implementation commit.
 - **Scope:** diagnose the failed Mupoint WGS84 case and correct its established cause while preserving the 6.6.1 diff.
+- **Diagnostic attempt:** the single configured diagnostic invocation failed during compilation before reaching the test: temporary instrumentation borrowed `extension` after it had been moved into app config. No HTTP/SQL/geometry/predicate evidence was captured.
+- **Disposition:** instrumentation removed; no production behavior changed, no acceptance rerun, and no commit. Cause remains unproven.
+- **Preservation:** original uncommitted 6.6.1 changes remain in `src/transpiler/spatial.rs`, `src/spatial.rs`, `tests/sda_get_contract.rs`, and `docs/sda-get-support.md`; expected key `401` remains.
+- **Next:** await user direction; Waves 7–9 remain gated.
