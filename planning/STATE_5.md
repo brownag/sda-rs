@@ -4,14 +4,15 @@ Plan: `planning/EXECUTION_PLAN_5.md`. Active goal: explicit and tested SQLite se
 
 ## Baseline (recorded before wave 1)
 
-- Branch: `feature/sqlite-mvp`; HEAD `46beb3c`.
+- Branch: `feature/sda-readiness`; HEAD `4198dc8`.
 - Intentional Magic Wand edit to `planning/GOALS.md` is present; preserve it and keep it in planning-only commits.
 - Prior Plan 3/4 worktrees remain retained; no cleanup performed.
 - `cargo fmt --check`: passed.
 - `git diff --check`: passed.
-- `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test`: passed (52 unit + 11 integration tests; 0 failures).
+- `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test`: passed (52 unit + 11 integration tests; 0 failures). Live SpatiaLite tests executed.
 - Live SpatiaLite extension path: `/usr/lib/x86_64-linux-gnu/mod_spatialite.so`; configured live tests executed.
 - Accepted ADRs 0001–0006 remain in force; no supersession authorized.
+- Plan 6 artifacts are present as untracked user work and are intentionally untouched.
 
 ## Wave board
 
