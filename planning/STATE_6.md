@@ -25,7 +25,7 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 | 1 | 6.1.1 Spatial SQL contract; 6.1.2 SDA_Get inventory | done | `b90bd8b`, `366a02a` |
 | 2 | 6.2.1 GeoPackageBinary decoder | done | `e2eb5c2` |
 | 3 | 6.3.1 Active-client intersection TVFs | done | `4d4aa0a` |
-| 4 | 6.4.1 and 6.4.2 blocked; 6.4.3 diagnostic | in progress | — |
+| 4 | 6.4.1, 6.4.2, and 6.4.3 | blocked | — |
 | 5 | 6.5.1 Mapunit-polygon intersection/key TVFs | pending | — |
 | 6 | 6.6.1 Other feature-layer intersection TVFs | pending | — |
 | 7 | 6.7.1 Scalar key-to-WKT TVFs | pending | — |
@@ -106,6 +106,10 @@ Plan: `planning/EXECUTION_PLAN_6.md`. This plan is gated on completion of Plan 5
 - **Preservation:** the original uncommitted four-file task diff remains in the shared checkout; temporary diagnostic test was removed. Later waves remain gated on Wave 4 completion.
 
 ## 6.4.3
-- **Status:** user-authorized diagnostic-only continuation; micro-planning.
+- **Status:** blocked after the authorized diagnostic-only run; no implementation commit.
 - **Scope:** temporary test-only reporting to reconcile the prior `{}` response and later expected row; no production behavior changes.
 - **Authorization:** user approved broader diagnosis without weakening the expected WGS84 contract.
+- **Diagnostic:** one serial configured run returned HTTP 200 with the expected `inside` row for Mukey WGS84, then HTTP 200 with `{}` for Mukey Web-Mercator; the test stopped at the second query, leaving six queries unexecuted. Exit 101; 0 passed, 1 failed.
+- **Outcome:** this run matches the later successful WGS84 observation but does not explain the earlier three WGS84 empty results. The Web-Mercator result is consistent with the known mixed-SRID defect. No behavior was changed.
+- **Checks/preservation:** temporary reporting was removed; hashes of the four existing implementation files match their pre-instrumentation values; `git diff --check` passed. Existing four-file diff remains uncommitted.
+- **Next action:** await user direction; all downstream waves remain gated on Wave 4 completion.
