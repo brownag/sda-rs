@@ -60,3 +60,11 @@ Wave-boundary verification: waves 1–2 — passed. Latest serial run: `cargo fm
 - `cargo test transpiler::folds_variables_and_select_into_batch` exited 0 but matched 0 tests; corrected command `cargo test folds_variables_and_select_into_batch` ran the focused test: 1 passed, 0 failed.
 - `cargo fmt --check` and `git diff --check` passed for the addendum change.
 - Wave-boundary serial full suite after the assertion fix: 42 unit + 4 integration passed, 0 failed; `cargo fmt --check` passed. Integrated implementation commits: `a7b0849`, `790ccc5`.
+
+## 3.3.1
+- Status: complete; implementation commit `23cacc1` (`fix(transpiler): fold declaration defaults`); planning TODO commit `8969f04` (`docs(planning): add variable declaration micro-plan`).
+- Changed `src/transpiler/vars.rs`: declaration defaults now substitute earlier values; unbound defaults and case-insensitive redeclarations are rejected; added three focused tests.
+- `cargo test transpiler::vars::`: passed, 5 passed, 0 failed (40 filtered); binary and integration test targets each ran 0 matching tests.
+- `cargo fmt --check`: passed.
+- `git diff --check`: passed.
+- Deviations: none. Full suite not run as instructed.
