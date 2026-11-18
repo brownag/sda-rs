@@ -21,7 +21,7 @@ Plan: `planning/EXECUTION_PLAN_1.md`
 | 4 | 1.3.2 | done |
 | 5 | 1.3.1 | done |
 | 6 | 1.4.1, 1.4.2 | done |
-| 7 | 1.5.1 | pending |
+| 7 | 1.5.1 | in progress |
 
 ## Task reports
 
@@ -107,3 +107,13 @@ Plan: `planning/EXECUTION_PLAN_1.md`
 - Follow-up tests: `cargo test spatial::` — 5 passed; `cargo test routes::` — 3 passed; `cargo fmt --check` and `git diff --check` passed.
 - Follow-up implementation and planning/report commits are recorded separately.
 - Orchestrator wave-boundary verification after both tasks: `cargo fmt --check` passed; `cargo test` passed (27 passed, 0 failed; binary/doc suites 0 tests).
+
+## 1.5.1
+- Status: implementation committed, metadata-selection follow-up required before completion; code commit `704d7ed`, task report `30b5ec6`.
+- Files: `src/transpiler/spatial.rs`, `src/transpiler/mod.rs`, `src/routes.rs`, `src/spatial.rs` (follow-up authorized), `tests/sda_mvp.rs`.
+- Supports AOI construction/intersection, folded AOI variables, mukey TVF in supported IN-subquery/FROM/JOIN contexts, and dynamic geometry-column rewrites.
+- Unsupported: nonliteral/correlated WKT, column-alias lists, qualified method-call TVF ASTs, and scalar contexts beyond sole projection; these return structured errors.
+- `cargo test transpiler::spatial`: passed; `cargo test --test sda_mvp`: passed (2 tests); `cargo fmt --check` and `git diff --check`: passed.
+- No loadable `mod_spatialite` was available. Conditional live-extension test early-returned; no live spatial execution is claimed.
+- Orchestrator wave-boundary verification: `cargo fmt --check` passed; `cargo test` passed (33 unit tests + 2 integration tests, 0 failures; binary/doc suites 0 tests).
+- Remaining acceptance gap: capability currently exposes only the first `gpkg_geometry_columns` row; follow-up must select `mupolygon` from multiple rows.

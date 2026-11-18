@@ -67,6 +67,7 @@ Build `sda-rs` as a Rust HTTP service that implements a tested, SQLite/GeoPackag
 - 2026-11-17 — Authorize `src/transpiler/normalize.rs` in task 1.4.1 so SQLite generation can consume rewritten AST statements instead of retranspiling the original SQL text.
 - 2026-11-17 — Authorize enabling rusqlite's existing `load_extension` feature in task 1.4.2 so configured optional SpatiaLite loading is implementable and testable.
 - 2026-11-17 — Authorize task 1.5.1 to edit `src/transpiler/mod.rs` and `src/routes.rs` to register spatial rewrites and pass `SpatialCapability`/GeoPackage metadata into transpilation.
+- 2026-11-17 — Expand task 1.5.1 to retain and select GeoPackage geometry metadata by table, especially `mupolygon`, rather than relying on the first `gpkg_geometry_columns` row.
 
 ## DAG and wave table
 
@@ -179,10 +180,10 @@ Dependencies: `1.1.1 -> 1.2.1 -> 1.2.2`; `1.2.1 -> 1.3.2 -> 1.3.1`; `1.2.2 -> 1.
 ### Task 1.5.1 — Spatial AOI transpilation and end-to-end acceptance
 
 - **Repo:** same.
-- **Files in scope — must edit:** `src/transpiler/spatial.rs`, `src/transpiler/mod.rs` (register and orchestrate spatial rewriting), `src/routes.rs` (pass capability/metadata to transpiler), `tests/sda_mvp.rs`.
+- **Files in scope — must edit:** `src/transpiler/spatial.rs`, `src/transpiler/mod.rs` (register and orchestrate spatial rewriting), `src/routes.rs` (pass capability/metadata to transpiler), `src/spatial.rs` (retain/query metadata by table), `tests/sda_mvp.rs`.
 - **Can create:** integration fixtures in `tests/` scoped to this suite.
 - **Depends on:** 1.3.1, 1.3.2, 1.4.1, 1.4.2.
 - **Spec:** Implement bottom-up rewriting for `geometry::STGeomFromText`, `.STIntersects`, `@aoi` substitution integration, and `SDA_Get_Mukey_from_intersection_with_WktWgs84` for supported scalar/derived-table contexts. Use discovered GeoPackage geometry column metadata rather than assuming `mupolygongeo`. Add deterministic in-process router tests over seeded mock `legend`, `mapunit`, `component`, `chorizon`, `muaggatt`, and `mupolygon` tables. Cover query paths in `WHERE mukey IN (...)` and `FROM` table-valued form where parser support permits; explicitly report unsupported shape/AST form rather than emitting malformed SQL. Preserve no-extension error behavior.
-- **Do not touch:** executor, serializer, config, existing planning sources; do not alter the established spatial capability/executor interface.
+- **Do not touch:** executor, serializer, config, existing planning sources; preserve the executor's request-local lifecycle and blocking boundary.
 - **Grep anchors:** spatial rewrite catalog in `planning/INITIAL_PROMPT.md` lines 32–46; AOI and UDF templates in `planning/sda-rs-scoping.md` lines 94–138, 186–205, and benchmark query 14.
-- **Acceptance:** `cargo test --test sda_mvp` and targeted spatial transpiler tests; then orchestrator runs `cargo fmt --check` and full `cargo test` serially. Verify AOI/UDF SQL rewrites against discovered geometry metadata; spatial execution runs when SpatiaLite is available, while absent-extension requests return the documented structured capability error.
+- **Acceptance:** `cargo test --test sda_mvp` and targeted spatial metadata/rewrite tests; include a fixture where non-mupolygon geometry metadata precedes mupolygon and verify rewrites select the mupolygon geometry column/SRS. Then orchestrator runs `cargo fmt --check` and full `cargo test` serially. Spatial execution runs when SpatiaLite is available, while absent-extension requests return the documented structured capability error.
