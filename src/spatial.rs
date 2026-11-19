@@ -29,6 +29,29 @@ impl SpatialCapability {
             .find(|metadata| metadata.table_name.eq_ignore_ascii_case(table))
     }
 
+    pub fn resolve_geometry_metadata_for_table(
+        &self,
+        table: &str,
+    ) -> Result<Option<&GeometryMetadata>, String> {
+        let mut matches = self
+            .geometries
+            .iter()
+            .filter(|metadata| metadata.table_name.eq_ignore_ascii_case(table));
+        let Some(metadata) = matches.next() else {
+            return Ok(None);
+        };
+        if matches.next().is_some() {
+            return Err(format!("ambiguous geometry metadata for table {table}"));
+        }
+        if metadata.table_name.trim().is_empty()
+            || metadata.geometry_column.trim().is_empty()
+            || metadata.srs_id <= 0
+        {
+            return Err(format!("malformed geometry metadata for table {table}"));
+        }
+        Ok(Some(metadata))
+    }
+
     pub fn is_geometry_column(&self, column: &str) -> bool {
         self.geometries
             .iter()
@@ -327,9 +350,11 @@ pub fn initialize(
         }
         Err(error) => (Vec::new(), Some(error.to_string())),
     };
-    let effective_geometry_column = geometry_override
-        .map(str::to_owned)
-        .or_else(|| geometries.first().map(|m| m.geometry_column.clone()));
+    let effective_geometry_column = geometry_override.map(str::to_owned).or_else(|| {
+        geometries
+            .first()
+            .map(|metadata| metadata.geometry_column.clone())
+    });
 
     Ok(SpatialCapability {
         available,

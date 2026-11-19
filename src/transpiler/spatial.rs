@@ -488,15 +488,11 @@ pub(super) fn rewrite(
     for statement in statements {
         let spatial_statement = statement.dfs().any(is_spatial_expression);
         let geometry_column = if spatial_statement {
-            capability.effective_geometry_column().ok_or_else(|| {
-                TranspilerError::Rejected(
-                    "spatial rewrite requires GeoPackage geometry metadata or a geometry column override"
-                        .into(),
-                )
-            })?
+            capability.effective_geometry_column().unwrap_or("geom")
         } else {
             "geom"
         };
+        let geometry_relations = resolve_relations(&statement, capability, spatial_statement)?;
         let mut targets = Vec::new();
         let mut wkt_targets = Vec::new();
         let mut table_wkt_targets = Vec::new();
@@ -603,11 +599,98 @@ pub(super) fn rewrite(
         })
         .map_err(classify_error)?;
         output.push(
-            transform_all(statement, &|node| rewrite_node(node, capability))
+            transform_all(statement, &|node| rewrite_node(node, &geometry_relations))
                 .map_err(classify_error)?,
         );
     }
     Ok(output)
+}
+
+fn resolve_relations(
+    statement: &Expression,
+    capability: &SpatialCapability,
+    spatial_statement: bool,
+) -> Result<Vec<(String, String, String)>, TranspilerError> {
+    if !spatial_statement {
+        return Ok(Vec::new());
+    }
+    let mut relations = Vec::new();
+    for node in statement.dfs() {
+        let Expression::Select(select) = node else {
+            continue;
+        };
+        let sources = select
+            .from
+            .iter()
+            .flat_map(|from| from.expressions.iter())
+            .chain(select.joins.iter().map(|join| &join.this));
+        for source in sources {
+            let (table, source_alias) = match source {
+                Expression::Table(table) => (table.as_ref(), None),
+                Expression::Alias(alias) => match &alias.this {
+                    Expression::Table(table) => (table.as_ref(), Some(&alias.alias)),
+                    _ => continue,
+                },
+                _ => continue,
+            };
+            let name = table.name.name.as_str();
+            let metadata = capability
+                .resolve_geometry_metadata_for_table(name)
+                .map_err(TranspilerError::Rejected)?;
+            let qualifier = source_alias
+                .or(table.alias.as_ref())
+                .map(|alias| alias.name.as_str())
+                .unwrap_or(name);
+            relations.push((
+                qualifier.to_ascii_lowercase(),
+                metadata
+                    .map(|metadata| metadata.geometry_column.to_ascii_lowercase())
+                    .or_else(|| capability.geometry_override().map(str::to_ascii_lowercase))
+                    .unwrap_or_default(),
+                name.to_ascii_lowercase(),
+            ));
+        }
+    }
+    for node in statement.dfs() {
+        let Expression::MethodCall(call) = node else {
+            continue;
+        };
+        if !call.method.name.eq_ignore_ascii_case("STIntersects") {
+            continue;
+        }
+        for operand in std::iter::once(&call.this).chain(call.args.iter()) {
+            let Expression::Column(column) = operand else {
+                continue;
+            };
+            let found = relations.iter().any(|(qualifier, geometry, _)| {
+                (column
+                    .table
+                    .as_ref()
+                    .is_none_or(|table| table.name.eq_ignore_ascii_case(qualifier)))
+                    && !geometry.is_empty()
+                    && column.name.name.eq_ignore_ascii_case(geometry)
+            });
+            let relation_missing = column.table.as_ref().is_some_and(|table| {
+                relations
+                    .iter()
+                    .any(|(qualifier, _, _)| table.name.eq_ignore_ascii_case(qualifier))
+                    && !relations.iter().any(|(qualifier, geometry, _)| {
+                        table.name.eq_ignore_ascii_case(qualifier) && !geometry.is_empty()
+                    })
+            });
+            if relation_missing || (!found && column.table.is_some()) {
+                let table = column
+                    .table
+                    .as_ref()
+                    .map(|table| table.name.as_str())
+                    .unwrap_or("referenced");
+                return Err(TranspilerError::Rejected(format!(
+                    "spatial reference to table {table} has no geometry metadata"
+                )));
+            }
+        }
+    }
+    Ok(relations)
 }
 
 fn lift_intersection_select(
@@ -942,7 +1025,7 @@ fn is_spatial_expression(expression: &Expression) -> bool {
 
 fn rewrite_node(
     node: Expression,
-    capability: &SpatialCapability,
+    geometry_relations: &[(String, String, String)],
 ) -> Result<Expression, polyglot_sql::Error> {
     Ok(match node {
         Expression::MethodCall(call) if scalar_wkt_spec(&call.method.name).is_some() => {
@@ -998,7 +1081,22 @@ fn rewrite_node(
                 ));
             }
             let wrap = |expression| match &expression {
-                Expression::Column(column) if capability.is_geometry_column(&column.name.name) => {
+                Expression::Column(column)
+                    if geometry_relations.iter().any(|(qualifier, geometry, _)| {
+                        column.name.name.eq_ignore_ascii_case(geometry)
+                            && column
+                                .table
+                                .as_ref()
+                                .is_some_and(|table| table.name.eq_ignore_ascii_case(qualifier))
+                    }) || (column.table.is_none()
+                        && geometry_relations
+                            .iter()
+                            .filter(|(_, geometry, _)| {
+                                column.name.name.eq_ignore_ascii_case(geometry)
+                            })
+                            .count()
+                            == 1) =>
+                {
                     Expression::Function(Box::new(Function::new("GeomFromGPB", vec![expression])))
                 }
                 _ => expression,

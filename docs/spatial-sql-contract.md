@@ -13,8 +13,14 @@ remain available, while spatial requests fail with a structured error such as
 `Spatial capability unavailable: SpatiaLite is not loaded`. An explicitly
 configured extension that cannot be loaded is an initialization error.
 
-Geometry column names and SRIDs are discovered from
+Geometry column names and SRIDs are resolved per referenced table from
 `gpkg_geometry_columns`; names are not assumed to be `geom` or `mupolygongeo`.
+Spatial column references use their table qualifier or alias. An unqualified
+geometry reference is wrapped only when exactly one referenced relation
+declares that geometry-column name. Missing metadata for a referenced spatial
+relation, multiple metadata rows for that table, and rows with an empty table
+or geometry-column name or a non-positive SRID are rejected explicitly;
+unrelated metadata rows do not supply a relation's column or SRID.
 `SDA_GEOM_COLUMN` provides an explicit geometry-column override. For the
 `SDA_Get_Mukey_from_intersection_with_WktWgs84` rewrite, metadata must identify
 the `mupolygon` geometry unless an override is set. If metadata is absent but
@@ -35,9 +41,9 @@ The transpiler currently recognizes:
 - The instance form `.STGeomFromText(wkt, srid)`, lowered to the same
   constructor. Both forms require exactly two arguments.
 - `.STIntersects(other_geometry)`, lowered to `ST_Intersects`. It requires
-  exactly one argument. Recognized GeoPackage geometry columns are wrapped
-  with `GeomFromGPB`; expressions that are not recognized geometry columns are
-  passed through.
+  exactly one argument. The referenced relation's GeoPackage geometry column
+  is wrapped with `GeomFromGPB`; metadata for joined geometry relations is
+  resolved independently, including when the relations share a column name.
 - `SDA_Get_*_from_intersection_with_WktWgs84/WktWm('literal WKT')` variants
   catalogued as supported in [the SDA_Get support matrix](sda-get-support.md).
   These return the documented distinct keys, use the relation's discovered
@@ -94,7 +100,8 @@ is reported as a metadata error when spatial capability is required.
 Implementation and test anchors:
 
 - `src/transpiler/spatial.rs`: `rewrite`, `expand_source`, and `rewrite_node`.
-- `src/spatial.rs`: `geometry_metadata_for_table`, `is_geometry_column`,
+- `src/spatial.rs`: `geometry_metadata_for_table`,
+  `resolve_geometry_metadata_for_table`,
   `require_spatial`, and `initialize`.
 - `tests/aoi_contract.rs`: configured SpatiaLite AOI execution and the
   no-SpatiaLite structured error.
