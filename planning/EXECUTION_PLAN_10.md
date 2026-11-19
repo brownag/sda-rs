@@ -52,6 +52,7 @@ Establish and, after an explicit numeric performance gate, implement DuckDB as a
 - **2026-11-19 — Planning artifacts:** Track Plan 10 artifacts and keep the planning-only commit separate from implementation; the user approved finalization/commit on `feature/duckdb-production-backend`.
 - **2026-11-19 — User-change safety:** Preserve the pre-existing uncommitted `planning/GOALS.md` update from this planning session; include it only in the dedicated planning-artifact commit after review. No broad staging.
 - **2026-11-19 — Baseline:** During Plan 10 drafting, default `cargo test` and configured-SpatiaLite full `cargo test` both passed (75 unit + 30 integration tests, 0 failures); `cargo fmt --check` passed.
+- **2026-11-19 — Performance target approval:** User approved at the Task 10.2.1 gate: DuckDB median latency must improve the geometric mean across the four non-spatial baseline workloads (scalar/select, captured join, batch/temp-table, serialization) by at least 20%; no individual workload may regress by more than 10%. Spatial is reported separately and excluded from this initial threshold.
 
 ## Reconnaissance
 
