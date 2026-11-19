@@ -1,0 +1,42 @@
+{
+  "soilDB": {
+    "version": "2.9.4",
+    "commit": "1eaa07178311a4ad3b80842e1ff4f10149733544"
+  },
+  "format": "JSON+COLUMNNAME+METADATA",
+  "fixtures": [
+    {
+      "file": "sda-spatial-mukey.sql",
+      "source_call": "SDA_spatialQuery(point, what = 'mukey', query_string = TRUE)",
+      "sql": "WITH geom_data (mukey, muname) AS (SELECT mukey, muname\n                    FROM mapunit\n                    WHERE mapunit.mukey IN (\n                    SELECT DISTINCT mukey from SDA_Get_Mukey_from_intersection_with_WktWgs84('GEOMETRYCOLLECTION (POINT (0.5 0.5))')\n                    ))\n\n                    SELECT geom_data.mukey, geom_data.muname FROM geom_data",
+      "transpiled_sql_file": "sda-spatial-mukey.sqlite.sql",
+      "expected_columns": ["mukey", "muname"],
+      "expected_key_rows": [
+        ["1857266", "Inside map unit"]
+      ],
+      "prerequisites": "SpatiaLite and deterministic mupolygon/mapunit tables"
+    },
+    {
+      "file": "sda-spatial-areasymbol.sql",
+      "source_call": "SDA_spatialQuery(point, what = 'areasymbol', query_string = TRUE)",
+      "sql": "WITH geom_data (areasymbol) AS (SELECT areasymbol\n                  FROM sapolygon\n                  WHERE sapolygonkey IN (\n                  SELECT DISTINCT sapolygonkey from SDA_Get_Sapolygonkey_from_intersection_with_WktWgs84('GEOMETRYCOLLECTION (POINT (0.5 0.5))')\n                  ))\n\n                  SELECT geom_data.areasymbol FROM geom_data",
+      "transpiled_sql_file": "sda-spatial-areasymbol.sqlite.sql",
+      "expected_columns": "areasymbol",
+      "expected_key_rows": [
+        "IA001"
+      ],
+      "prerequisites": "SpatiaLite and deterministic sapolygon table"
+    },
+    {
+      "file": "get-sda-muaggatt.sql",
+      "source_call": "get_SDA_muaggatt(mukeys = 1857266, query_string = TRUE)",
+      "sql": "SELECT muaggatt.mukey, muaggatt.*\n                FROM legend \n                INNER JOIN mapunit ON mapunit.lkey = legend.lkey\n                INNER JOIN muaggatt ON mapunit.mukey = muaggatt.mukey\n                WHERE mapunit.mukey IN ('1857266')",
+      "transpiled_sql_file": "get-sda-muaggatt.sqlite.sql",
+      "expected_columns": ["mukey", "mukey", "representative_value"],
+      "expected_key_rows": [
+        ["1857266", "1857266", "fixture value"]
+      ],
+      "prerequisites": "Deterministic legend, mapunit, and muaggatt tables"
+    }
+  ]
+}

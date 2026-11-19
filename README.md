@@ -85,7 +85,13 @@ make lint     # rustfmt check and clippy
 make check    # lint + tests
 ```
 
-Tests use in-memory SQLite databases through the router, so they need no external data. The spatial test runs only when a SpatiaLite extension is configured.
+Tests use in-memory SQLite databases through the router. Captured soilDB SQL
+fixtures are always parsed/transpiled and replayed against deterministic local
+tables; the spatial replay runs when `SDA_TEST_SPATIALITE` is configured. These
+tests do not install or load soilDB. The Iowa GeoPackage/soilDB client checks
+remain opt-in via `make test-soildb`; see [their README](tests/soildb/README.md)
+and the fixture provenance/refresh notes in
+[`tests/fixtures/soildb/README.md`](tests/fixtures/soildb/README.md).
 
 ## Project layout
 
