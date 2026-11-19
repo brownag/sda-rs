@@ -38,16 +38,28 @@ The transpiler currently recognizes:
   exactly one argument. Recognized GeoPackage geometry columns are wrapped
   with `GeomFromGPB`; expressions that are not recognized geometry columns are
   passed through.
-- `SDA_Get_Mukey_from_intersection_with_WktWgs84('literal WKT')` in the
-  supported FROM/JOIN and IN-subquery shapes. It selects distinct `mukey`
-  values from `mupolygon`, excludes `areasymbol = 'US'`, converts the stored
-  GeoPackage geometry, and intersects it with the supplied WKT.
+- `SDA_Get_*_from_intersection_with_WktWgs84/WktWm('literal WKT')` variants
+  catalogued as supported in [the SDA_Get support matrix](sda-get-support.md).
+  These return the documented distinct keys, use the relation's discovered
+  geometry column and SRID metadata, exclude STATSGO mapunit rows, and compare
+  spatial operands in a common CRS. `ST_Intersects` must evaluate to `1`.
+- Scalar WKT functions such as
+  `SDA_Get_MupolygonWktWgs84_from_Mukey(literal_key)` and
+  `SDA_Get_AreasymbolWKTWgs84_from_Areasymbol(literal_key)`. Each accepts one
+  literal key and returns the catalogued WKT column/alias, transforming to
+  WGS84 or Web Mercator as named.
+- Table-input WKT variants such as
+  `SDA_Get_MupolygonWktWgs84_from_MukeyTable(@keys)` and
+  `SDA_Get_AreasymbolWktWgs84_from_AreasymbolTable(@areas)`. These require the
+  corresponding supported `DeclareIntTable` or `DeclareVarcharTable` macro,
+  and return the catalogued key and WKT columns.
 
-The mukey TVF accepts one string literal only. Zero arguments, column or other
-expression arguments, qualified/method-call syntax, and unsupported AST
-contexts are rejected rather than being treated as a valid result. The
-function rewrite is intentionally narrower than the official SDA function
-surface; other `SDA_Get_*` functions are not promised by this contract.
+These TVFs require SpatiaLite and their source tables, keys, and geometry
+metadata (or a supported geometry-column override). The complete supported
+function list and per-function prerequisites are maintained in the support
+matrix. Unsupported arities, correlated/nonliteral scalar arguments,
+qualified/method-call syntax, unsupported AST contexts, and column alias lists
+are rejected rather than silently treated as valid results.
 
 ## Coordinate reference systems and units
 
@@ -65,12 +77,11 @@ is made. Callers must not assume SQL Server CLR or PostGIS geography semantics.
 
 ## NULLs, malformed geometries, and errors
 
-The AOI and mukey tests verify successful intersections and selected returned
-keys. They do not define results for NULL WKT, NULL geometry columns, empty or
-invalid geometries, malformed GeoPackageBinary, or arbitrary invalid WKT.
-Those cases are delegated to SQLite/SpatiaLite behavior and may result in SQL
-NULLs or execution errors; this project currently makes no stronger
-compatibility guarantee.
+Intersection rewrites require the predicate to equal `1`, so false and NULL
+intersection results do not produce keys. Scalar/table WKT tests include empty
+and no-match inputs. Invalid geometries, malformed GeoPackageBinary, and
+arbitrary invalid WKT are delegated to SQLite/SpatiaLite and may produce
+execution errors.
 
 Known validation failures include wrong constructor/intersection arity,
 unsupported mukey TVF arguments or contexts, and missing required `mupolygon`

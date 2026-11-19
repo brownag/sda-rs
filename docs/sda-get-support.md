@@ -105,16 +105,18 @@ active-client variants and all fourteen additional intersection variants; assert
 result column names, SQLite key types for integer keys, and intersecting
 results. It also exercises the eight one-key WKT TVFs using deterministic
 in-memory geometry tables and exact aliases/transformed WKT. It also exercises
-all eight table-input WKT functions through the SDA declaration macros, including
-empty input tables. Status-map variants require `sastatusmap.areasymbol` and join it to
+all eight supported table-input WKT functions through the SDA declaration
+macros, including empty input tables. Status-map variants require
+`sastatusmap.areasymbol` and join it to
 `sapolygon.areasymbol`; duplicate status-map matches are collapsed by the
 distinct key result. The eight feature-layer variants use deterministic
 in-memory schemas for their catalog relations and keys.
 `tests/mukey_contract.rs:43-101` retains coverage of the original WGS84 mukey
 query shapes. Geometry layer and CRS metadata are discovered through
 `src/spatial.rs` and the active intersection dispatch in
-`src/transpiler/spatial.rs`. Table-input matrix rows remain prospective Wave 8
-targets, not an implicit support promise.
+`src/transpiler/spatial.rs`. All eight feasible table-input WKT variants are
+supported when their source tables, geometry metadata, and SpatiaLite are
+available; configured contract coverage verifies populated and empty inputs.
 
 The source-data model bounds implementation. `sapolygon` and `mupolygon` are
 the primary layers; `mupoint`, `muline`, `featline`, `featpoint`, and
