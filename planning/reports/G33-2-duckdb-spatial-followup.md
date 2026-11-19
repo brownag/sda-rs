@@ -149,3 +149,95 @@ preflight evidence, not authorization for Wave 2.
 - No production files, manifests, Plan 7 report, or data source were modified.
 - No Wave 2 work was started. DuckDB adoption and SQL Server parity remain
   unclaimed.
+
+## Wave 2 — Task 8.2.1 community geography
+
+### Compatibility and official-source evidence
+
+- Inspected DuckDB's official community page:
+  <https://duckdb.org/community_extensions/extensions/geography>. Its
+  compatibility matrix has columns `1.5.5`, `1.5.6`, and `2.0.0`; the Linux
+  AMD64 row is blank in all three columns, including `2.0.0`. The page lists
+  `geography` as a community extension, identifies paleolimbot as maintainer,
+  and describes global spatial processing on the sphere using S2.
+- DuckDB 2.0 extension-install docs identify `community` as the
+  `http://community-extensions.duckdb.org` repository and say the default
+  extension install directory is `~/.duckdb/extensions/...`. The single
+  attempt below confirms this client tried `/home/andrew/.duckdb/extensions`,
+  despite `DUCKDB_HOME` being set to the scratch directory. The docs say
+  `extension_directories` controls the location; `home_directory` does not.
+- The maintained repository README
+  (<https://github.com/paleolimbot/duckdb-geography>) calls the extension
+  preliminary and says it is not currently published as a community
+  extension, while the live official catalog page lists it. This is conflicting
+  source status; neither statement overrides the observed install error.
+- The maintainer function reference
+  (<https://raw.githubusercontent.com/paleolimbot/duckdb-geography/main/docs/function-reference.md>)
+  documents `s2_contains`, `s2_intersection`, `s2_area` (square meters on a
+  perfect sphere), and `s2_astext`. Its function list does not list an S2
+  buffer function. These are docs, not runtime observations.
+
+### Scratch build and sole runtime attempt
+
+- The existing scratch manifest pins `duckdb = "=1.20000.2"` with `bundled`;
+  source, manifest, lockfile, and target are under
+  `/tmp/opencode/sda-rs-plan8-duckdb/`. The `geography-synthetic` mode executes
+  one `INSTALL geography FROM community;`, then one `LOAD geography;`; it
+  returns immediately on either error and, only after successful load, applies
+  lockdown before SQL probes.
+- `cargo fmt --manifest-path /tmp/opencode/sda-rs-plan8-duckdb/Cargo.toml
+  --check` first reported formatting differences. Ran `cargo fmt` for that
+  scratch manifest, then the same `--check` passed.
+- Exact offline release build:
+
+  ```sh
+  CARGO_TARGET_DIR=/tmp/opencode/sda-rs-plan8-duckdb/target \
+  DUCKDB_HOME=/tmp/opencode/sda-rs-plan8-duckdb/duckdb-home \
+  cargo build --offline --release \
+    --manifest-path /tmp/opencode/sda-rs-plan8-duckdb/Cargo.toml
+  ```
+
+  Result: success (also succeeded once before formatting).
+- The single and only runtime invocation was:
+
+  ```sh
+  DUCKDB_HOME=/tmp/opencode/sda-rs-plan8-duckdb/duckdb-home bwrap \
+    --die-with-parent --ro-bind / / --dev /dev --proc /proc \
+    --bind /tmp/opencode/sda-rs-plan8-duckdb /tmp/opencode/sda-rs-plan8-duckdb \
+    --chdir /tmp/opencode/sda-rs-plan8-duckdb \
+    /tmp/opencode/sda-rs-plan8-duckdb/target/release/duckdb-probe \
+    geography-synthetic
+  ```
+
+  Output:
+
+  ```text
+  engine_before_install=v2.0.0
+  install_error=IO Error: Failed to create directory "/home/andrew/.duckdb/extensions/v2.0.0": Read-only file system
+  Error: DuckDBFailure(Error { code: Unknown, extended_code: 1 }, Some("IO Error: Failed to create directory \"/home/andrew/.duckdb/extensions/v2.0.0\": Read-only file system"))
+  ```
+
+  Exit status: 1. The install stopped before `LOAD`; the probe returned
+  immediately. No retry, extension load, lockdown, or synthetic SQL occurred.
+  Extension version, resolved binary path, and binary SHA-256 are unavailable.
+  No source build, mirror, or fork was used.
+
+### Six-method result and boundaries
+
+No method was runtime-probed; all six mappings are **unverified at runtime**
+because the sole official install attempt failed before load. In particular,
+no SQL or Rust result types, SRID behavior, boundary/antimeridian behavior,
+WKT outputs, or NULL/empty/dimensional behavior were observed.
+
+| SQL Server method | DuckDB community mapping under evaluation | Wave 2 outcome |
+|---|---|---|
+| `STContains` | `s2_contains` | Unverified at runtime |
+| `STWithin` | reversed `s2_contains` (and documented `s2_within`) | Unverified at runtime |
+| `STIntersection` | `s2_intersection` | Unverified at runtime |
+| `STBuffer` | directly available S2 buffer equivalent, if any | Unverified; no buffer function appears in the inspected maintainer reference; no planar substitute |
+| `STArea` | `s2_area` | Unverified at runtime; docs describe square meters on a perfect sphere |
+| `STAsText` | `s2_astext` | Unverified at runtime |
+
+The extension is documented as S2 spherical, not SQL Server's ellipsoidal
+geography contract. No parity claim is made. No Iowa feature rows or source
+data were accessed.
