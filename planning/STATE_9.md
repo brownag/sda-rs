@@ -43,7 +43,8 @@ Completed after Wave 2: `cargo fmt --check`, `git diff --check`, `cargo test`, a
 
 - Status: done; all six methods no-go at current seam; report now explains why no safe runtime-enforceable input bound exists, including for `STAsText`.
 - Files: `planning/reports/G12-geography-method-feasibility.md` (added Plan 9 assessment and explicit matrix outcomes); `planning/tasks/9.1.1.todo.md` (completed checklist).
-- Commit: none yet; report and tracked planning state are isolated in the Plan 9 worktree.
+- Report commit: `9d0fcb7 docs(spatial): record G12 feasibility revalidation`.
+- Planning-state commit: `05ac8eb docs(planning): record G12 feasibility wave`.
 - Tests: report-only task; `git diff --check` passed.
 - Wave boundary: `cargo fmt --check`, `git diff --check`, configured full `cargo test` passed (75 unit, 26 integration); configured `cargo test --test spatial_methods_contract` passed (1).
 - Deviations: none. No probes repeated because existing documented probe evidence covered the identified questions.
