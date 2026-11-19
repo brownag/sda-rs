@@ -1,0 +1,45 @@
+# deploy/sda-rs.service -- systemd unit for the sda-rs SDA emulator.
+#
+# Install with deploy/install.sh (dry-run by default). The binary is installed to
+# /usr/local/bin/sda-rs, the GeoPackage to /var/lib/sda-rs/openssurgo.gpkg.
+# The service binds loopback only; Cloudflare Tunnel is the public entry point.
+# Optional, non-secret overrides (for example SDA_SPATIAL_EXTENSION) go in
+# /etc/sda-rs/sda-rs.env (see deploy/sda-rs.env.example).
+
+[Unit]
+Description=sda-rs Soil Data Access emulator (read-only OpenSSURGO backend)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=sdars
+Group=sdars
+ExecStart=/usr/local/bin/sda-rs --backend-url readonly:/var/lib/sda-rs/openssurgo.gpkg --bind-address 127.0.0.1 --port 8090
+EnvironmentFile=-/etc/sda-rs/sda-rs.env
+Environment=RUST_LOG=info
+Restart=on-failure
+RestartSec=5
+# Read-only backend: the service account needs no write access to the data directory.
+# MemoryMax bounds each request's SQLite working set; the OOM-killer must hit this unit.
+MemoryMax=2G
+TasksMax=256
+LimitNOFILE=4096
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+ReadOnlyPaths=/var/lib/sda-rs
+
+[Install]
+WantedBy=multi-user.target
