@@ -22,11 +22,10 @@ Address valid inline review findings on PR #1 and prepare concise draft replies 
 - [x] Make the soilDB harness prove requests route to the local endpoint, resolve Cargo's executable path from JSON build output, and pass the configured integration suite (`60d9b0c`).
 
 ### 3. Documentation, validation, and review replies
-- [x] Update SDA_Get support and spatial contract documentation to match implemented support.
 - [x] Update SDA_Get support and spatial contract documentation to match implemented support (`7edf016`).
 - [x] Run focused/full validation: default and SpatiaLite-configured `cargo test`, soilDB integration suite, `cargo fmt --check`, `cargo clippy --all-targets`, and `git diff --check`. Clippy passes with one pre-existing `needless_question_mark` warning in `src/executor/sqlite.rs:138`.
 - [x] Commit fixes in focused Conventional Commits: `7484f8e`, `8f12bd2`, `60d9b0c`, `7edf016`.
-- [ ] Draft a response for each inline finding, referencing the local commit that addresses it; do not post replies or make other remote changes.
+- [x] Draft a response for each inline finding, referencing the local commit that addresses it, in `planning/PR_1_REVIEW_RESPONSES.md`; no replies were posted.
 - [ ] Commit this plan progress separately after response drafts are prepared.
 
 ## Notes
