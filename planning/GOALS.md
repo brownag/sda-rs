@@ -1,37 +1,21 @@
 # Project Goals (`planning/GOALS.md`)
 
-Last Updated: 2026-11-18
-Source State: STATE_5.md (Plan 5 not yet executed); STATE_4.md (Plan 4 complete)
+Last Updated: 2026-11-19
+Source State: STATE_6.md (Plans 5 and 6 complete); PR #1 merged as `62a6b98`
 
 ## Circled Goal (Active)
 
-- **[G32]** SQLite execution enforces an explicit, tested security boundary for submitted SQL, extension loading, registered UDFs, and resource use.
-  - Why now: It is the highest-leverage pre-hosting task: submitted SQL crosses the service boundary, and explicit safeguards reduce risk before real SDA clients are pointed at the server.
-  - Exit criteria: Complete Plan 5 and pass its acceptance checks: persistent writes are rejected without side effects; required `#temp` workflows and trusted configured extension loading work; UDF invocation policy is tested; SQL, row, output, execution-time, and SQLite string/BLOB limits are enforced. Preserve G1 behavior and pass the configured full test suite.
-  - First action: Resume Plan 5 at Wave 1; `STATE_5.md` still lists all waves as pending, so the earlier configured test pass is baseline evidence, not G32 completion.
+- **[G31]** Spatial metadata is resolved for every referenced table and geometry column, and missing or ambiguous metadata is rejected explicitly.
+  - Depends on: G29, G30.
+  - Why now: Plans 5 and 6 established execution safeguards, the spatial contract, geometry decoding, and client-used SDA_Get coverage. A complete metadata audit is the remaining foundation for reliable broader spatial behavior.
+  - Exit criteria: Tests demonstrate metadata resolution for each referenced table/geometry column and explicit rejection of missing or ambiguous metadata; existing Mukey validation and non-spatial queries remain intact.
+  - First action: Audit `src/spatial.rs` and spatial-transpiler call sites against multi-table geometry queries; identify uncovered cases before planning implementation.
 
 ## Sequenced Goals (Dependency DAG)
 
-- **[G29]** The supported spatial SQL contract documents method coverage, NULL/error behavior, CRS assumptions, and intentional semantic differences.
-  - Depends on: G32.
-  - Why now: First spatial readiness goal after the security boundary; define expected behavior before expanding spatial support or testing against live SDA applications.
-  - Exit criteria: Document supported methods, NULL/error behavior, CRS assumptions, and intentional semantic differences, with tests or examples for the documented contract.
-  - First action: Inventory current spatial rewrites and runtime behavior against the scoping spec.
-- **[G30]** GeoPackageBinary decoding and validation cover headers, envelope flags, empty geometries, malformed blobs, and WKB extraction.
-  - Depends on: G29.
-  - Why now: Establishes reliable geometry inputs for later spatial compatibility work and is one of the three agreed pre-hosting goals.
-  - Exit criteria: Header/envelope parsing, empty geometries, malformed blobs, and WKB extraction have explicit behavior and focused tests.
-  - First action: Inspect current geometry handling and identify missing decoding/validation cases.
-- **[G31]** Spatial metadata is resolved for every referenced table and geometry column, and missing or ambiguous metadata is rejected explicitly.
-  - Depends on: G30.
 - **[G33]** A focused spike evaluates terrio's geometry parsing, operations, CRS handling, and memory behavior against a representative GeoPackage fixture.
   - Depends on: G29, G30.
   - Exit criteria: Record supported APIs and gaps; do not adopt terrio as a SQL engine without evidence.
-- **[G11]** The bounded `SDA_Get_*` subset used by soilDB (R) and the soildb Python package is supported.
-  - Depends on: G32, G29, G30.
-  - Why now: These package call sites are a concrete path toward exercising the server with real SDA clients; prioritize only the catalog entries those clients actually use.
-  - Exit criteria: Inventory package versions and `SDA_Get_*` call sites, select a bounded subset, and add contract tests for each supported call; record unsupported calls and reasons.
-  - First action: Search the soilDB and soildb package sources/docs for `SDA_Get_*` usage and classify each call by implementation effort.
 - **[G12]** The broader CLR spatial method set—including `STContains`, `STWithin`, `STIntersection`, `STBuffer`, `STArea`, and `STAsText`—is supported with documented unit/SRID semantics.
   - Depends on: G29; AOI construction/intersection MVP behavior is covered by Plan 4.
 
@@ -55,16 +39,24 @@ Source State: STATE_5.md (Plan 5 not yet executed); STATE_4.md (Plan 4 complete)
 ## Deferred
 
 - **[G34]** The server is hosted and validated against SDA applications using representative real client workflows.
-  - Depends on: completed G32, G29, and G30; prioritize G11's package-used function subset before attempting these client workflows.
-  - Trigger: Reconsider after the first three goals are complete and a bounded package-use compatibility surface is identified.
+  - Depends on: completed G32, G29, G30, and G11.
+  - Trigger: Reconsider when a hosting/deployment target and authorization for hosted client trials are identified. The local opt-in soilDB/Iowa harness is not hosted validation.
   - Exit criteria: Run representative soilDB and soildb Python workflows against the hosted server; record pass/fail gaps and operational issues.
 - **[G28]** Native SQLite spatial acceleration.
   - Depends on: G29, G30, G31, G33.
   - Trigger: Reconsider only after those prerequisites validate the geometry representation, predicate semantics, exact evaluation, and R-tree assumptions.
   - Exit criteria: R-tree is used only for conservative candidate filtering followed by exact predicates; indexed and non-indexed results match, including when no usable index exists.
+- **[G35]** Establish whether the opt-in `tests/soildb/` client harness remains worth maintaining after fixture coverage is established.
+  - Trigger: Revisit when captured fixtures and deterministic replay have been compared against the client behaviors covered by the opt-in harness.
+  - Exit criteria: Record which behaviors only the real soilDB/Iowa run covers; retain the harness as supplementary coverage or remove it only if those behaviors are covered elsewhere.
 
 ## Completed
 
+- **[G32]** SQLite execution enforces an explicit, tested security boundary for submitted SQL, extension loading, registered UDFs, and resource use. Plan 5; `STATE_5.md` records all waves and acceptance checks complete.
+- **[G29]** The supported spatial SQL contract documents method coverage, NULL/error behavior, CRS assumptions, and intentional semantic differences. Plan 6 Wave 1; `docs/spatial-sql-contract.md`.
+- **[G30]** GeoPackageBinary decoding and validation cover headers, envelope flags, empty geometries, malformed blobs, and WKB extraction. Plan 6 Wave 2; `src/gpkg_geometry.rs` and its tests.
+- **[G11]** The package-used bounded `SDA_Get_*` subset is implemented and tested. Plan 6 inventoried all 34 catalog functions and active soilDB/py-soildb call sites; active-client variants and additional feasible functions are documented and contract-tested where dataset prerequisites permit. See `docs/sda-get-support.md` and `STATE_6.md`.
+- **[C2]** PR #1 review findings were resolved and all 17 inline replies were posted with user approval; PR #1 was subsequently merged (`62a6b98`). The Cargo JSON reader drains through EOF and was smoke-tested with a non-default target directory.
 - **[G1]** SQLite/GeoPackage-focused SDA tabular MVP acceptance: request encodings, supported T-SQL, AOI, mukey TVF contexts, `#temp` batches, exact metadata serialization, and unavailable spatial capability behavior. Plan 4; configured SpatiaLite run passed.
 - **[G6]** Variable folding, CLR spatial rewriting, and WGS84 mukey intersection UDF execute end to end against seeded spatial fixtures. Plan 4.
 - **[G7]** Deterministic in-process integration acceptance covers the G1 endpoint, serializer, batch, temp-table, and spatial behavior. Plan 4.
@@ -90,15 +82,16 @@ Source State: STATE_5.md (Plan 5 not yet executed); STATE_4.md (Plan 4 complete)
 
 ## Ranking Rationale
 
-- Pre-hosting critical path: **G32 → G29 → G30**. G32 closes the SQL execution boundary; G29 defines spatial compatibility; G30 validates the geometry representation. Hosting/app validation is deferred until all three are complete.
-- G11 is the next client-compatibility candidate: first inventory the `SDA_Get_*` calls used by soilDB and the soildb Python package, then support a deliberately bounded subset rather than the entire catalog.
-- G31/G33 and broader spatial methods remain sequenced behind the contract/geometry foundations; G28 remains deferred until its correctness prerequisites are complete.
+- The completed pre-hosting foundation is **G32 → G29 → G30**, followed by the bounded package-compatibility work in **G11** (Plans 5 and 6).
+- **G31** is active because metadata correctness underpins spatial queries across layers and is a prerequisite for further spatial readiness work. **G33** is a lower-priority exploratory spike; G28 remains deferred until its correctness prerequisites are complete.
+- **G34** remains deferred despite the local opt-in soilDB harness: hosted validation requires an identified deployment target and authorization. **G35** is a maintenance decision, not a reason to remove the current supplementary harness now.
 
-## Decisions (2026-11-18)
+## Decisions (2026-11-18–19)
 
 - **D1 (G24):** Integration tests use shared-cache in-memory DBs.
 - **D2 (C1):** Delete obsolete executor paths and the `SpatialCapability.geometry` field in favor of `geometry_metadata()`. Done.
 - **D3 (G16):** A failed multi-statement batch rolls back all of its writes.
 - **D4 (G21):** The first non-empty result set is `Table`; later non-empty sets are `Table1`, `Table2`, and so on. Empty sets are skipped when numbering.
+- **D5 (G35):** Keep `tests/soildb/` as optional supplementary coverage for now. Reassess after comparing its real-client behaviors with captured fixtures and deterministic replay; it is not a default test dependency.
 
 Cleanup plan: `planning/EXECUTION_PLAN_2.md`.
