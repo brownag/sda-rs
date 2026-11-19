@@ -29,8 +29,10 @@ cargo run -- \
 ```
 
 The executable can also be configured with environment variables: `SDA_BACKEND_URL`,
-`SDA_PORT`, `SDA_SPATIAL_EXTENSION`, and `SDA_GEOM_COLUMN`. See `--help` for
-available options.
+`SDA_PORT`, `SDA_SPATIAL_EXTENSION`, `SDA_GEOM_COLUMN`, `SDA_BIND_ADDRESS`, and
+`SDA_BODY_LIMIT`. The bind address defaults to `0.0.0.0`. The request body limit
+defaults to 2 MiB and accepts values from 1 byte through 64 MiB via `--body-limit`
+or `SDA_BODY_LIMIT`. See `--help` for available options.
 
 ## Query interface
 

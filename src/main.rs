@@ -1,5 +1,5 @@
 use clap::Parser;
-use sda_rs::{app, config::Config};
+use sda_rs::{app_with_body_limit, config::Config};
 use tokio::net::TcpListener;
 
 #[tokio::main]
@@ -11,8 +11,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .init();
     let (arguments, bind_address) = sda_rs::config::extract_bind_address(std::env::args_os())?;
+    let (arguments, body_limit) = sda_rs::config::extract_body_limit(arguments)?;
     let config = Config::parse_from(arguments);
     let listener = TcpListener::bind((bind_address.as_str(), config.port)).await?;
-    axum::serve(listener, app(config)).await?;
+    axum::serve(listener, app_with_body_limit(config, body_limit)).await?;
     Ok(())
 }

@@ -20,6 +20,11 @@ pub struct AppState {
 
 /// Build the HTTP router. Database and spatial initialization are request-layer concerns.
 pub fn app(config: config::Config) -> Router {
+    app_with_body_limit(config, config::DEFAULT_BODY_LIMIT)
+}
+
+/// Build the HTTP router with a validated request body limit.
+pub fn app_with_body_limit(config: config::Config, body_limit: usize) -> Router {
     let state = AppState {
         database_path: config.backend_url,
         spatial_extension: config.spatial_extension,
@@ -28,7 +33,7 @@ pub fn app(config: config::Config) -> Router {
     Router::new()
         .route("/Tabular/post.rest", post(routes::post))
         .route("/Tab/post.rest", post(routes::post))
-        .layer(RequestBodyLimitLayer::new(2 * 1024 * 1024))
+        .layer(RequestBodyLimitLayer::new(body_limit))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(state)

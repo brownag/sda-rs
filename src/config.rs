@@ -70,6 +70,61 @@ pub fn extract_bind_address(
     Ok((filtered, bind_address))
 }
 
+pub const DEFAULT_BODY_LIMIT: usize = 2 * 1024 * 1024;
+pub const MAX_BODY_LIMIT: usize = 64 * 1024 * 1024;
+
+/// Extract the request body limit without adding a field to `Config`.
+pub fn extract_body_limit(
+    args: impl IntoIterator<Item = OsString>,
+) -> Result<(Vec<OsString>, usize), Error> {
+    extract_body_limit_with_env(args, env::var_os("SDA_BODY_LIMIT"))
+}
+
+fn extract_body_limit_with_env(
+    args: impl IntoIterator<Item = OsString>,
+    env_limit: Option<OsString>,
+) -> Result<(Vec<OsString>, usize), Error> {
+    let mut args = args.into_iter();
+    let program = args.next().unwrap_or_else(|| OsString::from("sda-rs"));
+    let mut filtered = vec![program];
+    let mut body_limit = env_limit
+        .map(|value| parse_body_limit(&value))
+        .transpose()?
+        .unwrap_or(DEFAULT_BODY_LIMIT);
+
+    while let Some(argument) = args.next() {
+        if argument == "--body-limit" {
+            body_limit = parse_body_limit(&args.next().ok_or_else(|| {
+                Error::new(ErrorKind::InvalidInput, "--body-limit requires a value")
+            })?)?;
+        } else if let Some(value) = argument
+            .to_str()
+            .and_then(|argument| argument.strip_prefix("--body-limit="))
+        {
+            body_limit = parse_body_limit(OsString::from(value).as_os_str())?;
+        } else {
+            filtered.push(argument);
+        }
+    }
+    Ok((filtered, body_limit))
+}
+
+fn parse_body_limit(value: &std::ffi::OsStr) -> Result<usize, Error> {
+    let value = value
+        .to_str()
+        .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "body limit must be UTF-8"))?;
+    let limit = value
+        .parse::<usize>()
+        .map_err(|_| Error::new(ErrorKind::InvalidInput, "body limit must be an integer"))?;
+    if limit == 0 || limit > MAX_BODY_LIMIT {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            format!("body limit must be between 1 and {MAX_BODY_LIMIT} bytes"),
+        ));
+    }
+    Ok(limit)
+}
+
 #[cfg(test)]
 mod tests {
     use super::Config;
@@ -120,5 +175,52 @@ mod tests {
                 .collect::<Vec<_>>()
         );
         assert_eq!(bind_address, "127.0.0.1");
+    }
+
+    #[test]
+    fn body_limit_defaults_parses_cli_and_environment_and_validates_range() {
+        let (args, limit) =
+            super::extract_body_limit_with_env(["sda-rs"].map(std::ffi::OsString::from), None)
+                .unwrap();
+        assert_eq!(args, ["sda-rs"].map(std::ffi::OsString::from));
+        assert_eq!(limit, super::DEFAULT_BODY_LIMIT);
+
+        let (_, cli_limit) = super::extract_body_limit_with_env(
+            ["sda-rs", "--body-limit=2048", "--port", "9090"].map(std::ffi::OsString::from),
+            None,
+        )
+        .unwrap();
+        assert_eq!(cli_limit, 2048);
+        let (_, env_limit) = super::extract_body_limit_with_env(
+            ["sda-rs"].map(std::ffi::OsString::from),
+            Some(std::ffi::OsString::from("4096")),
+        )
+        .unwrap();
+        assert_eq!(env_limit, 4096);
+        let (_, cli_precedence) = super::extract_body_limit_with_env(
+            ["sda-rs", "--body-limit", "8192"].map(std::ffi::OsString::from),
+            Some(std::ffi::OsString::from("4096")),
+        )
+        .unwrap();
+        assert_eq!(cli_precedence, 8192);
+        let (_, maximum) = super::extract_body_limit_with_env(
+            ["sda-rs", "--body-limit", "67108864"].map(std::ffi::OsString::from),
+            None,
+        )
+        .unwrap();
+        assert_eq!(maximum, super::MAX_BODY_LIMIT);
+
+        for invalid in ["0", "nope", "67108865"] {
+            assert!(super::extract_body_limit_with_env(
+                ["sda-rs", "--body-limit", invalid].map(std::ffi::OsString::from),
+                None
+            )
+            .is_err());
+        }
+        assert!(super::extract_body_limit_with_env(
+            ["sda-rs"].map(std::ffi::OsString::from),
+            Some(std::ffi::OsString::from("0")),
+        )
+        .is_err());
     }
 }
