@@ -78,10 +78,26 @@ export SDA_SPATIAL_EXTENSION="$spatialite"
 export SDA_BIND_ADDRESS=127.0.0.1
 export SOILDB_SDA_URL="http://127.0.0.1:${port}/Tabular/post.rest"
 
-(
+server_executable="$(
     cd "$repo_root"
-    cargo build --quiet --bin sda-rs
-)
+    cargo build --message-format=json --bin sda-rs |
+        python3 -c '
+import json
+import sys
+for line in sys.stdin:
+    try:
+        message = json.loads(line)
+    except json.JSONDecodeError:
+        continue
+    target = message.get("target", {})
+    executable = message.get("executable")
+    if executable and target.get("name") == "sda-rs" and "bin" in target.get("kind", []):
+        print(executable)
+        break
+else:
+    raise SystemExit("Cargo did not report the sda-rs binary executable")
+'
+)" || fail "could not locate the built sda-rs executable from Cargo output"
 
 if ! R CMD INSTALL --library="$R_LIBS_USER" "$soilDB_path" \
     >"$tmpdir/install.log" 2>&1; then
@@ -89,7 +105,7 @@ if ! R CMD INSTALL --library="$R_LIBS_USER" "$soilDB_path" \
     fail "could not install local soilDB into the temporary library"
 fi
 
-"$repo_root/target/debug/sda-rs" \
+"$server_executable" \
     --backend-url "$SDA_BACKEND_URL" \
     --port "$port" \
     --spatial-extension "$SDA_SPATIAL_EXTENSION" \

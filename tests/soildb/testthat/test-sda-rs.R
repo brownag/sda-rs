@@ -29,6 +29,15 @@ test_that("SDA_spatialQuery finds the known Iowa mukey", {
   expect_s3_class(result, "data.frame")
   expect_true("mukey" %in% names(result))
   expect_true("1857266" %in% as.character(result$mukey))
+
+  web_mercator <- suppressMessages(
+    soilDB::SDA_query(
+      "SELECT * FROM SDA_Get_MupolygonWktWm_from_Mukey(408342) LIMIT 1"
+    )
+  )
+  expect_s3_class(web_mercator, "data.frame")
+  expect_true("MupolygonWktWm" %in% names(web_mercator))
+  expect_false(is.na(web_mercator$MupolygonWktWm[[1]]))
 })
 
 test_that("get_SDA_muaggatt returns the known Iowa mukey", {
