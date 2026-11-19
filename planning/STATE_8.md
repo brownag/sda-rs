@@ -32,7 +32,7 @@ Plan: `planning/EXECUTION_PLAN_8.md`
 | 3 | 8.3.1 Corrected community geography install and synthetic evaluation | done | `de80cd5` |
 | 4 | 8.4.1 Iterative DuckDB spatial-filter preflight | done; corrected plan shows RTree-backed filter pushdown | `10202d4`, `548f50a`, `0714756` |
 | 5 | 8.5.1 Conditional bounded Iowa comparison | done with DuckDB transaction error; possible reads unknown | `18cd367`, `3a85296` |
-| 6 | 8.6.1 Repair and retry bounded DuckDB execution | pending recovery micro-plan and separate orchestrator approval; conservatively reserve 29/100 candidates for prior attempt | — |
+| 6 | 8.6.1 Repair and retry bounded DuckDB execution | approved by orchestrator 2026-11-19; conservatively reserve 29/100 candidates for prior attempt | — |
 
 ## Task Reports
 
@@ -81,6 +81,12 @@ Plan: `planning/EXECUTION_PLAN_8.md`
 - DuckDB failed with `TransactionContext::ActiveTransaction called without active transaction`; no count/types/results returned.
 - The query may have read rows before failing; exact number is unknown. Before/after source fingerprints matched; no other source query or write occurred.
 - Conservatively reserve all 29 RTree candidates against the 100-feature cap. Task 8.6.1 may diagnose and correct the scratch execution path; recovery requires separate orchestrator approval.
+
+### 8.6.1 — Recovery approved
+
+- The orchestrator approved diagnosis and bounded retry on 2026-11-19.
+- Authorization covers only scratch execution-path changes and, after offline validation and read-only RTree/fingerprint gates, the exact Task 8.5.1 query.
+- The uncertain Task 8.5.1 invocation is charged 29 candidates; no more than 71 additional candidate reads may be charged.
 
 ## Final Acceptance Gate
 
