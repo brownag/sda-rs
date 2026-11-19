@@ -581,3 +581,65 @@ here; Task 8.5.1 remains gated on separate explicit orchestrator approval.
 - Immediately-before/after invocation fingerprints matched the preflight
   fingerprint above. The exact invocation output is retained in
   `/tmp/opencode/sda-rs-plan8-duckdb/bounded-iowa.log`.
+
+## Wave 6 — Task 8.6.1 streaming recovery
+
+- **Diagnosis:** the scratch probe had used `Statement::query()` and row-wise
+  `Rows`. The duckdb-rs 1.20000.2 source shows `Statement::stream_arrow()` calls
+  `execute_streaming()` and yields fetch/conversion errors as `Result` items;
+  its regular Arrow iterator instead panics on fetch errors. DuckDB Spatial
+  issue #768 documents the same transaction error in a different DuckDB 1.5.0
+  materialized geometry-to-Arrow path and reports streaming Arrow as a
+  workaround. This made streaming a grounded correction to test, not a proven
+  explanation for the original DuckDB 2.0.0 failure.
+- **Scratch-only correction:** replaced row-wise consumption with
+  `stream_arrow()`, batch schema/type/count/null summaries, and propagated
+  per-batch errors without panic. No SQL, source, extension, or repository
+  dependency/code was changed. Scratch `cargo fmt --check` and offline release
+  build passed. A synthetic in-memory `ST_GeomFromText` query returned one
+  GeoArrow-WKB Binary row in one batch, with zero nulls; no source file was
+  accessed by that test.
+- The first recovery preflight command passed the negative-leading bbox as a
+  separate argparse argument and was rejected before opening SQLite. It did
+  not execute any source query. The corrected metadata-only preflight used
+  `--bbox=-93.70,41.50,-93.69,41.51`, a read-only SQLite URI, and verified
+  `PRAGMA query_only=ON`. It confirmed `mupolygon.geom` (POLYGON, SRS 4326),
+  RTree plan `SCAN rtree_mupolygon_geom VIRTUAL TABLE INDEX 2:B0D1B2D3`, and
+  29 candidate IDs; no feature columns were selected.
+- **Budget:** the prior uncertain Wave 5 invocation remains conservatively
+  charged 29 candidates. This recovery invocation was charged the full current
+  RTree candidate count, another 29, for a cumulative charge of 58/100 and
+  42 candidates remaining. The query returned 24 rows, below the SQL `LIMIT
+  100`; the conservative charge, not just returned count, governs the cap.
+- **The exact previously approved SQL was invoked once, unchanged:**
+
+  ```sql
+  SELECT geom FROM ST_Read('/data/SSURGO/output/iowa_ssurgo.gpkg', layer='mupolygon') WHERE ST_Intersects(geom, ST_MakeEnvelope(-93.70, 41.50, -93.69, 41.51)) LIMIT 100
+  ```
+
+- DuckDB verified the scratch-only extension directory, disabled
+  autoload/autoinstall before loading only the cached Spatial extension,
+  verified the exact Iowa `allowed_paths`, then verified external access was
+  false. Limits were 1 GB memory, 2 threads, scratch temp directory, and a
+  60-second process timeout. The streamed result had schema `geom: Binary`
+  with GeoArrow WKB metadata, 24 rows in one batch, and zero null geometries.
+  No other Iowa source query or SQL write ran.
+- Source SHA-256, size, and mtime immediately before and after the recovery
+  invocation matched: `7b81951e495799aec46eb3fdd1505131cc62374f2d336420706494fae90571a8`,
+  `6406705152` bytes, mtime nanoseconds `1795015873192297150`
+  (`2026-11-18 07:31:13.192297150 -0800`). Full output is retained in
+  `/tmp/opencode/sda-rs-plan8-duckdb/bounded-iowa-recovery-attempt-1.log`;
+  synthetic output and the metadata-only preflight are retained alongside it.
+- The streaming correction produced a successful bounded result after the
+  prior internal error. This is not a six-method parity test, performance
+  benchmark, or evidence that the earlier invocation returned zero rows; its
+  read count remains unknown and was budgeted conservatively.
+
+References:
+
+- DuckDB 2.0 Rust querying/streaming API:
+  <https://duckdb.org/docs/2.0/clients/rust/querying>
+- duckdb-rs 1.20000.2 `Statement::stream_arrow()` implementation:
+  <https://docs.rs/crate/duckdb/1.20000.2/source/src/statement.rs>
+- DuckDB Spatial issue #768 (version/path differs from this probe):
+  <https://github.com/duckdb/duckdb-spatial/issues/768>
