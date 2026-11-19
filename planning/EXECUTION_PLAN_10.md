@@ -4,13 +4,14 @@
 
 ### Goal
 
-Evaluate DuckDB's capabilities and performance as an opt-in SDA query backend while retaining SQLite as the default and supported backend; use that evidence to decide production limits and controls before any production enablement. The initial evaluation targets Linux x86_64 and uses a local, isolated scratch prototype with synthetic/committed fixtures only. It may explore engine behavior beyond the proposed production controls, but is not exposed to production or untrusted queries. Production use remains gated on a separately approved security/resource policy, request-local lifecycle, documented SQL contract, performance acceptance, and deployment-time pinned/hash-verified Spatial artifacts.
+Evaluate DuckDB as an opt-in SDA query backend while retaining SQLite as the default and supported backend. The core data path is T-SQL input → DuckDB SQL translation → DuckDB execution → SDA-compatible result serialization. First evaluate that end-to-end path locally using synthetic/committed fixtures; use the evidence to decide production limits and controls before production enablement. The initial evaluation targets Linux x86_64 and is not exposed to production or user-supplied queries. Production use remains gated on a separately approved security/resource policy, request-local lifecycle, documented SQL contract, performance acceptance, and deployment-time pinned/hash-verified Spatial artifacts.
 
 ### In scope
 
 - Measure current SQLite performance on existing committed contract-suite workloads and define a reproducible benchmark protocol.
 - Obtain user approval of a numeric DuckDB performance target after reviewing that baseline and before backend implementation.
 - Evaluate DuckDB capabilities, performance, and resource behavior in a local-only scratch prototype before selecting production controls or numeric resource limits; report what is demonstrated, what remains unknown, and tradeoffs.
+- Evaluate the actual T-SQL-to-DuckDB-to-SDA-response path using the existing `polyglot-sql` DuckDB dialect and the repository's serializer; explicitly compare it with the current T-SQL-to-SQLite pipeline and identify translation gaps.
 - Define DuckDB's supported/rejected SQL and spatial contract, including all six Plan 9 geography-method rejections unless new evidence proves a runtime-enforceable SQL Server-compatible contract.
 - Design the backend/configuration/execution boundary, request lifecycle, isolation, batch failure semantics, and temporary-table workflow.
 - After the exploratory evaluation and an explicit follow-up decision, design and test the DuckDB security/resource boundary, typed result/geometry handling, deployment-time artifact provisioning, Linux x86_64 CI, and operator documentation.
@@ -37,6 +38,7 @@ Evaluate DuckDB's capabilities and performance as an opt-in SDA query backend wh
 - “Provision pinned, hash-verified official DuckDB Spatial artifacts at deployment; no request-time network or silent SpatiaLite fallback. If Spatial is unavailable, keep non-spatial queries available and fail spatial requests explicitly.”
 - “Plan around a pinned Rust `duckdb` crate; dependency addition still needs implementation authorization.”
 - “the scope is to see what is possible then we will limit after we evaluate that”
+- “the plan is to take TSQL as input translate it to duckdb and return the result”
 
 ## Dated Decisions
 
@@ -57,6 +59,7 @@ Evaluate DuckDB's capabilities and performance as an opt-in SDA query backend wh
 - **2026-11-19 — Performance target approval:** User approved at the Task 10.2.1 gate: DuckDB median latency must improve the geometric mean across the four non-spatial baseline workloads (scalar/select, captured join, batch/temp-table, serialization) by at least 20%; no individual workload may regress by more than 10%. Spatial is reported separately and excluded from this initial threshold.
 - **2026-11-19 — Dependency authorization:** User explicitly authorized adding the pinned Rust `duckdb` crate and updating `Cargo.lock` for Task 10.4.1, subject to the task's security/API feasibility checks. This does not authorize unrelated dependencies or weakening required controls.
 - **2026-11-19 — Exploratory scope revision:** User directed that the next scope is to evaluate what DuckDB can do and then choose limits afterward. A local-only scratch prototype may explore capabilities beyond proposed production controls, but may use only synthetic/committed data, no live network or production service, and no untrusted queries. No production backend is enabled; production controls, limits, and enablement require a later explicit decision.
+- **2026-11-19 — Data-path clarification:** User clarified the intended core flow as T-SQL input, translation to DuckDB SQL, execution, and returning the result. Controls are deferred during local evaluation; this does not authorize production exposure.
 
 ## Reconnaissance
 
@@ -80,11 +83,11 @@ Tasks are serial and run on `feature/duckdb-production-backend`; same-file/share
 | 1 | 10.1.1 | Establish reproducible SQLite contract-workload benchmark baseline and resource observations; no DuckDB implementation. |
 | 2 | 10.2.1 | Present baseline and obtain explicit user approval of numeric performance target; stop until approved. |
 | 3 | 10.3.1 then 10.3.2 | Specify backend contract/ADR, then threat/resource/deployment architecture. Serial even though docs differ. |
-| 4 | 10.4.1 | Evaluate DuckDB capabilities/performance in a local-only scratch prototype; no production backend wiring. |
+| 4 | 10.4.1, then 10.4.2 | Evaluate raw DuckDB capability, then the real T-SQL → DuckDB → SDA-serializer path in scratch; no production backend wiring. |
 | 5 | 10.5.1, 10.5.2 | Add DuckDB spatial/result compatibility and deployment-time pinned artifact provisioning, in disjoint files. |
 | 6 | 10.6.1 | Integrate contract, adversarial security/resource, and deployment tests/CI/docs; verify final gates. |
 
-Wave 2 is a mandatory human approval gate. If the user does not approve a numeric threshold, do not begin Waves 3–6. Wave 4 is now a local-only capability evaluation, not production backend implementation; after Task 10.4.1, pause for user review and approval of production controls/resource limits before proceeding to Tasks 10.5.1, 10.5.2, or 10.6.1. All tasks run serially; no parallel workers or worktrees are authorized. Same-wave tasks have disjoint file sets, but remain ordered as listed.
+Wave 2 is a mandatory human approval gate. If the user does not approve a numeric threshold, do not begin Waves 3–6. Wave 4 is local-only capability and data-path evaluation, not production backend implementation; after Task 10.4.2, pause for user review and approval of production controls/resource limits before proceeding to Tasks 10.5.1, 10.5.2, or 10.6.1. All tasks run serially; no parallel workers or worktrees are authorized. Same-wave tasks have disjoint file sets, but remain ordered as listed.
 
 ## Global Hazards and Rules
 
@@ -107,7 +110,7 @@ Wave 2 is a mandatory human approval gate. If the user does not approve a numeri
 ### Task 10.1.1 — Benchmark SQLite contract workloads
 
 - **ID:** 10.1.1
-- **Repo:** `/tmp/opencode/sda-rs-plan10-merge`
+- **Repo:** `/home/andrew/workspace/sda-rs`
 - **Depends on:** Current baseline recorded above. Task 10.1.1 may run before approval of a threshold; all later tasks are blocked on Task 10.2.1.
 - **Files in scope — must edit:** `planning/reports/duckdb-sqlite-benchmark-baseline.md`.
 - **Files in scope — can create:** `planning/tasks/10.1.1.todo.md`; benchmark source/scripts and outputs only under `/tmp/opencode/sda-rs-plan10-benchmark/`.
@@ -120,7 +123,7 @@ Wave 2 is a mandatory human approval gate. If the user does not approve a numeri
 ### Task 10.2.1 — Approve numeric performance threshold
 
 - **ID:** 10.2.1
-- **Repo:** `/tmp/opencode/sda-rs-plan10-merge`
+- **Repo:** `/home/andrew/workspace/sda-rs`
 - **Depends on:** 10.1.1 and user review of its report.
 - **Files in scope — must edit:** `planning/EXECUTION_PLAN_10.md`, `planning/STATE_10.md`.
 - **Files in scope — can create:** `planning/tasks/10.2.1.todo.md`.
@@ -132,7 +135,7 @@ Wave 2 is a mandatory human approval gate. If the user does not approve a numeri
 ### Task 10.3.1 — Define backend contract and record ADR
 
 - **ID:** 10.3.1
-- **Repo:** `/tmp/opencode/sda-rs-plan10-merge`
+- **Repo:** `/home/andrew/workspace/sda-rs`
 - **Depends on:** 10.2.1 approved target. If the target is not approved, do not execute this or any subsequent task.
 - **Files in scope — must edit:** `docs/decisions/README.md`.
 - **Files in scope — can create:** `docs/decisions/0007-duckdb-opt-in-query-backend.md`; `planning/tasks/10.3.1.todo.md`.
@@ -144,7 +147,7 @@ Wave 2 is a mandatory human approval gate. If the user does not approve a numeri
 ### Task 10.3.2 — Specify DuckDB threat, resource, and deployment controls
 
 - **ID:** 10.3.2
-- **Repo:** `/tmp/opencode/sda-rs-plan10-merge`
+- **Repo:** `/home/andrew/workspace/sda-rs`
 - **Depends on:** 10.2.1 approved target. If the target is not approved, do not execute this or any subsequent task.
 - **Files in scope — must edit:** `docs/security/duckdb-execution-policy.md`.
 - **Files in scope — can create:** `planning/tasks/10.3.2.todo.md`.
@@ -163,13 +166,25 @@ Wave 2 is a mandatory human approval gate. If the user does not approve a numeri
 - **Do not touch:** production source, `Cargo.toml`/`Cargo.lock`, application configuration/routes/executors, deployment/CI, SQLite behavior, wire format, or existing ADRs. No production backend enablement.
 - **Spec:** Use the already installed/pinned candidate DuckDB Rust client `duckdb = "=1.20000.2"` in an isolated local scratch prototype to evaluate what the engine/API can do before choosing production limits. Characterize representative non-spatial query, request-local connection/temp-table and batch behavior, failure semantics, result types, observed performance, and resource behavior (time, memory, threads, temp storage) where safely measurable. Probe security-relevant capabilities/settings to understand possible boundaries, including persistent writes, local file access, network/external access, and extension loading, but use only disposable scratch paths and synthetic/committed fixtures; do not access external/user data, make live network requests, or execute user-supplied/untrusted SQL. Any controlled test queries must be authored specifically for the local probe and constrained to disposable scratch resources. Record exact versions, commands, tested behavior, limitations, and what cannot be verified. Do not treat prototype observations as production controls, choose/claim production numeric limits, or claim policy parity. No repository dependency change is in scope.
 - **Grep/recon anchors:** `planning/reports/G33-2-duckdb-spatial-followup.md`; `docs/security/duckdb-execution-policy.md`; `planning/reports/duckdb-sqlite-benchmark-baseline.md`; DuckDB crate source and documented settings; `src/executor/sqlite.rs` only for workload/lifecycle comparison, not as behavior to copy.
-- **Acceptance:** Scratch evaluation reruns locally without external data/network; report contains reproducible capability probes and measured results/limitations, clearly separates observed behavior from production guarantees, includes the approved four-workload performance comparison where feasible and reports spatial separately; `git diff --check`. No application source or repository manifest changes. After review, stop for a follow-up user decision on production limits/control design before Tasks 10.5.1, 10.5.2, or 10.6.1 are authorized.
+- **Acceptance:** Scratch evaluation reruns locally without external data/network; report contains reproducible capability probes and measured results/limitations, clearly separates observed behavior from production guarantees, includes the approved four-workload performance comparison where feasible and reports spatial separately; `git diff --check`. No application source or repository manifest changes. Task 10.4.2 then evaluates the actual translation/response path; after that, stop for a follow-up user decision on production limits/control design before Tasks 10.5.1, 10.5.2, or 10.6.1 are authorized.
+
+### Task 10.4.2 — Evaluate the T-SQL to DuckDB result path
+
+- **ID:** 10.4.2
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Depends on:** 10.4.1 completed; user clarified the intended data path as T-SQL → DuckDB SQL → DuckDB execution → SDA result.
+- **Files in scope — must edit:** `planning/reports/duckdb-tsql-pipeline-evaluation.md`.
+- **Files in scope — can create:** scratch prototype/scripts/results only under `/tmp/opencode/sda-rs-duckdb-evaluation/`; `planning/tasks/10.4.2.todo.md`.
+- **Do not touch:** production source, Cargo manifests/lockfile, routes, executor, transpiler, serializer, tests in the repository, security policy, deployment/CI, or wire-format contracts. Do not enable a production backend.
+- **Spec:** Build a scratch-only end-to-end prototype that accepts representative existing SDA T-SQL inputs, uses the already available `polyglot-sql 0.14.1` T-SQL → DuckDB dialect path, executes generated DuckDB SQL against deterministic synthetic schemas in DuckDB `=1.20000.2`, maps returned values into the repository's shared result shape as feasible, and serializes with the existing SDA serializer. Compare behavior with the current application path (`transpiler::transpile_with_spatial` → SQLite executor → serializer) for overlapping non-spatial contracts. Include `TOP`/bracketed identifiers/`ISNULL`/`IIF`, a captured soilDB join, `STRING_AGG`, and temp-table/batch or variables where the DuckDB dialect path supports them. Record translation mismatches, unsupported constructs, type/result mapping gaps, exact request inputs, generated DuckDB SQL, result/serialized output, and performance methodology. Security controls remain deferred for this isolated evaluation; use only probe-authored SQL and disposable/synthetic data, no production service, user data, or live network.
+- **Grep/recon anchors:** `src/transpiler/mod.rs` (`transpile_with_spatial`); `src/transpiler/normalize.rs` (`generate_sqlite` hardcodes SQLite output); `src/routes.rs` executor/serializer flow; `src/result.rs`; `src/serializer.rs` `serialize`; `tests/sql_batch_contract.rs`; `tests/fixtures/soildb/get-sda-muaggatt.sql`; `polyglot_sql::Dialect::transpile(..., DialectType::DuckDB)`.
+- **Acceptance:** Scratch prototype compiles/runs offline, asserts exact query results and SDA serialization for each supported case, reports current SQLite path results for comparison, and documents failures/gaps honestly; provide exact reproduction commands and any comparable timing results; `git diff --check`. No repository implementation/dependency changes. Stop for user review before production scope or controls are selected.
 
 ### Task 10.5.1 — Add DuckDB spatial and result compatibility
 
 - **ID:** 10.5.1
-- **Repo:** `/tmp/opencode/sda-rs-plan10-merge`
-- **Depends on:** 10.4.1 and 10.3.2.
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Depends on:** 10.4.1, 10.4.2, 10.3.2, and explicit follow-up user approval of production spatial scope/controls.
 - **Files in scope — must edit:** `src/spatial.rs`, `src/serializer.rs`.
 - **Files in scope — can create:** `tests/duckdb_spatial_contract.rs`; `planning/tasks/10.5.1.todo.md`.
 - **Do not touch:** `src/transpiler/spatial.rs` behavior for rejected G12 instance methods; deployment/CI files; existing SQLite wire behavior.
@@ -180,8 +195,8 @@ Wave 2 is a mandatory human approval gate. If the user does not approve a numeri
 ### Task 10.5.2 — Provision pinned DuckDB Spatial deployment artifact
 
 - **ID:** 10.5.2
-- **Repo:** `/tmp/opencode/sda-rs-plan10-merge`
-- **Depends on:** 10.3.1, 10.3.2 and selected crate/engine/platform pin from authorized Task 10.4.1.
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Depends on:** 10.3.1, 10.3.2, completed 10.4.1/10.4.2, selected crate/engine/platform pin, and explicit follow-up user approval of production deployment scope.
 - **Files in scope — must edit:** `Dockerfile` or existing deployment definition identified during analysis.
 - **Files in scope — can create:** deployment provisioning script/manifest and its artifact verification test; `planning/tasks/10.5.2.todo.md`.
 - **Do not touch:** runtime request paths, source data, arbitrary registries, existing unrelated CI, or non-Linux-x86_64 deployment targets.
@@ -192,8 +207,8 @@ Wave 2 is a mandatory human approval gate. If the user does not approve a numeri
 ### Task 10.6.1 — Complete Linux x86_64 contract, security, CI, and operations gate
 
 - **ID:** 10.6.1
-- **Repo:** `/tmp/opencode/sda-rs-plan10-merge`
-- **Depends on:** 10.4.1, 10.5.1 and 10.5.2.
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Depends on:** 10.4.1, 10.4.2, 10.5.1, 10.5.2, and explicit follow-up user approval of production controls/limits.
 - **Files in scope — must edit:** `.github/workflows/` existing Rust workflow; `CONTRIBUTING.md`.
 - **Files in scope — can create:** focused Linux DuckDB contract/security/deployment tests only if not created by dependencies; `docs/duckdb-backend.md`; `planning/tasks/10.6.1.todo.md`.
 - **Do not touch:** non-Linux hosted workflows, live service credentials/data, external production deployment, or unrelated docs.

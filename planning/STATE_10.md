@@ -25,6 +25,7 @@ Plan: `planning/EXECUTION_PLAN_10.md`
 - **2026-11-19 — Performance target approved by user:** DuckDB median latency per operation must improve the geometric mean across the four non-spatial workloads (scalar/select, captured join, batch/temp-table, serialization) by at least 20%; no individual workload may regress by more than 10%. Report spatial separately, excluded from this initial gate.
 - **2026-11-19 — Dependency authorization:** User explicitly authorized the pinned Rust `duckdb` crate and `Cargo.lock` update for Task 10.4.1, subject to its security/API feasibility checks. No unrelated dependencies or policy weakening authorized.
 - **2026-11-19 — Evaluation-first scope:** User directed that Plan 10 first evaluate what DuckDB can do and select production limits afterward. User chose a local-only prototype without hard production gates during capability exploration; constrain probes to scratch paths and synthetic/committed fixtures, with no production service, external/user data, live network requests, or untrusted queries. Production controls/limits and enablement require follow-up approval.
+- **2026-11-19 — Data-path clarification:** Intended flow is T-SQL input → DuckDB SQL translation → DuckDB execution → returned SDA-compatible result; security controls remain deferred during local evaluation.
 - Final gate: default and configured-SpatiaLite suites plus Linux x86_64 DuckDB contract/security/deployment checks; hosted trials deferred.
 
 ## Wave Board
@@ -36,6 +37,7 @@ Plan: `planning/EXECUTION_PLAN_10.md`
 | 3 | 10.3.1 | done | Additive accepted ADR 0007; commit 8429946. |
 | 3 | 10.3.2 | done | DuckDB-specific policy with explicit blockers; commit ca8db56. |
 | 4 | 10.4.1 | done | Local-only capability evaluation recorded in `planning/reports/duckdb-capability-evaluation.md`; no production wiring. |
+| 4 | 10.4.2 | pending approval | Scratch end-to-end T-SQL → DuckDB → SDA serialization evaluation; no repository implementation. |
 | 5 | 10.5.1 | blocked | Wait for Task 10.4.1 results and follow-up production-scope approval. |
 | 5 | 10.5.2 | blocked | Wait for Task 10.4.1 engine/artifact findings and follow-up production-scope approval. |
 | 6 | 10.6.1 | blocked | Wait for follow-up production-scope approval and completed prerequisite tasks. |
@@ -89,7 +91,7 @@ Plan: `planning/EXECUTION_PLAN_10.md`
 - **Findings:** Synthetic scalar/join/temp-table/results work; raw `execute_batch` left an earlier insert after a later statement failed. External-access disabled blocked tested local CSV read and extension install; default settings allowed a scratch persistent file and local CSV read.
 - **Performance:** Directional only; DuckDB and SQLite executor/serializer paths were not equivalent, so no valid performance-target verdict. Spatial/network not probed.
 - **Resources:** Requested memory/thread settings accepted. Process snapshots varied between ~58 MiB/160 threads and ~20 MiB/74 threads; neither is peak/capacity evidence. Temp-storage limits and concurrent scaling unmeasured.
-- **Next gate:** User review of evidence and approval of production controls/limits/scope before Tasks 10.5.1, 10.5.2, or 10.6.1.
+- **Next gate:** Complete Task 10.4.2 to evaluate the actual T-SQL-to-DuckDB-to-SDA response flow; then pause for user review before production controls/limits or Tasks 10.5.1, 10.5.2, or 10.6.1.
 - **Worker:** `openai/gpt-6-luna`; no further escalation.
 
 ## Worker Usage
