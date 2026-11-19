@@ -84,6 +84,7 @@ server_executable="$(
         python3 -c '
 import json
 import sys
+executable_path = None
 for line in sys.stdin:
     try:
         message = json.loads(line)
@@ -91,11 +92,12 @@ for line in sys.stdin:
         continue
     target = message.get("target", {})
     executable = message.get("executable")
-    if executable and target.get("name") == "sda-rs" and "bin" in target.get("kind", []):
-        print(executable)
-        break
-else:
+    if (executable_path is None and executable and
+            target.get("name") == "sda-rs" and "bin" in target.get("kind", [])):
+        executable_path = executable
+if executable_path is None:
     raise SystemExit("Cargo did not report the sda-rs binary executable")
+print(executable_path)
 '
 )" || fail "could not locate the built sda-rs executable from Cargo output"
 
