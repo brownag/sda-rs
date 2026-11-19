@@ -1,68 +1,54 @@
 # AGENTS.md - sda-rs
 
-## Project Overview
-`sda-rs` is a standalone Rust HTTP server that emulates the USDA-NRCS Soil Data Access `POST /Tabular/post.rest` endpoint. It accepts T-SQL-style queries, transpiles them (via `polyglot-sql`) to SQLite/SpatiaLite, and returns SDA-shaped JSON. Specs and goals live in `planning/`.
-
 ## Quick Start
+* **Install dependencies**: `cargo fetch`
 * **Build**: `cargo build`
-* **Test All**: `cargo test`
-* **Test Target**: `cargo test --test sda_mvp` (integration tests) or `cargo test <name>` (unit tests in `src/`)
-* **Lint/Format**: `cargo fmt --check` and `cargo clippy --all-targets`
+* **Test all**: `cargo test`
+* **Test target**: `cargo test --test sda_mvp` or `cargo test <name>`
+* **Lint/format**: `cargo fmt --check && cargo clippy --all-targets`
 * **Run**: `cargo run -- --backend-url <path/to/db> --port 8080`
-* **Install**: `cargo fetch` (dependencies are declared in `Cargo.toml`; no workspace)
 
 ## Find Things
-* `src/main.rs` -- binary entry point; reads config, binds listener, serves `app()`
-* `src/lib.rs` -- crate root; `app()` builds the router, `AppState`, and middleware
-* `src/config.rs` -- CLI/env configuration (`clap`); the only place defaults are defined
-* `src/routes.rs` -- HTTP handler for `/Tabular/post.rest` and `/Tab/post.rest`
-* `src/request.rs` -- request parsing (JSON and form-encoded bodies)
-* `src/transpiler/` -- T-SQL-to-SQLite AST passes (`normalize`, `security`, `spatial`, `temp_tables`, `vars`)
-* `src/executor/` -- database execution (`sqlite.rs`)
-* `src/spatial.rs` -- SpatiaLite/geometry handling
-* `src/serializer.rs`, `src/result.rs` -- response shaping into SDA JSON
-* `tests/` -- integration tests against the router (`tower::ServiceExt`, in-memory SQLite)
-* `planning/` -- execution plans, goals, task files (`planning/tasks/`), and the architecture spec (`sda-rs-scoping.md`)
+`sda-rs` is a Rust HTTP server emulating the USDA-NRCS Soil Data Access endpoint. It accepts T-SQL-style queries, transpiles them through `polyglot-sql` to SQLite/SpatiaLite, and returns SDA-shaped JSON.
+
+* `src/main.rs` -- binary entry point; configuration and server startup
+* `src/lib.rs` -- `app()` router, `AppState`, middleware
+* `src/config.rs` -- CLI and environment configuration
+* `src/routes.rs`, `src/request.rs` -- HTTP handlers and request parsing
+* `src/transpiler/` -- SQL parsing, validation, and rewrite passes
+* `src/executor/` -- SQLite query execution
+* `src/spatial.rs`, `src/gpkg_geometry.rs` -- spatial capability and GeoPackage geometry handling
+* `src/serializer.rs`, `src/result.rs` -- SDA response shaping
+* `tests/` -- integration and contract tests; `tests/fixtures/` contains query fixtures
+* `scripts/` -- fixture capture and test helpers
+* `planning/` -- goals, execution plans, tasks, and architecture specification
+* `docs/` -- decisions, security policy, and SQL/API contracts
 
 ## Workflows
-* **Planned work**: `planning/GOALS.md` -> `planning/EXECUTION_PLAN_N.md` -> task files in `planning/tasks/` -> `STATE_N.md` tracks progress.
-* **Adding a transpiler pass**: add a module under `src/transpiler/`, wire it into `transpiler/mod.rs`, add a unit test next to it and an end-to-end case in `tests/sda_mvp.rs`.
-* **Adding a route**: register it in `app()` in `src/lib.rs`; keep the body limit and CORS layers applied.
+* **Planned work**: `planning/GOALS.md` -> `planning/EXECUTION_PLAN_N.md` -> task files in `planning/tasks/`; see plan/state files for workflow details.
+* **Adding a transpiler pass**: add it under `src/transpiler/`, wire it into `mod.rs`, and cover it with unit and integration tests.
+* **Adding a route**: register it in `app()` in `src/lib.rs`; preserve the body-limit and CORS layers.
 
 ## Infrastructure
 * **Default bind**: `0.0.0.0:8080` (`SDA_PORT` / `--port`)
 * **Default database**: `sda.gpkg` (`SDA_BACKEND_URL` / `--backend-url`)
-* **Optional env**: `SDA_SPATIAL_EXTENSION` (path to `mod_spatialite`), `SDA_GEOM_COLUMN` (GeoPackage geometry column override)
+* **Optional environment**: `SDA_SPATIAL_EXTENSION` (SpatiaLite extension path), `SDA_GEOM_COLUMN` (geometry column override)
 * **Request body limit**: 2 MiB (`src/lib.rs`)
 * **Log level**: `RUST_LOG` (defaults to `info`)
 * **Build output**: `target/` (git-ignored)
 
-## Code Style & Patterns
-* **Verification**: `cargo fmt --check && cargo clippy --all-targets && cargo test`
-* **Errors**: HTTP errors use the `ErrorBody { error }` JSON shape via `routes::error()`; keep that shape for new error responses.
-* **Modules**: all modules are declared `pub` in `src/lib.rs`; `main.rs` only wires config to the router.
+## References
+* `planning/sda-rs-scoping.md` -- architecture, transpilation, spatial rewrites, and wire protocol
+* `planning/GOALS.md` and `planning/EXECUTION_PLAN_*.md` -- planning artifacts
+* `docs/decisions/` -- architecture decision records
+* `docs/security/sqlite-execution-policy.md` -- SQLite execution policy
+* `docs/spatial-sql-contract.md` -- spatial SQL contract
 
-## Non-Obvious System Behaviors
-* Spatial functions are unavailable unless `SDA_SPATIAL_EXTENSION` is set; non-spatial queries must keep working without it.
-* Failed statement batches roll back as a whole (see `router_rolls_back_failed_statement_batch`).
-* `mukey` TVF rewrites read geometry metadata from `mupolygon` in `gpkg_geometry_columns`, not from the first geometry row. Without that metadata or a `SDA_GEOM_COLUMN` override, the request is rejected.
-* SDA response format (JSON + COLUMNNAME + METADATA) places column metadata in the second result array; see the scoping spec before changing serializer output.
-
-## System Boundaries & Operational Rules
-### Always
-* Run `cargo test` before reporting a change as done.
-* Keep SQL transpilation changes covered by a test in `src/transpiler/` or `tests/`.
-
-### Ask First
-* Adding dependencies to `Cargo.toml` (especially new `polyglot-sql` or `rusqlite` versions, which change query behavior).
-* Changing the wire protocol or response shape.
-* Changing default port, default database path, or the body size limit.
-
-### Never
-* Commit `target/` or any `.gpkg`/`.sqlite` database files.
-* Remove or weaken the rollback and metadata-validation behavior covered by `tests/sda_mvp.rs` to make a test pass.
-
-## Secondary Documentation Index
-* `planning/sda-rs-scoping.md` -- Architecture and transpilation spec (AST passes, spatial rewrite catalog, wire protocol).
-* `planning/GOALS.md` -- Goal list and dependency graph.
-* `planning/EXECUTION_PLAN_*.md` -- Wave-by-wave execution plans.
+## Operational Rules
+* Run `cargo test` before reporting a change as done; keep SQL transpilation changes covered by tests.
+* Ask before adding dependencies, changing the wire protocol/response shape, or changing default port, database path, or body-size limit.
+* Spatial functions require `SDA_SPATIAL_EXTENSION`; non-spatial queries must still work without it.
+* Failed statement batches roll back as a whole. Do not weaken rollback or geometry metadata validation to make tests pass.
+* `mukey` TVF rewrites require geometry metadata from `mupolygon` in `gpkg_geometry_columns`, or an `SDA_GEOM_COLUMN` override.
+* SDA JSON + COLUMNNAME + METADATA responses place column metadata in the second result array.
+* Never commit `target/` or `.gpkg`/`.sqlite` database files.
