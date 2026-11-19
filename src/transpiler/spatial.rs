@@ -1122,9 +1122,16 @@ fn rewrite_node(
 }
 
 fn unsupported_geography_method(name: &str) -> bool {
-    ["STContains", "STWithin", "STIntersection"]
-        .iter()
-        .any(|method| name.eq_ignore_ascii_case(method))
+    [
+        "STContains",
+        "STWithin",
+        "STIntersection",
+        "STBuffer",
+        "STArea",
+        "STAsText",
+    ]
+    .iter()
+    .any(|method| name.eq_ignore_ascii_case(method))
 }
 
 #[cfg(test)]
@@ -1407,6 +1414,45 @@ mod tests {
         assert!(output[0].contains("STCONTAINS("), "{output:?}");
         assert!(output[0].contains("STWITHIN("), "{output:?}");
         assert!(output[0].contains("STINTERSECTION("), "{output:?}");
+    }
+
+    #[test]
+    fn rejects_buffer_area_and_text_instance_methods_for_columns_and_constructors() {
+        for method in ["STBuffer", "starea", "StAsText"] {
+            let arities: &[&str] = match method.to_ascii_lowercase().as_str() {
+                "stbuffer" => &["", "(1)", "(1, 2)"],
+                _ => &["", "(1)"],
+            };
+            for receiver in ["geom", "geometry::STGeomFromText('POINT(0 0)', 4326)"] {
+                for args in arities {
+                    let sql = format!("SELECT {receiver}.{method}{args}");
+                    let error =
+                        crate::transpiler::transpile_with_spatial(&sql, Some(&capability()))
+                            .expect_err(&sql);
+                    assert!(
+                        error
+                            .to_string()
+                            .contains("unsupported for SQL Server geography compatibility"),
+                        "{sql}: {error}"
+                    );
+                    for planar in ["ST_Buffer", "ST_Area", "AsText", "ST_AsText"] {
+                        assert!(!error.to_string().contains(planar), "{sql}: {error}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn free_function_spellings_are_not_instance_method_rejections() {
+        let output = crate::transpiler::transpile_with_spatial(
+            "SELECT ST_Buffer(geom, 1), ST_Area(geom), AsText(geom)",
+            Some(&capability()),
+        )
+        .unwrap();
+        assert!(output[0].contains("ST_BUFFER("), "{output:?}");
+        assert!(output[0].contains("ST_AREA("), "{output:?}");
+        assert!(output[0].contains("ASTEXT("), "{output:?}");
     }
 
     #[test]

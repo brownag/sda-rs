@@ -81,6 +81,27 @@ rewrites. See the
 [`G12 geography feasibility report`](../planning/reports/G12-geography-method-feasibility.md)
 for the evidence matrix and probe results.
 
+The CLR instance methods `.STBuffer(...)` and `.STArea()` are also explicitly
+rejected. SpatiaLite `ST_Buffer` is a planar operation whose distance follows
+the geometry coordinate units (not geography meters), and bare `ST_Area` is
+planar coordinate area (not SRID-dependent geography area). The optional
+ellipsoidal SpatiaLite area operation has not been established as SQL Server
+compatible across supported inputs. Neither method is rewritten to those
+operations.
+
+`.STAsText()` is explicitly rejected in this release as well. The feasibility
+assessment finds text conversion conditionally feasible for bounded ordinary
+2D values, but the transpiler cannot enforce that condition for all supported
+receivers: geometry metadata does not validate each stored value's actual
+dimensions or content, and constructor expressions may contain arbitrary WKT,
+SRIDs, NULLs, or empty values. In particular, AST shape alone cannot exclude
+Z/M, FullGlobe, or greater-than-hemisphere inputs, and SpatiaLite's demonstrated
+Z/M serialization differs from SQL Server geography output. It is therefore
+not safe to lower the method to `AsText`/`ST_AsText` or claim even a conditional
+contract from the current rewrite seam. The feasibility report remains an
+assessment of theoretical conditional feasibility; qualifying that report
+requires a separately scoped planning update.
+
 ## Coordinate reference systems and units
 
 The constructor passes its supplied SRID to SpatiaLite; the tests demonstrate
@@ -121,8 +142,8 @@ Implementation and test anchors:
   no-SpatiaLite structured error.
 - `tests/spatial_methods_contract.rs`: configured execution of the existing
   `.STIntersects` operation and explicit rejection of the unsupported
-  geography instance methods; `.STIntersects` results are not geography-parity
-  evidence.
+  geography instance methods, including `.STBuffer`, `.STArea()`, and
+  `.STAsText()`; `.STIntersects` results are not geography-parity evidence.
 - `tests/mukey_contract.rs`: configured SpatiaLite mukey TVF result and
   supported query contexts.
 - `src/transpiler/spatial.rs` unit tests: constructor/method rewrites,

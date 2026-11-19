@@ -106,4 +106,25 @@ async fn configured_spatial_methods_execute_supported_predicate_and_reject_unsup
         );
         assert!(!body.contains("no such function"), "{method}: {body}");
     }
+
+    for (method, arguments) in [
+        ("STBuffer", ["(1)", "(1, 2)"]),
+        ("STArea", ["()", "(1)"]),
+        ("STAsText", ["()", "(1)"]),
+    ] {
+        for receiver in ["shape", "geometry::STGeomFromText('POINT(0 0)', 4326)"] {
+            for args in arguments {
+                let sql = format!("SELECT {receiver}.{method}{args} FROM features");
+                let (status, body) = query(app.clone(), &sql).await;
+                assert_eq!(status, StatusCode::BAD_REQUEST, "{sql}: {body}");
+                assert!(
+                    body.contains(&format!(
+                        ".{method} is unsupported for SQL Server geography compatibility"
+                    )),
+                    "{sql}: {body}"
+                );
+                assert!(!body.contains("no such function"), "{sql}: {body}");
+            }
+        }
+    }
 }
