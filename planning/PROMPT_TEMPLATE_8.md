@@ -23,7 +23,7 @@ Paste the task specification verbatim from `planning/EXECUTION_PLAN_8.md`.
 - Never run a full scan, use `LIMIT` as a substitute for bounded access, modify/copy the Iowa GeoPackage, or stage external data. Record its hash, size, and mtime before and after any authorized feature access.
 - Compare all six methods against SQL Server `geography` contracts; function availability or one matching sample is not parity. No SQL Server engine is available, so distinguish docs from observations.
 - Run only the targeted commands in the task specification. Do not run full repository suites from the worker task.
-- Keep the approved Plan 8 artifact commit separate from all task/report commits. Within each task, commit its TODO and report together using a focused Conventional Commit subject with no wave/task numbers or attribution trailers. No pushes, PRs, comments, or other remote actions.
+- Keep planning artifacts separate from task/report commits: commit each tracked micro-TODO as a planning-only `docs(planning):` change before execution; commit task research/report changes separately using a focused Conventional Commit subject with no wave/task numbers or attribution trailers. No pushes, PRs, comments, or other remote actions.
 
 ## Analysis
 
