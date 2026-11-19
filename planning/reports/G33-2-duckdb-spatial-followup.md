@@ -398,3 +398,44 @@ data were accessed.
   returned or read.** This RTree evidence does not replace the missing DuckDB
   spatial-filter `EXPLAIN` and is not authorization for feature reads. Stop
   pending separate explicit orchestrator approval.
+
+## Wave 4 — Task 8.4.1 DuckDB EXPLAIN-only outcome
+
+- The standalone probe was extended only in
+  `/tmp/opencode/sda-rs-plan8-duckdb/src/main.rs` with the
+  `bounded-iowa-explain` mode. Scratch `cargo fmt --check` and offline release
+  build passed. No repository source, dependency, or manifest was changed;
+  no network or OS sandbox was used.
+- Before loading Spatial, the mode set and verified
+  `extension_directories` as the single scratch path
+  `/tmp/opencode/sda-rs-plan8-duckdb/duckdb-home`, and verified
+  `autoload_known_extensions=false` and
+  `autoinstall_known_extensions=false`. It loaded the cached Spatial binary
+  by absolute path. It then verified
+  `allowed_paths=['/data/SSURGO/output/iowa_ssurgo.gpkg']`, set
+  `enable_external_access=false`, and verified the setting. Limits were
+  `memory_limit='1GB'`, `threads=2`, scratch temp directory, and a 60-second
+  process timeout.
+- The sole invocation was
+  `/tmp/opencode/sda-rs-plan8-duckdb/target/release/duckdb-probe bounded-iowa-explain`
+  from `/tmp/opencode/sda-rs-plan8-duckdb`. It issued only this `EXPLAIN`:
+
+  ```sql
+  EXPLAIN SELECT * FROM ST_Read('/data/SSURGO/output/iowa_ssurgo.gpkg', layer='mupolygon', spatial_filter_box=ST_MakeEnvelope(-93.70, 41.50, -93.69, 41.51))
+  ```
+
+- The exact result was a binder error:
+  `Binder Error: Invalid named parameter "spatial_filter_box" for function ST_Read`.
+  No DuckDB plan was produced, so indexed/bounded access was not demonstrated.
+  Treat this as a blocker; do not retry or execute an alternative query in this
+  phase. The complete invocation output is in
+  `/tmp/opencode/sda-rs-plan8-duckdb/bounded-iowa-explain.log`.
+- Immediately before and after the invocation, the source fingerprint was
+  unchanged: SHA-256
+  `7b81951e495799aec46eb3fdd1505131cc62374f2d336420706494fae90571a8`,
+  size `6406705152` bytes, mtime nanoseconds `1795015873192297150`
+  (`2026-11-18 07:31:13.192297150 -0800`).
+- **No `EXPLAIN ANALYZE`, underlying `ST_Read`/spatial-filter query, or other
+  feature-table query was executed; zero Iowa feature rows were returned or
+  read.** Stop here. Even a future passing EXPLAIN requires separate explicit
+  orchestrator approval before Task 8.5.1 feature reads.
