@@ -8,3 +8,4 @@
 | [0004](0004-batch-rollback-on-failure.md) | Roll Back All Writes When a Multi-Statement Batch Fails | Accepted | 2026-11-17 | - | - | Plan 3 |
 | [0005](0005-result-set-numbering.md) | Number Result Sets by Non-Empty Position | Accepted | 2026-11-17 | - | - | Plan 2 |
 | [0006](0006-shared-cache-in-memory-test-databases.md) | Use Shared-Cache In-Memory SQLite for Integration Tests | Accepted | 2026-11-17 | - | - | Plans 2, 3 |
+| [0007](0007-duckdb-opt-in-query-backend.md) | Add DuckDB as an Opt-In Query Backend | Accepted | 2026-11-19 | - | - | Plan 10 |
