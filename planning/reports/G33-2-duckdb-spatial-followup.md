@@ -545,3 +545,39 @@ corrected iterations. **All invocations issued `EXPLAIN` only: no
 `EXPLAIN ANALYZE`, no execution of `ST_Read` or the spatial-filter query, and
 zero Iowa feature rows returned or read.** Stop with the passing plan evidence
 here; Task 8.5.1 remains gated on separate explicit orchestrator approval.
+
+## Wave 5 — Task 8.5.1 bounded Iowa attempt
+
+- Orchestrator approval is recorded in `STATE_8.md`. Reused the Wave 4 EXPLAIN
+  plan above; no new EXPLAIN or EXPLAIN ANALYZE was run.
+- Before and after read-only preflight fingerprint: SHA-256
+  `7b81951e495799aec46eb3fdd1505131cc62374f2d336420706494fae90571a8`, size
+  `6406705152` bytes, mtime `2026-11-18 07:31:13.192297150 -0800`.
+- SQLite opened the exact source by read-only URI and verified
+  `PRAGMA query_only=ON`. Metadata confirmed `mupolygon.geom`, POLYGON, SRS
+  4326. The approved RTree candidate query used
+  `SCAN rtree_mupolygon_geom VIRTUAL TABLE INDEX 2:B0D1B2D3` and returned 29 IDs.
+  It selected no feature columns; no feature rows were read during preflight.
+- Scratch-only bounded mode passed `cargo fmt --check` and offline release
+  build. It verified scratch-only `extension_directories`, disabled
+  autoload/autoinstall before loading only the cached Spatial extension,
+  verified the exact `allowed_paths`, then verified external access false.
+  Settings were 1 GB memory, 2 threads, scratch temp directory, and 60-second
+  process timeout. No network, writes, OS sandbox, downloads, or other source
+  queries were used.
+- The one authorized SQL invocation was exactly:
+
+  ```sql
+  SELECT geom FROM ST_Read('/data/SSURGO/output/iowa_ssurgo.gpkg', layer='mupolygon') WHERE ST_Intersects(geom, ST_MakeEnvelope(-93.70, 41.50, -93.69, 41.51)) LIMIT 100
+  ```
+
+- DuckDB returned an internal error:
+  `TransactionContext::ActiveTransaction called without active transaction`.
+  It returned no row count, result types, or geometry output; therefore the
+  at-most-100 returned-row condition cannot be confirmed. Since the query may
+  have started reading rows before failing, it was not repeated. Whether any
+  feature rows were read is unknown; do not interpret the failed run as a
+  successful bounded comparison or parity result.
+- Immediately-before/after invocation fingerprints matched the preflight
+  fingerprint above. The exact invocation output is retained in
+  `/tmp/opencode/sda-rs-plan8-duckdb/bounded-iowa.log`.
