@@ -19,7 +19,7 @@ CARGO_NET_OFFLINE=true CARGO_TARGET_DIR=/tmp/opencode/sda-rs-duckdb-evaluation/t
 git diff --check
 ```
 
-The runner asserts exact serialized JSON for the TOP/ISNULL/IIF query, captured join, and STRING_AGG query on both backends. Its detailed generated SQL and observed outputs are written to `/tmp/opencode/sda-rs-duckdb-evaluation/tsql-pipeline/probe.md`.
+The runner is intended to assert exact serialized JSON for the TOP/ISNULL/IIF query, captured join, and STRING_AGG query on both backends. The run has **not completed**, so no assertion success or generated-SQL/output capture is verified yet. `probe.md` does not exist.
 
 ## Cases and outcome
 
@@ -30,7 +30,7 @@ Inputs:
 3. `SELECT STRING_AGG([name], ',') AS [names] FROM [sample data]`
 4. `SELECT [id] INTO #picked FROM [sample data] WHERE [id] > 1; SELECT [id] FROM #picked ORDER BY [id]`
 
-The runner records generated DuckDB SQL and results for supported cases; translation/execution errors are captured in the scratch probe record. Exact expected serialized responses asserted by the runner:
+These are expected responses encoded as assertions, not observed outcomes. The active run has not reached the assertion stage:
 
 | Case | SDA JSON |
 |---|---|
@@ -51,7 +51,7 @@ No timing claim is made: this prototype compares equivalent result assertions, b
 ## Verification record
 
 - Offline scratch `cargo check` passed with cached pinned dependencies.
-- Release runner assertions passed for supported cases; see `probe.md` for exact generated SQL and run output.
+- Release runner status: incomplete. The exact command remains active, compiling optimized `polyglot-sql 0.14.1` (`rustc` child PID 287191; cargo PID 284331). At last inspection the child was actively consuming CPU, no compiler/runtime error had been emitted, and `/tmp/opencode/sda-rs-duckdb-evaluation/tsql-pipeline/probe.md` was absent. Do not treat planned assertions or expected responses above as verified.
 - `git diff --check` passed before staging/commit.
 - Repository changes are limited to this report and `planning/tasks/10.4.2.todo.md`; no application source/dependency changes.
-- Stop here for user review. Production scope/controls and Tasks 10.5/10.6 remain unauthorized.
+- This evaluation is incomplete; stop and resume only after the existing release command completes and its output is reconciled. Production scope/controls and Tasks 10.5/10.6 remain unauthorized.
