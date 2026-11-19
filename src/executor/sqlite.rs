@@ -190,8 +190,6 @@ fn open_initialized_with_limits(
     let spatial = spatial::initialize(&connection, extension, geometry_override)?;
     connection.set_limit(Limit::SQLITE_LIMIT_SQL_LENGTH, limits.sql_text);
     connection.set_limit(Limit::SQLITE_LIMIT_LENGTH, limits.sqlite_value);
-    let started = Instant::now();
-    connection.progress_handler(1000, Some(move || started.elapsed() >= limits.deadline));
     connection.authorizer(Some(authorize_sqlite_action));
     Ok((connection, spatial))
 }
@@ -201,6 +199,7 @@ fn authorize_sqlite_action(context: rusqlite::hooks::AuthContext<'_>) -> Authori
     let allowed = match context.action {
         AuthAction::Select | AuthAction::Read { .. } => true,
         AuthAction::CreateTempTable { .. } | AuthAction::DropTempTable { .. } => temp_database,
+        AuthAction::CreateTempIndex { .. } | AuthAction::DropTempIndex { .. } => temp_database,
         AuthAction::Insert { .. } | AuthAction::Update { .. } | AuthAction::Delete { .. } => {
             temp_database
         }
@@ -232,12 +231,15 @@ fn execute_on_with_limits(
     statements: &[String],
     limits: ExecutionLimits,
 ) -> Result<Vec<ResultSet>, ExecutorError> {
+    let started = Instant::now();
+    connection.progress_handler(1000, Some(move || started.elapsed() >= limits.deadline));
     let transaction = connection.unchecked_transaction()?;
     let execution = (|| {
         let mut result_sets = Vec::new();
         let mut returned_rows = 0usize;
 
         for sql in statements {
+            check_deadline(started, limits.deadline)?;
             let mut statement = transaction.prepare(sql)?;
             let column_count = statement.column_count();
             if column_count == 0 {
@@ -253,6 +255,7 @@ fn execute_on_with_limits(
             let mut rows = statement.query([])?;
             let mut values = Vec::new();
             while let Some(row) = rows.next()? {
+                check_deadline(started, limits.deadline)?;
                 if returned_rows >= limits.returned_rows {
                     return Err(ExecutorError::ReturnedRowLimit(limits.returned_rows));
                 }
@@ -296,6 +299,16 @@ fn execute_on_with_limits(
             }
         }
     }
+}
+
+fn check_deadline(started: Instant, deadline: Duration) -> Result<(), ExecutorError> {
+    if started.elapsed() >= deadline {
+        return Err(ExecutorError::Sqlite(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_INTERRUPT),
+            None,
+        )));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -386,21 +399,53 @@ mod tests {
     }
 
     #[test]
-    fn progress_handler_allows_quick_query_and_interrupts_cpu_query() {
-        let quick_limits = ExecutionLimits {
-            deadline: Duration::from_millis(10),
+    fn deadline_interrupts_batch_and_allows_work_with_time() {
+        let sufficient_limits = ExecutionLimits {
+            deadline: Duration::from_secs(1),
             ..small_limits()
         };
-        let connection = limited_connection(quick_limits);
-        assert!(execute_on_with_limits(&connection, &["SELECT 1".into()], quick_limits).is_ok());
+        let connection = limited_connection(sufficient_limits);
+        let cpu_query = "SELECT length(randomblob(100))";
+        assert!(
+            execute_on_with_limits(&connection, &[cpu_query.into()], sufficient_limits).is_ok()
+        );
 
         let expired_limits = ExecutionLimits {
             deadline: Duration::ZERO,
             ..small_limits()
         };
         let connection = limited_connection(expired_limits);
-        let cpu_query = "WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x + 1 FROM n WHERE x < 10000000) SELECT sum(x) FROM n";
-        assert!(execute_on_with_limits(&connection, &[cpu_query.into()], expired_limits).is_err());
+        assert!(matches!(
+            execute_on_with_limits(&connection, &[cpu_query.into()], expired_limits),
+            Err(ExecutorError::Sqlite(rusqlite::Error::SqliteFailure(error, _)))
+                if error.code == rusqlite::ErrorCode::OperationInterrupted
+        ));
+    }
+
+    #[test]
+    fn constrained_temp_tables_can_create_indexes_but_persistent_indexes_are_denied() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch("CREATE TABLE persistent(k TEXT)")
+            .unwrap();
+        connection.authorizer(Some(authorize_sqlite_action));
+        let limits = small_limits();
+        assert!(execute_on_with_limits(
+            &connection,
+            &[
+                "CREATE TEMP TABLE temp_t(k TEXT PRIMARY KEY)".into(),
+                "INSERT INTO temp_t VALUES ('x')".into(),
+                "SELECT * FROM temp_t".into(),
+            ],
+            limits,
+        )
+        .is_ok());
+
+        assert!(matches!(
+            connection.execute("CREATE INDEX persistent_k ON persistent(k)", []),
+            Err(rusqlite::Error::SqliteFailure(error, _))
+                if error.code == rusqlite::ErrorCode::AuthorizationForStatementDenied
+        ));
     }
 
     #[test]
