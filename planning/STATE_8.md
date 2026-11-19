@@ -6,7 +6,7 @@ Plan: `planning/EXECUTION_PLAN_8.md`
 
 - Planning/execution branch: `docs/backend-spike-research`; current HEAD at plan start `a04e12c`. `main` points to the same commit but is not an integration target for this plan.
 - Current checkout was clean at reconnaissance. Existing G33 notes/GOALS updates are committed at `a04e12c`; do not rewrite them.
-- Planning artifacts were initially committed at `01ded44` (`docs(planning): add DuckDB Spatial evaluation plan`); the community-geography scope amendment is pending its separate planning-only commit.
+- Planning artifacts were initially committed at `01ded44`; community-geography scope was amended at `6a0ba73`. A follow-up clarification of the Wave 2 scratch files and OS sandbox command is pending its separate planning-only commit.
 - The cached DuckDB Spatial binary is present at `/tmp/opencode/sda-rs-plan7-duckdb/duckdb-home/v2.0.0/linux_amd64/spatial.duckdb_extension` (about 104 MiB). The previous probe used DuckDB Rust crate `1.20000.2` / engine 2.0.0.
 - Baseline commands/results: `cargo fmt --check` passed; `git diff --check` passed; `cargo test` passed (75 unit, 30 integration); `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed (75 unit, 30 integration). Baseline commit was `a04e12c` on `docs/backend-spike-research`; checkout was clean at reconnaissance.
 - Relevant reports: `planning/reports/G33-2-duckdb-spike-results.md` and `planning/reports/G12-geography-method-feasibility.md`.
