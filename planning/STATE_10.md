@@ -38,10 +38,10 @@ Plan: `planning/EXECUTION_PLAN_10.md`
 | 3 | 10.3.1 | done | Additive accepted ADR 0007; commit 8429946. |
 | 3 | 10.3.2 | done | DuckDB-specific policy with explicit blockers; commit ca8db56. |
 | 4 | 10.4.1 | done | Local-only capability evaluation recorded in `planning/reports/duckdb-capability-evaluation.md`; no production wiring. |
-| 4 | 10.4.2 | running | Scratch end-to-end T-SQL → DuckDB → SDA serialization evaluation; no repository implementation. |
-| 5 | 10.5.1 | blocked | Wait for Task 10.4.1 results and follow-up production-scope approval. |
-| 5 | 10.5.2 | blocked | Wait for Task 10.4.1 engine/artifact findings and follow-up production-scope approval. |
-| 6 | 10.6.1 | blocked | Wait for follow-up production-scope approval and completed prerequisite tasks. |
+| 4 | 10.4.2 | done | Scratch T-SQL → DuckDB → SDA serialization evaluation; report committed as `3473f30`. |
+| 5 | 10.5.1 | blocked | Await follow-up user approval of production scope/controls. |
+| 5 | 10.5.2 | blocked | Await follow-up user approval of production deployment scope. |
+| 6 | 10.6.1 | blocked | Await follow-up user approval of production scope/controls and completed prerequisites. |
 
 ## Task Reports
 
@@ -92,10 +92,23 @@ Plan: `planning/EXECUTION_PLAN_10.md`
 - **Findings:** Synthetic scalar/join/temp-table/results work; raw `execute_batch` left an earlier insert after a later statement failed. External-access disabled blocked tested local CSV read and extension install; default settings allowed a scratch persistent file and local CSV read.
 - **Performance:** Directional only; DuckDB and SQLite executor/serializer paths were not equivalent, so no valid performance-target verdict. Spatial/network not probed.
 - **Resources:** Requested memory/thread settings accepted. Process snapshots varied between ~58 MiB/160 threads and ~20 MiB/74 threads; neither is peak/capacity evidence. Temp-storage limits and concurrent scaling unmeasured.
-- **Next gate:** Complete Task 10.4.2 to evaluate the actual T-SQL-to-DuckDB-to-SDA response flow; then pause for user review before production controls/limits or Tasks 10.5.1, 10.5.2, or 10.6.1.
+- **Next gate:** Task 10.4.2 completed the actual T-SQL-to-DuckDB-to-SDA response evaluation; pause for user review before production controls/limits or Tasks 10.5.1, 10.5.2, or 10.6.1.
 - **Worker:** `openai/gpt-6-luna`; no further escalation.
+
+## 10.4.2
+
+- **Status:** Done; scratch pipeline evaluation recorded in `planning/reports/duckdb-tsql-pipeline-evaluation.md`.
+- **Files:** Report and `planning/tasks/10.4.2.todo.md`; prototype only under `/tmp/opencode/sda-rs-duckdb-evaluation/tsql-pipeline/`.
+- **Checks:** Offline `cargo check` and release runner passed; exact commands in report; orchestrator reran both successfully. `git diff --check` passed.
+- **Matching SDA JSON:** TOP/ISNULL, captured synthetic muaggatt join, and STRING_AGG matched SQLite on the supported subset.
+- **Gaps:** DuckDB dialect leaves IIF, which errors at execution; `SELECT INTO #picked` batch emits an extra CTAS-count result compared with SQLite response shaping. Temporal values are rejected by the scratch mapper.
+- **Performance:** No valid timing comparison; paths are not sufficiently equivalent.
+- **Run history:** First release run took 6m20s to compile and failed reading column names before query execution; scratch-only fix and rerun passed. Intermediate docs commits were corrected/reconciled; final evidence commit `3473f30`.
+- **Next gate:** Pause for user decision on production scope/controls before Tasks 10.5.1, 10.5.2, or 10.6.1.
+- **Worker:** `openai/gpt-6-luna`; token/cost telemetry unavailable.
 
 ## Worker Usage
 
-- Plan 10 tasks 10.3.1, 10.3.2, and 10.4.1 used delegated workers; worker reports identify `openai/gpt-6-luna`. Token/cost telemetry was unavailable.
+- Plan 10 tasks 10.3.1, 10.3.2, 10.4.1, and 10.4.2 used delegated workers; worker reports identify `openai/gpt-6-luna`. Token/cost telemetry was unavailable.
 - Task 10.4.1 had one incomplete scratch-runner attempt followed by a successful bounded retry; orchestrator reran the primary and benchmark binaries.
+- Task 10.4.2 had one long release build/runtime failure, followed by a scratch-only correction; orchestrator reran offline check and release assertions.
