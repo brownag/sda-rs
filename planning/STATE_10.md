@@ -24,6 +24,7 @@ Plan: `planning/EXECUTION_PLAN_10.md`
 - Human gate after SQLite benchmark: no backend implementation until a numeric performance target is explicitly approved and recorded.
 - **2026-11-19 — Performance target approved by user:** DuckDB median latency per operation must improve the geometric mean across the four non-spatial workloads (scalar/select, captured join, batch/temp-table, serialization) by at least 20%; no individual workload may regress by more than 10%. Report spatial separately, excluded from this initial gate.
 - **2026-11-19 — Dependency authorization:** User explicitly authorized the pinned Rust `duckdb` crate and `Cargo.lock` update for Task 10.4.1, subject to its security/API feasibility checks. No unrelated dependencies or policy weakening authorized.
+- **2026-11-19 — Evaluation-first scope:** User directed that Plan 10 first evaluate what DuckDB can do and select production limits afterward. User chose a local-only prototype without hard production gates during capability exploration; constrain probes to scratch paths and synthetic/committed fixtures, with no production service, external/user data, live network requests, or untrusted queries. Production controls/limits and enablement require follow-up approval.
 - Final gate: default and configured-SpatiaLite suites plus Linux x86_64 DuckDB contract/security/deployment checks; hosted trials deferred.
 
 ## Wave Board
@@ -34,10 +35,10 @@ Plan: `planning/EXECUTION_PLAN_10.md`
 | 2 | 10.2.1 | done | User approved 20% geometric-mean median-latency improvement; <=10% individual non-spatial regression; spatial reported separately. |
 | 3 | 10.3.1 | done | Additive accepted ADR 0007; commit 8429946. |
 | 3 | 10.3.2 | done | DuckDB-specific policy with explicit blockers; commit ca8db56. |
-| 4 | 10.4.1 | blocked | Feasibility stop: required security/resource controls and numeric calibration remain unverified; no implementation started. |
-| 5 | 10.5.1 | pending | Spatial/result compatibility. |
-| 5 | 10.5.2 | pending | Pinned deployment artifact. |
-| 6 | 10.6.1 | pending | CI/docs/final acceptance. |
+| 4 | 10.4.1 | pending approval | Re-scoped to local-only capability/performance/resource evaluation; no production backend wiring. |
+| 5 | 10.5.1 | blocked | Wait for Task 10.4.1 results and follow-up production-scope approval. |
+| 5 | 10.5.2 | blocked | Wait for Task 10.4.1 engine/artifact findings and follow-up production-scope approval. |
+| 6 | 10.6.1 | blocked | Wait for follow-up production-scope approval and completed prerequisite tasks. |
 
 ## Task Reports
 
@@ -81,12 +82,10 @@ Plan: `planning/EXECUTION_PLAN_10.md`
 
 ## 10.4.1
 
-- **Status:** Blocked at the required feasibility gate; no source, manifest, lockfile, or dependency changes.
-- **Files:** `planning/tasks/10.4.1.todo.md` records the stop and findings.
-- **Candidate inspected:** DuckDB/Rust client `=1.20000.2`; local source exposes connection interruption, external-access and extension-autoload settings, and memory/thread settings.
-- **Blockers:** Source inspection does not prove enforcement against untrusted SQL; no obvious Rust API for temporary-storage quota/isolation was found. Write/temp-table, file/network/extension restriction, cancellation/cleanup, resource-bound, and numeric calibration/approval evidence remains incomplete.
-- **Decision:** Do not enable DuckDB or weaken `docs/security/duckdb-execution-policy.md`. Resume only after a testable enforceable control design and required numeric resource approvals are established.
-- **Commands:** No tests run; this was a read-only feasibility stop.
+- **Status:** Prior production-boundary implementation attempt stopped before edits. User has requested evaluation-first scope; revised Task 10.4.1 awaits approval.
+- **Prior feasibility finding:** Candidate `duckdb = "=1.20000.2"` source exposes connection interruption, external-access and extension-autoload settings, and memory/thread settings; no obvious Rust API for temp-storage quota/isolation was found. Source inspection did not prove enforcement against untrusted SQL.
+- **Rescope:** Local-only scratch capability/resource/performance evaluation; no application source, repository dependency changes, production backend, external/user data, live network requests, or untrusted SQL.
+- **Next gate:** After the capability report, pause for user decision on production controls, limits, and any implementation scope.
 - **Worker:** `openai/gpt-6-luna`; no further escalation.
 
 ## Worker Usage
