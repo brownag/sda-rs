@@ -17,9 +17,9 @@ Plan: `planning/EXECUTION_PLAN_8.md`
 ## Decisions and Hazards
 
 - Re-evaluate G33-2 because DuckDB Spatial may help address G12; compare all six method contracts, not names alone.
-- Task 8.1.1 used the cached official Spatial extension; its one official fallback was allowed but unused. Task 8.2.1 may use only the DuckDB official community repository for `geography`, and only if its compatibility matrix lists DuckDB 2.0.0/Linux AMD64. Task 8.3.1 must use cached extension files only and no network.
+- Task 8.1.1 used the cached official Spatial extension; its one official fallback was allowed but unused. Task 8.2.1 may make one official community-registry install attempt even if the compatibility matrix is blank, and may research official DuckDB/maintainer sources if it fails; no source build. Task 8.3.1 must use cached extension files only and no network.
 - Exact-path allowlisting does not enforce read-only. Iowa features require an OS read-only sandbox plus preflight-proven indexed/bounded access; otherwise stop without feature rows.
-- The community `geography` extension is S2 spherical, not assumed equivalent to SQL Server's ellipsoidal geography. Official catalog compatibility for DuckDB 2.0.0/Linux AMD64 was not listed at reconnaissance; no install is allowed unless that changes and is verified.
+- The community `geography` extension is S2 spherical, not assumed equivalent to SQL Server's ellipsoidal geography. Official catalog compatibility for DuckDB 2.0.0/Linux AMD64 was not listed at reconnaissance; this does not prevent the single user-authorized official-registry install attempt.
 - Maximum concurrent tasks: one; the three research tasks are sequential, and Iowa Wave 3 is conditional. Worker model: `openai/gpt-6-luna`, following Plan 7's recorded convention.
 - No backend adoption, production prototype, dependency change, ADR supersession, `main` integration, or remote action.
 
