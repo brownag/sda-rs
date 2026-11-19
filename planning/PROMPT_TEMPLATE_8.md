@@ -20,6 +20,7 @@ Paste the task specification verbatim from `planning/EXECUTION_PLAN_8.md`.
 - Keep all new probe files, Cargo targets, logs, and disposable databases under `/tmp/opencode/sda-rs-plan8-duckdb/`. Use `cargo --offline`; if cached Rust dependencies are insufficient, stop and report rather than fetching.
 - Follow the extension acquisition rules for the assigned task: Task 8.1.1 is complete; Task 8.2.1's one official install attempt is complete and must not be repeated; Task 8.3.1 may make exactly one corrected official `INSTALL geography FROM community; LOAD geography;` attempt after setting and verifying `extension_directories` to scratch. Do not alter pre-existing cached binaries or source-build.
 - Use synthetic in-memory geometries for Tasks 8.1.1–8.3.1. Task 8.4.1 is EXPLAIN-only and must not execute an Iowa feature-table query. Iowa feature rows are in scope only for Task 8.5.1, after explicit orchestrator approval and only if indexed/bounded access is proven. Do not use an OS sandbox. DuckDB `allowed_paths` allows writes; use read-only access procedures, prohibit writes, cap results at 100, and record source fingerprints before/after. If access cannot be demonstrated bounded and read-only, stop before reading feature rows.
+- Task 8.4.1 may use read-only official DuckDB 2.0 and GDAL documentation/source access to resolve the `ST_Read` API mismatch and may iteratively correct the scratch EXPLAIN-only mode. Do not treat one invalid parameter or inconclusive plan as terminal; do not download/install packages or extensions. Never execute the Iowa spatial-filter query in Task 8.4.1.
 - Never run a full scan, use `LIMIT` as a substitute for bounded access, modify/copy the Iowa GeoPackage, or stage external data. Record its hash, size, and mtime before and after any authorized feature access.
 - Compare all six methods against SQL Server `geography` contracts; function availability or one matching sample is not parity. No SQL Server engine is available, so distinguish docs from observations.
 - Run only the targeted commands in the task specification. Do not run full repository suites from the worker task.
@@ -51,7 +52,7 @@ Create `planning/tasks/{{id}}.todo.md` with:
 <numbered, max 5; omit if none>
 ```
 
-Use at most 12 steps. Map every acceptance criterion to a probe or check. For Task 8.2.1, do not repeat its completed install attempt. For Task 8.3.1, make at most one corrected official community-registry install attempt and do not perform any Iowa feature read. Task 8.4.1 is preflight-only and must stop before feature rows; Task 8.5.1 requires separate orchestrator gate approval before any feature read. Output the complete micro-TODO and stop. Do not implement until the orchestrator sends:
+Use at most 12 steps. Map every acceptance criterion to a probe or check. For Task 8.2.1, do not repeat its completed install attempt. For Task 8.3.1, make at most one corrected official community-registry install attempt and do not perform any Iowa feature read. Task 8.4.1 is iterative, official-doc-guided, and EXPLAIN-only; it must stop before feature rows. Task 8.5.1 requires separate orchestrator gate approval before any feature read. Output the complete micro-TODO and stop. Do not implement until the orchestrator sends:
 
 > APPROVED -- execute the plan as written. [Answers to any questions from their plan.]
 
