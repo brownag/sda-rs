@@ -439,3 +439,109 @@ data were accessed.
   feature-table query was executed; zero Iowa feature rows were returned or
   read.** Stop here. Even a future passing EXPLAIN requires separate explicit
   orchestrator approval before Task 8.5.1 feature reads.
+
+## Wave 4 — Task 8.4.1 iterative EXPLAIN correction
+
+This section continues the prior Wave 4 entry, which incorrectly treated the
+first binder error as terminal. The corrected query produced an EXPLAIN plan
+showing the spatial envelope inside the `ST_Read` operator. The DuckDB plan,
+GDAL GeoPackage implementation, and existing 29-ID SQLite RTree preflight
+together demonstrate bounded RTree-backed filter pushdown. No feature query
+was executed.
+
+### Official API/source evidence
+
+- DuckDB 2.0 `ST_Read` documentation lists optional `spatial_filter` of type
+  `WKB_BLOB` and `spatial_filter_box` of type `BOX_2D`, and says supported
+  drivers can receive pushed-down spatial filters:
+  <https://duckdb.org/docs/2.0/core_extensions/spatial/functions.html#st_read>
+- Pinned DuckDB Spatial source registers both named parameters and its bind
+  path applies the filter using GDAL `SetSpatialFilterRect` or `SetSpatialFilter`:
+  <https://github.com/duckdb/duckdb-spatial/blob/cf29a21952cdbecbe2961ea93d2e46cb74ac3e2b/src/spatial/modules/gdal/gdal_module.cpp>
+- GDAL's GeoPackage driver documentation describes GeoPackage's interoperable
+  SQLite R-tree spatial-index extension:
+  <https://gdal.org/en/stable/drivers/vector/gpkg.html>
+- GDAL GeoPackage driver source shows `ResetStatementInternal` constructing a
+  query joining the feature table to its RTree and filtering `r.minx`, `r.maxx`,
+  `r.miny`, and `r.maxy` when a spatial filter and spatial index are present:
+  <https://github.com/OSGeo/gdal/blob/f683709e3105c1bac2f75ba6d24afe20abea31b9/ogr/ogrsf_frmts/gpkg/ogrgeopackagetablelayer.cpp#L3895-L3930>
+
+### Distinct EXPLAIN attempts
+
+Every invocation used the fail-closed scratch mode with scratch-only
+`extension_directories`, autoload/autoinstall disabled before explicit loading
+of the cached Spatial extension, exact Iowa `allowed_paths`, external access
+disabled and verified, 1 GB memory, 2 threads, scratch temp directory, and a
+60-second process timeout. No network, extension/package download, or OS
+sandbox was used.
+
+1. Preserved initial query:
+
+   ```sql
+   EXPLAIN SELECT * FROM ST_Read('/data/SSURGO/output/iowa_ssurgo.gpkg', layer='mupolygon', spatial_filter_box=ST_MakeEnvelope(-93.70, 41.50, -93.69, 41.51))
+   ```
+
+   Result: `Binder Error: Invalid named parameter "spatial_filter_box" for function ST_Read`.
+   No plan produced.
+
+2. Corrected the documented `BOX_2D` value type:
+
+   ```sql
+   EXPLAIN SELECT * FROM ST_Read('/data/SSURGO/output/iowa_ssurgo.gpkg', layer='mupolygon', spatial_filter_box=ST_MakeBox2D(ST_Point(-93.70, 41.50), ST_Point(-93.69, 41.51)))
+   ```
+
+   Result: `Binder Error: Invalid named parameter "spatial_filter_box" for function ST_Read`.
+   No plan produced.
+
+3. Tried the distinct documented WKB filter parameter/type:
+
+   ```sql
+   EXPLAIN SELECT * FROM ST_Read('/data/SSURGO/output/iowa_ssurgo.gpkg', layer='mupolygon', spatial_filter=ST_AsWKB(ST_MakeEnvelope(-93.70, 41.50, -93.69, 41.51)))
+   ```
+
+   Result: `Binder Error: Invalid named parameter "spatial_filter" for function ST_Read`.
+   No plan produced. The cached extension's named-parameter behavior differs
+   from the current documented/source declaration; do not infer that the API
+   itself lacks these parameters.
+
+4. Corrected to a SQL spatial predicate, which the planner pushed into the
+   GDAL reader:
+
+   ```sql
+   EXPLAIN SELECT geom FROM ST_Read('/data/SSURGO/output/iowa_ssurgo.gpkg', layer='mupolygon') WHERE ST_Intersects(geom, ST_MakeEnvelope(-93.70, 41.50, -93.69, 41.51))
+   ```
+
+   The plan contained an outer exact `ST_Intersects` filter and this reader
+   node:
+
+   ```text
+   St Read
+     Layer: 0
+     Filter (MinX, MinY, MaxX, MaxY):
+     -93.700000, 41.500000, -93.690000, 41.510000
+     ~2,712,435 rows
+   ```
+
+   The plan also showed a residual `Filter` estimated at `~542,487 rows`;
+   these are planner estimates, not returned rows or observed counts. The
+   reader node's exact pushed-down envelope matches the read-only SQLite RTree
+   candidate query recorded above, which returned 29 candidate IDs. GDAL's
+   cited GeoPackage source uses that rectangle to join/filter the GeoPackage
+   RTree when present. Thus the explain plan demonstrates filter pushdown to
+   the indexed GeoPackage reader; the prior RTree preflight bounds this exact
+   envelope to 29 candidate IDs.
+
+### Fingerprints, acceptance, and stop boundary
+
+For each of the four invocations, the immediately-before and immediately-after
+source fingerprints matched: SHA-256
+`7b81951e495799aec46eb3fdd1505131cc62374f2d336420706494fae90571a8`, size
+`6406705152` bytes, mtime nanoseconds `1795015873192297150`
+(`2026-11-18 07:31:13.192297150 -0800`). Full invocation outputs are retained
+in `/tmp/opencode/sda-rs-plan8-duckdb/bounded-iowa-explain*.log`.
+
+Scratch `cargo fmt --check` and offline release builds passed for the
+corrected iterations. **All invocations issued `EXPLAIN` only: no
+`EXPLAIN ANALYZE`, no execution of `ST_Read` or the spatial-filter query, and
+zero Iowa feature rows returned or read.** Stop with the passing plan evidence
+here; Task 8.5.1 remains gated on separate explicit orchestrator approval.
