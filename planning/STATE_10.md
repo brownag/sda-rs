@@ -23,6 +23,7 @@ Plan: `planning/EXECUTION_PLAN_10.md`
 - Calibrate resources from representative workloads, not Plan 8 probe caps.
 - Human gate after SQLite benchmark: no backend implementation until a numeric performance target is explicitly approved and recorded.
 - **2026-11-19 — Performance target approved by user:** DuckDB median latency per operation must improve the geometric mean across the four non-spatial workloads (scalar/select, captured join, batch/temp-table, serialization) by at least 20%; no individual workload may regress by more than 10%. Report spatial separately, excluded from this initial gate.
+- **2026-11-19 — Dependency authorization:** User explicitly authorized the pinned Rust `duckdb` crate and `Cargo.lock` update for Task 10.4.1, subject to its security/API feasibility checks. No unrelated dependencies or policy weakening authorized.
 - Final gate: default and configured-SpatiaLite suites plus Linux x86_64 DuckDB contract/security/deployment checks; hosted trials deferred.
 
 ## Wave Board
@@ -31,7 +32,7 @@ Plan: `planning/EXECUTION_PLAN_10.md`
 |---|---|---|---|
 | 1 | 10.1.1 | done | SQLite baseline recorded in `planning/reports/duckdb-sqlite-benchmark-baseline.md`; commit dcb4f93. |
 | 2 | 10.2.1 | done | User approved 20% geometric-mean median-latency improvement; <=10% individual non-spatial regression; spatial reported separately. |
-| 3 | 10.3.1 | pending | Backend contract and additive ADR; blocked on numeric-target approval. |
+| 3 | 10.3.1 | done | Additive accepted ADR 0007; commit 8429946. |
 | 3 | 10.3.2 | pending | DuckDB security/resource/deployment policy; blocked on numeric-target approval. |
 | 4 | 10.4.1 | pending | Opt-in execution boundary; requires dependency authorization. |
 | 5 | 10.5.1 | pending | Spatial/result compatibility. |
@@ -51,13 +52,21 @@ Plan: `planning/EXECUTION_PLAN_10.md`
 - **Results:** Scalar 0.013180 ms median / 0.013530 p95; join 0.025569 / 0.028650; batch/temp 0.042959 / 0.047410; serializer 0.009539 / 0.009700; spatial 1.858080 / 1.910820 (configured run; see report for throughput).
 - **Checks:** `git diff --check` and `git diff --cached --check` passed.
 - **Deviation:** Scratch runner initially failed; corrected harness entry point, column definitions, result-set expectations, and batch statement splitting. No source changes.
-- **Limitations:** Single-host serial microbenchmark; peak RSS not measured; no DuckDB comparison or target approval.
+- **Limitations:** Single-host serial microbenchmark; peak RSS not measured; no DuckDB comparison. Numeric target approved at Task 10.2.1.
 
 ## 10.2.1
 
 - **Status:** Done; user explicitly approved the numeric comparison gate.
 - **Decision:** At least 20% improvement in geometric mean median latency across scalar/select, captured join, batch/temp-table, and serialization; no individual workload >10% regression. Spatial is reported separately.
 - **Recorded:** This decision is above under Decisions / Approval Gates. No implementation is authorized by this gate alone; remaining Wave 3 design/policy work may proceed.
+
+## 10.3.1
+
+- **Status:** Done; additive accepted ADR 0007 committed as `8429946`.
+- **Files:** `docs/decisions/README.md`, `docs/decisions/0007-duckdb-opt-in-query-backend.md`, `planning/tasks/10.3.1.todo.md`.
+- **Checks:** `git diff --check`, staged diff check, scoped diff inspection passed; ADRs 0001–0006 unchanged.
+- **Deviation:** None. No implementation tests apply to this documentation-only task.
+- **Worker:** `openai/gpt-6-luna`; no further escalation.
 
 ## Worker Usage
 

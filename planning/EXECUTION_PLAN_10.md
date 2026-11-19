@@ -53,6 +53,7 @@ Establish and, after an explicit numeric performance gate, implement DuckDB as a
 - **2026-11-19 — User-change safety:** Preserve the pre-existing uncommitted `planning/GOALS.md` update from this planning session; include it only in the dedicated planning-artifact commit after review. No broad staging.
 - **2026-11-19 — Baseline:** During Plan 10 drafting, default `cargo test` and configured-SpatiaLite full `cargo test` both passed (75 unit + 30 integration tests, 0 failures); `cargo fmt --check` passed.
 - **2026-11-19 — Performance target approval:** User approved at the Task 10.2.1 gate: DuckDB median latency must improve the geometric mean across the four non-spatial baseline workloads (scalar/select, captured join, batch/temp-table, serialization) by at least 20%; no individual workload may regress by more than 10%. Spatial is reported separately and excluded from this initial threshold.
+- **2026-11-19 — Dependency authorization:** User explicitly authorized adding the pinned Rust `duckdb` crate and updating `Cargo.lock` for Task 10.4.1, subject to the task's security/API feasibility checks. This does not authorize unrelated dependencies or weakening required controls.
 
 ## Reconnaissance
 
