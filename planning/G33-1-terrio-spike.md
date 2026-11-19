@@ -1,4 +1,4 @@
-# G33 — terrio geometry spike
+# G33-1 — terrio geometry spike
 
 **Status:** Source/API reconnaissance complete; runtime fixture measurements not performed.  
 **Date:** 2026-11-19  
@@ -6,7 +6,7 @@
 
 ## Summary
 
-terrio 0.9.0 (published 2026-11-15) exposes useful first-party APIs for GeoPackage vector I/O, geometry operations, CRS parsing/transformation, and geometry types. Its documented vector open path reads layers/features into memory; this is the primary concern for the approximately 6.0 GiB Iowa fixture. The documentation reviewed here does not establish bounded, row-at-a-time access for local GeoPackage layers, nor a measured peak-memory bound. Therefore a runtime spike on a deliberately small representative subset is still needed before using it in a service path.
+terrio 0.9.0 (published 2026-11-15) exposes useful first-party APIs for GeoPackage vector I/O, geometry operations, CRS parsing/transformation, and geometry types. Its documented vector open path reads layers/features into memory; this is the primary concern for the approximately 6.4 GB Iowa fixture. The documentation reviewed here does not establish bounded, row-at-a-time access for local GeoPackage layers, nor a measured peak-memory bound. Therefore a runtime spike on a deliberately small representative subset is still needed before using it in a service path.
 
 The crate also has an `ops::sql` read-only OGR SQL subset, but this is not evidence that it can replace SQLite or execute sda-rs's T-SQL/SQLite contract. The current project relies on SQLite, AST-based T-SQL rewrites, optional SpatiaLite, transaction/batch behavior, metadata discovery and request-local execution. No SQL-engine adoption is supported by this evaluation.
 
@@ -23,7 +23,7 @@ The crate also has an `ops::sql` read-only OGR SQL subset, but this is not evide
 
 ## Fixture and measurement plan
 
-The representative local fixture is `/data/SSURGO/output/iowa_ssurgo.gpkg` (about 6.0 GiB). Earlier repository reconnaissance recorded `mupolygon.geom`, `sapolygon.geom`, and `featpoint.geom` with EPSG:4326 metadata; `IA001` and mukey `1857266` are known stable identifiers. The file must remain read-only and must not be copied into the repository.
+The representative local fixture is `/data/SSURGO/output/iowa_ssurgo.gpkg` (approximately 6.4 GB). Earlier repository reconnaissance recorded `mupolygon.geom`, `sapolygon.geom`, and `featpoint.geom` with EPSG:4326 metadata; `IA001` and mukey `1857266` are known stable identifiers. The file must remain read-only and must not be copied into the repository.
 
 No terrio runtime probe was run in this spike. A follow-up executable should:
 

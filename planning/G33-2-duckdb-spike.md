@@ -1,4 +1,4 @@
-# G34 — DuckDB backend spike
+# G33-2 — DuckDB execution-backend spike
 
 **Status:** Source/API reconnaissance complete; runtime fixture measurements not performed.  
 **Date:** 2026-11-19  

@@ -13,9 +13,14 @@ Source State: STATE_6.md (Plans 5 and 6 complete); PR #1 merged as `62a6b98`
 
 ## Sequenced Goals (Dependency DAG)
 
-- **[G33]** A focused spike evaluates terrio's geometry parsing, operations, CRS handling, and memory behavior against a representative GeoPackage fixture.
+- **[G33-1]** terrio's GeoPackage I/O, geometry decoding/operations, CRS transformations, and memory profile are evaluated on bounded representative fixtures without changing the service backend.
   - Depends on: G29, G30.
-  - Exit criteria: Record supported APIs and gaps; do not adopt terrio as a SQL engine without evidence.
+  - Exit criteria: A sourced spike note records API capabilities and gaps; a small, read-only fixture probe records geometry/CRS comparisons and elapsed time/peak RSS, or explicitly documents a blocker preventing safe measurement. No whole-layer load is attempted without a safety estimate; no SQL-engine adoption is inferred.
+  - First action: Build an isolated probe using terrio's `sqlite` feature and a bounded sample, leaving Cargo dependencies and the Iowa source GeoPackage unchanged.
+- **[G33-2]** DuckDB's Rust integration and Spatial extension are evaluated as an isolated candidate for reading the Iowa GeoPackage, with compatibility, deployment, and resource risks made explicit.
+  - Depends on: G29, G30, G32.
+  - Exit criteria: A sourced spike note records the Rust/Spatial/GDAL API surface and contract gaps; an isolated probe verifies extension availability and bounded GeoPackage reads, compares representative schema/geometry/CRS results with the current backend, and records elapsed time, peak RSS, and resource settings—or documents a concrete blocker before unsafe work. No dependency, wire-contract, or backend change is made by the spike.
+  - First action: Create a disposable Rust probe pinned to a DuckDB version; verify whether Spatial can be loaded reproducibly and offline before querying the read-only fixture.
 - **[G12]** The broader CLR spatial method set—including `STContains`, `STWithin`, `STIntersection`, `STBuffer`, `STArea`, and `STAsText`—is supported with documented unit/SRID semantics.
   - Depends on: G29; AOI construction/intersection MVP behavior is covered by Plan 4.
 
@@ -43,7 +48,7 @@ Source State: STATE_6.md (Plans 5 and 6 complete); PR #1 merged as `62a6b98`
   - Trigger: Reconsider when a hosting/deployment target and authorization for hosted client trials are identified. The local opt-in soilDB/Iowa harness is not hosted validation.
   - Exit criteria: Run representative soilDB and soildb Python workflows against the hosted server; record pass/fail gaps and operational issues.
 - **[G28]** Native SQLite spatial acceleration.
-  - Depends on: G29, G30, G31, G33.
+  - Depends on: G29, G30, G31.
   - Trigger: Reconsider only after those prerequisites validate the geometry representation, predicate semantics, exact evaluation, and R-tree assumptions.
   - Exit criteria: R-tree is used only for conservative candidate filtering followed by exact predicates; indexed and non-indexed results match, including when no usable index exists.
 - **[G35]** Establish whether the opt-in `tests/soildb/` client harness remains worth maintaining after fixture coverage is established.
@@ -83,7 +88,7 @@ Source State: STATE_6.md (Plans 5 and 6 complete); PR #1 merged as `62a6b98`
 ## Ranking Rationale
 
 - The completed pre-hosting foundation is **G32 → G29 → G30**, followed by the bounded package-compatibility work in **G11** (Plans 5 and 6).
-- **G31** is active because metadata correctness underpins spatial queries across layers and is a prerequisite for further spatial readiness work. **G33** is a lower-priority exploratory spike; G28 remains deferred until its correctness prerequisites are complete.
+- **G31** is active because metadata correctness underpins spatial queries across layers and is a prerequisite for further spatial readiness work. **G33-1** and **G33-2** are bounded exploratory spikes, not backend-change authorization; G28 remains deferred until its correctness prerequisites are complete.
 - **G34** remains deferred despite the local opt-in soilDB harness: hosted validation requires an identified deployment target and authorization. **G35** is a maintenance decision, not a reason to remove the current supplementary harness now.
 
 ## Decisions (2026-11-18–19)
