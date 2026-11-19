@@ -28,3 +28,7 @@ modify the checkout. Review the resulting diffs, then regenerate the expected
 `.sqlite.sql` snapshots from the Rust transpiler tests when transpilation
 behavior intentionally changes. CI and ordinary tests do not invoke the R
 capture script or load soilDB.
+
+The query text and format in each manifest entry are sufficient to construct
+the endpoint request for external deployment checks; authentication belongs to
+the caller and is intentionally outside these fixtures and tests.
