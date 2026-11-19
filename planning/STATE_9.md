@@ -29,11 +29,11 @@ Plan: `planning/EXECUTION_PLAN_9.md`
 | Wave | Tasks | Status | Code commit |
 |---|---|---|---|
 | 1 | 9.1.1 G12 feasibility revalidation | done | — (report-only) |
-| 2 | 9.2.1 evidence-backed method behavior | pending | — |
+| 2 | 9.2.1 evidence-backed method behavior | done | — (verification-only) |
 
 ## Final Acceptance Gate (Orchestrator-Owned)
 
-Pending after Wave 2: run serially `cargo fmt --check`, `git diff --check`, `cargo test`, and `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test`.
+Completed after Wave 2: `cargo fmt --check`, `git diff --check`, `cargo test`, and `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` all passed serially.
 
 ## Task Reports
 
@@ -48,3 +48,12 @@ Pending after Wave 2: run serially `cargo fmt --check`, `git diff --check`, `car
 - Wave boundary: `cargo fmt --check`, `git diff --check`, configured full `cargo test` passed (75 unit, 26 integration); configured `cargo test --test spatial_methods_contract` passed (1).
 - Deviations: none. No probes repeated because existing documented probe evidence covered the identified questions.
 - Handoff: Task 9.2.1 may verify and clarify existing explicit rejections; do not implement planar substitutes.
+
+## 9.2.1
+
+- Status: done; current contract and tests already cover all six no-go outcomes, so no implementation or clarification was needed.
+- Files: only `planning/tasks/9.2.1.todo.md` and this state record changed; service source, contract, and tests unchanged.
+- Code commit: none (verification-only task).
+- Tests: configured `cargo test --test spatial_methods_contract` passed (1); `cargo fmt --check` and `git diff --check` passed.
+- Final gates: default and configured-SpatiaLite `cargo test` both passed (75 unit; 26 integration; 0 failures each).
+- Deviations: none. No planar fallback and no dependencies added.
