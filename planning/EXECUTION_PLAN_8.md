@@ -74,9 +74,10 @@ Revisit the blocked G33-2 DuckDB Spatial evaluation using the cached extension i
 | 1 | 8.1.1 | Completed: load/cache official Spatial, run six synthetic probes, and perform a no-feature-row Iowa index preflight. |
 | 2 | 8.2.1 | Completed with setup blocker: the community install attempt failed before network access because its extension directory was not redirected. |
 | 3 | 8.3.1 | Correct the community extension install directory with DuckDB's `extension_directories` setting and make one corrected official install attempt; run synthetic probes if it loads. |
-| 4 | 8.4.1 | Only after explicit orchestrator approval of Wave 1–3 evidence, perform bounded Iowa comparisons; otherwise record why feature reads remain blocked. |
+| 4 | 8.4.1 | Complete the DuckDB spatial-filter EXPLAIN-only preflight; no Iowa feature rows may be read. |
+| 5 | 8.5.1 | Only after explicit orchestrator approval of Wave 1–4 evidence, perform the bounded Iowa comparison; otherwise retain the blocker with zero feature rows. |
 
-Tasks update the same report sequentially; no same-wave file overlap exists. Wave 4 is conditional and must not start feature reads until the orchestrator reviews the indexed/bounded-access evidence and explicitly approves the gate. No OS sandbox is used. No production files are in scope.
+Tasks update the same report sequentially; no same-wave file overlap exists. Wave 4 is preflight-only and must not read feature rows. Wave 5 cannot start until the orchestrator reviews Wave 1–4 indexed/bounded-access evidence and explicitly approves the feature-read gate. No OS sandbox is used. No production files are in scope.
 
 ## Task Specifications
 
@@ -138,15 +139,28 @@ Tasks update the same report sequentially; no same-wave file overlap exists. Wav
 - **Acceptance:** Demonstrate DuckDB's effective `extension_directories` value points only to scratch before installation. Make exactly one corrected official install/load attempt. On success, verify extension provenance and post-load lockdown before synthetic SQL, then append method observations. On failure, capture exact error and source evidence. No Iowa data is read; `git diff --check` passes.
 - **Targeted acceptance command:** Offline scratch build followed by one ordinary synthetic probe invocation; first set and verify `extension_directories=['/tmp/opencode/sda-rs-plan8-duckdb/duckdb-home']`. Do not use Bubblewrap or `DUCKDB_HOME`.
 
-### Task 8.4.1 — Conditional bounded Iowa comparison
+### Task 8.4.1 — DuckDB EXPLAIN-only Iowa preflight
 
 - **ID:** 8.4.1
 - **Repo:** `/home/andrew/workspace/sda-rs`
-- **Depends on:** 8.1.1, 8.2.1, 8.3.1, and explicit orchestrator approval of indexed/bounded-access evidence in `STATE_8.md`.
+- **Depends on:** 8.1.1, 8.2.1, 8.3.1, and orchestrator approval to perform the no-feature-row preflight. No feature-read approval is implied.
 - **Files in scope — must edit:** `planning/reports/G33-2-duckdb-spatial-followup.md` (append the Iowa outcome).
-- **Files in scope — can create:** `planning/tasks/8.4.1.todo.md`; bounded logs only under `/tmp/opencode/sda-rs-plan8-duckdb/`.
+- **Files in scope — can create:** `planning/tasks/8.4.1.todo.md`; a bounded-iowa-EXPLAIN-only mode in the standalone probe, build output, and logs only under `/tmp/opencode/sda-rs-plan8-duckdb/`.
 - **Do not touch:** production files, Cargo manifests, prior reports, user-owned notes, cached extensions, or any source data except the exact Iowa GeoPackage. No soilDB, writes, copies, fallback scans, or remote actions.
-- **Spec:** Recheck the exact Iowa path and source fingerprint. Use read-only SQLite URI/query-only mode for metadata and RTree preflight; run no feature-table query until `EXPLAIN` for the exact DuckDB spatial-filter query demonstrates indexed/bounded access. Set the exact DuckDB `allowed_paths` entry before `enable_external_access=false`; use only read-only data-access functions and no SQL that writes. If all gates pass, perform only the approved comparison with at most 100 features and fixed memory/thread/temp/time limits. Capture exact SQL/options, returned count/types, plan/profile, and source SHA-256/size/mtime before and after. If the index/filter path is not demonstrably bounded, or any read-only check fails, read zero feature rows and append the blocker. No OS sandbox is to be used.
+- **Spec:** Recheck the exact Iowa path and source fingerprint. Use read-only SQLite URI/query-only mode for metadata and RTree preflight. The initial preflight returned 29 RTree IDs but could not run DuckDB `EXPLAIN` because the scratch probe lacked that mode. Extend only the standalone scratch probe with `bounded-iowa-explain`; load only already-cached extensions, set and verify the exact `allowed_paths` entry before `enable_external_access=false`, and run `EXPLAIN` (never `EXPLAIN ANALYZE` or the underlying query) for the exact DuckDB spatial-filter query. The mode must fail closed and must not fetch/return feature rows. If the plan does not demonstrate indexed/bounded access, stop and report the blocker. Even if `EXPLAIN` demonstrates boundedness, stop before any feature-table execution and wait for separate explicit orchestrator approval. Only after that gate may a later approved phase read at most 100 features, using read-only data-access procedures, no SQL writes, fixed memory/thread/temp/time limits, and before/after source fingerprints. No network, Bubblewrap, or OS sandbox.
 - **Grep/recon anchors:** Wave 1–3 report sections and preflight artifacts; DuckDB 2.0 `ST_Read` filter docs; GDAL GeoPackage/RTree docs; original Iowa fingerprint in the Plan 7 report.
-- **Acceptance:** Either record an approved, indexed, bounded, read-only comparison of at most 100 features with unchanged source fingerprint, or record the precise failed gate and confirm zero feature rows were read. Make no unsupported performance/parity claim. `git diff --check` passes.
-- **Targeted acceptance command:** Only after separate orchestrator gate approval, run the ordinary `duckdb-probe bounded-iowa` command with extensions cached by prior waves and configured through `extension_directories`; do not wrap it in Bubblewrap. Otherwise, no feature-read command may run.
+- **Acceptance:** Run the scratch `bounded-iowa-explain` mode and append its exact SQL, DuckDB plan, source fingerprints, and bounded-access conclusion to the report. No Iowa feature-table query may execute in this phase, whether the plan passes or fails; explicitly record zero feature rows read. A separate orchestrator approval is required before any later feature-read command. Make no unsupported performance/parity claim. `git diff --check` passes.
+- **Targeted acceptance command:** Offline scratch build followed by one ordinary `duckdb-probe bounded-iowa-explain` invocation; it must issue only `EXPLAIN` for the exact spatial-filter query after extension/allowlist setup and lockdown. Never run `bounded-iowa` without separate approval.
+
+### Task 8.5.1 — Conditional bounded Iowa comparison
+
+- **ID:** 8.5.1
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Depends on:** 8.1.1–8.4.1 and explicit orchestrator approval of successful indexed/bounded-access evidence in `STATE_8.md`.
+- **Files in scope — must edit:** `planning/reports/G33-2-duckdb-spatial-followup.md` (append the Iowa comparison outcome).
+- **Files in scope — can create:** `planning/tasks/8.5.1.todo.md`; bounded logs only under `/tmp/opencode/sda-rs-plan8-duckdb/`.
+- **Do not touch:** production files, Cargo manifests, prior reports, user-owned notes, cached extensions, or any source data except the exact Iowa GeoPackage. No soilDB, writes, copies, fallback scans, or remote actions.
+- **Spec:** This task is blocked until the orchestrator explicitly approves the Wave 1–4 evidence. If approved, recheck the exact Iowa path and source fingerprint. Use read-only SQLite URI/query-only mode and DuckDB's read-only access procedures. Set the exact DuckDB `allowed_paths` entry before `enable_external_access=false`; use only read-only data-access functions and no SQL that writes. Execute only the spatial-filter query established by Task 8.4.1's passing EXPLAIN, with at most 100 features and fixed memory/thread/temp/time limits. Capture exact SQL/options, returned count/types, plan/profile, and source SHA-256/size/mtime before and after. If any read-only check fails, plan differs, or boundedness is uncertain, read zero feature rows and append the blocker. No OS sandbox or network.
+- **Grep/recon anchors:** Wave 1–4 report sections and preflight artifacts; DuckDB 2.0 `ST_Read` filter docs; GDAL GeoPackage/RTree docs; original Iowa fingerprint in the Plan 7 report.
+- **Acceptance:** Either record an explicitly approved, indexed, bounded, read-only comparison of at most 100 features with unchanged source fingerprint, or record the precise failed gate and confirm zero feature rows were read. Make no unsupported performance/parity claim. `git diff --check` passes.
+- **Targeted acceptance command:** Only after explicit orchestrator gate approval, run `duckdb-probe bounded-iowa` with extensions cached by prior waves and configured through `extension_directories`; do not use Bubblewrap or network. Otherwise, no feature-read command may run.

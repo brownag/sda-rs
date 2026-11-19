@@ -30,7 +30,8 @@ Plan: `planning/EXECUTION_PLAN_8.md`
 | 1 | 8.1.1 Official Spatial synthetic evaluation and no-feature-row Iowa preflight | done | `cb45a3c`, `87c2deb` |
 | 2 | 8.2.1 Community geography initial attempt | done (setup blocker) | `31d06b2` |
 | 3 | 8.3.1 Corrected community geography install and synthetic evaluation | done | `de80cd5` |
-| 4 | 8.4.1 Conditional bounded Iowa comparison | preflight done; DuckDB EXPLAIN gate unmet, zero feature rows | `10202d4` |
+| 4 | 8.4.1 DuckDB EXPLAIN-only Iowa preflight | active; RTree gate passed, DuckDB EXPLAIN mode required | `10202d4` |
+| 5 | 8.5.1 Conditional bounded Iowa comparison | gated; no feature reads without passing EXPLAIN and explicit approval | — |
 
 ## Task Reports
 
@@ -66,10 +67,10 @@ Plan: `planning/EXECUTION_PLAN_8.md`
 - RTree candidate query used `LIMIT 101`, returned 29 IDs, and `EXPLAIN QUERY PLAN` showed `VIRTUAL TABLE INDEX 2:B0D1B2D3`.
 - Source SHA-256/size/mtime matched before and after: `7b81951e...e90571a8`, 6,406,705,152 bytes, mtime `2026-11-18 07:31:13.192297150 -0800`.
 - DuckDB spatial-filter `EXPLAIN` was not run because the scratch probe lacks an EXPLAIN-only mode. This gate remains unmet; no feature query or `ST_Read` ran, and zero feature rows were read/returned.
-- Next: prepare/review a scratch-only EXPLAIN mode; do not authorize feature reads unless its plan demonstrates bounded indexed access and a separate orchestrator gate is passed.
+- Next: add a scratch-only EXPLAIN mode under the clarified Task 8.4.1 scope; do not authorize feature reads unless its plan demonstrates bounded indexed access and a separate orchestrator gate is passed.
 
 ## Final Acceptance Gate
 
 - Verify corrected community-extension outcome and synthetic lockdown gate; run `git diff --check`.
-- Waves 1–3 must not read Iowa feature-table rows. Permit Wave 4 only after review of indexed/bounded-access evidence and explicit orchestrator approval; no OS sandbox is to be used.
+- Waves 1–4 must not read Iowa feature-table rows. Permit Wave 5 only after review of passing DuckDB EXPLAIN/indexed/bounded-access evidence and explicit orchestrator approval; no OS sandbox is to be used.
 - Do not run full Rust suites for this research-only plan; no production files are in scope.
