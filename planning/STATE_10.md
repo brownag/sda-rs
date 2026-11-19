@@ -33,7 +33,7 @@ Plan: `planning/EXECUTION_PLAN_10.md`
 | 1 | 10.1.1 | done | SQLite baseline recorded in `planning/reports/duckdb-sqlite-benchmark-baseline.md`; commit dcb4f93. |
 | 2 | 10.2.1 | done | User approved 20% geometric-mean median-latency improvement; <=10% individual non-spatial regression; spatial reported separately. |
 | 3 | 10.3.1 | done | Additive accepted ADR 0007; commit 8429946. |
-| 3 | 10.3.2 | pending | DuckDB security/resource/deployment policy; blocked on numeric-target approval. |
+| 3 | 10.3.2 | done | DuckDB-specific policy with explicit blockers; commit ca8db56. |
 | 4 | 10.4.1 | pending | Opt-in execution boundary; requires dependency authorization. |
 | 5 | 10.5.1 | pending | Spatial/result compatibility. |
 | 5 | 10.5.2 | pending | Pinned deployment artifact. |
@@ -66,6 +66,17 @@ Plan: `planning/EXECUTION_PLAN_10.md`
 - **Files:** `docs/decisions/README.md`, `docs/decisions/0007-duckdb-opt-in-query-backend.md`, `planning/tasks/10.3.1.todo.md`.
 - **Checks:** `git diff --check`, staged diff check, scoped diff inspection passed; ADRs 0001–0006 unchanged.
 - **Deviation:** None. No implementation tests apply to this documentation-only task.
+- **Worker:** `openai/gpt-6-luna`; no further escalation.
+
+## 10.3.2
+
+- **Status:** Done; DuckDB execution policy committed as `ca8db56`.
+- **Files:** `docs/security/duckdb-execution-policy.md`, `planning/tasks/10.3.2.todo.md`.
+- **Checks:** scoped `git diff --check` and committed diff check passed.
+- **Policy blockers:** Verify write denial, file/network/extension restrictions, cancellation, resource limits, temporary storage, and numeric calibration on the selected production pin; SQLite baseline does not establish peak RSS or concurrency.
+- **Wave 3 gates:** `cargo fmt --check && git diff --check && cargo test` passed (75 unit, 30 integration; 0 failures).
+- **Wave 3 gates:** `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed (75 unit, 30 integration; 0 failures).
+- **Deviation:** No numeric resource limits were invented; no OS sandbox or source changes.
 - **Worker:** `openai/gpt-6-luna`; no further escalation.
 
 ## Worker Usage
