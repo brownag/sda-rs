@@ -31,7 +31,8 @@ Plan: `planning/EXECUTION_PLAN_8.md`
 | 2 | 8.2.1 Community geography initial attempt | done (setup blocker) | `31d06b2` |
 | 3 | 8.3.1 Corrected community geography install and synthetic evaluation | done | `de80cd5` |
 | 4 | 8.4.1 Iterative DuckDB spatial-filter preflight | done; corrected plan shows RTree-backed filter pushdown | `10202d4`, `548f50a`, `0714756` |
-| 5 | 8.5.1 Conditional bounded Iowa comparison | feature-read gate approved by orchestrator; micro-plan pending, max 100 features | — |
+| 5 | 8.5.1 Conditional bounded Iowa comparison | done with DuckDB transaction error; possible reads unknown | `18cd367`, `3a85296` |
+| 6 | 8.6.1 Repair and retry bounded DuckDB execution | pending recovery micro-plan and separate orchestrator approval; conservatively reserve 29/100 candidates for prior attempt | — |
 
 ## Task Reports
 
@@ -60,7 +61,7 @@ Plan: `planning/EXECUTION_PLAN_8.md`
 - Extension `geography` `f777314ad0`, SHA-256 `f0c5172314e86530d7680b34c62bc092acd64ae8440b43428a5be7ecbe1ad7ad`; six method observations and contract limits are in the report.
 - No Iowa reads or OS sandbox; no production/Cargo/cached Spatial changes. `git diff --check` passed; working tree was clean after commit.
 
-### 8.4.1 — Preflight progress; iteration authorized
+### 8.4.1 — Complete; bounded plan demonstrated
 
 - Report appended in `planning/reports/G33-2-duckdb-spatial-followup.md`; preflight commits `10202d4` and `548f50a`; TODO: `planning/tasks/8.4.1.todo.md`.
 - SQLite opened the exact GeoPackage with URI `mode=ro` and `PRAGMA query_only=ON`; metadata confirmed `mupolygon.geom`, POLYGON, SRS 4326.
@@ -72,8 +73,17 @@ Plan: `planning/EXECUTION_PLAN_8.md`
 - All per-attempt source fingerprints matched; no `EXPLAIN ANALYZE`, underlying `ST_Read`, or feature-table query ran. Zero Iowa feature rows were read/returned; no download, source-data write, OS sandbox, or repository code change.
 - **Gate decision:** Based on the passing DuckDB plan, GDAL RTree implementation evidence, and matching 29-ID read-only SQLite preflight, the orchestrator approves Task 8.5.1 to read at most 100 features using only the exact planned filter query. Read-only procedures, no SQL writes, and before/after source fingerprints remain required.
 
+### 8.5.1 — Complete with internal execution error
+
+- Report/TODO: Wave 5 section in `planning/reports/G33-2-duckdb-spatial-followup.md`; `planning/tasks/8.5.1.todo.md`; commits `18cd367`, `3a85296`.
+- Read-only SQLite preflight reverified `query_only=ON`, the exact GeoPackage metadata, and 29 RTree IDs for the approved envelope.
+- Scratch fmt/offline build and lockdown checks passed; only the approved SQL was invoked once.
+- DuckDB failed with `TransactionContext::ActiveTransaction called without active transaction`; no count/types/results returned.
+- The query may have read rows before failing; exact number is unknown. Before/after source fingerprints matched; no other source query or write occurred.
+- Conservatively reserve all 29 RTree candidates against the 100-feature cap. Task 8.6.1 may diagnose and correct the scratch execution path; recovery requires separate orchestrator approval.
+
 ## Final Acceptance Gate
 
 - Verify corrected community-extension outcome and synthetic lockdown gate; run `git diff --check`.
-- Waves 1–4 did not read Iowa feature-table rows. Wave 5 has explicit orchestrator authorization for at most 100 features using the exact Wave 4 filter plan; the worker must still produce and pass its micro-plan before execution. No OS sandbox is to be used.
+- Waves 1–4 did not read Iowa feature-table rows. Wave 5 had explicit orchestrator authorization for the exact query, but DuckDB failed internally and whether it read any rows is unknown. Wave 6 may diagnose/fix the scratch harness and retry only the exact query while accounting conservatively against the remaining 100-feature budget, after separate orchestrator approval. No OS sandbox is to be used.
 - Do not run full Rust suites for this research-only plan; no production files are in scope.
