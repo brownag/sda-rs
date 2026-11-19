@@ -1,7 +1,7 @@
 # Project Goals (`planning/GOALS.md`)
 
 Last Updated: 2026-11-19
-Source State: STATE_8.md (Plan 8 complete); PR #1 merged as `62a6b98`
+Source State: STATE_9.md (Plan 9 complete); Plans 8–9 are merged on `main` as `7b1ad61`
 
 ## Circled Goal (Active)
 
@@ -18,8 +18,8 @@ Source State: STATE_8.md (Plan 8 complete); PR #1 merged as `62a6b98`
   - Exit criteria: Tests demonstrate metadata resolution for each referenced table/geometry column and explicit rejection of missing or ambiguous metadata; existing Mukey validation and non-spatial queries remain intact.
   - First action: Audit `src/spatial.rs` and spatial-transpiler call sites against multi-table geometry queries; identify uncovered cases before planning implementation.
 - **[G37]** DuckDB's production query surface has an explicit, tested support/rejection matrix, including per-method outcomes for the six G12 geography methods.
-  - Depends on: G36, G12.
-  - Exit criteria: Every included SQL construct and spatial method has semantics, units/CRS requirements, NULL/error behavior, and acceptance tests; unsupported behavior remains explicitly rejected. No SQL Server parity is claimed without evidence.
+  - Depends on: G36, G29.
+  - Exit criteria: Every included SQL construct and spatial method has semantics, units/CRS requirements, NULL/error behavior, and acceptance tests. The six CLR geography methods retain Plan 9's explicit rejection unless new evidence establishes a runtime-enforceable SQL Server-compatible contract; no planar substitute or parity claim is allowed.
 - **[G38]** DuckDB execution preserves the chosen request isolation, blocking-worker, batch, and failure semantics.
   - Depends on: G36, G37.
   - Exit criteria: The backend boundary and connection lifecycle are documented and integration tests show request state isolation, cancellation/deadline behavior, and the agreed batch failure/rollback contract.
@@ -48,9 +48,6 @@ Source State: STATE_8.md (Plan 8 complete); PR #1 merged as `62a6b98`
   - Depends on: G29, G30.
   - Exit criteria: A sourced spike note records API capabilities and gaps; a small, read-only fixture probe records geometry/CRS comparisons and elapsed time/peak RSS, or explicitly documents a blocker preventing safe measurement. No whole-layer load is attempted without a safety estimate; no SQL-engine adoption is inferred.
   - First action: Build an isolated probe using terrio's `sqlite` feature and a bounded sample, leaving Cargo dependencies and the Iowa source GeoPackage unchanged.
-- **[G12]** The broader CLR spatial method set—including `STContains`, `STWithin`, `STIntersection`, `STBuffer`, `STArea`, and `STAsText`—is supported with documented unit/SRID semantics.
-  - Depends on: G29; AOI construction/intersection MVP behavior is covered by Plan 4.
-
 ## Independent Backlog
 
 - **[G9]** Request handling has an explicit, configurable payload limit with tested boundary behavior.
@@ -70,6 +67,9 @@ Source State: STATE_8.md (Plan 8 complete); PR #1 merged as `62a6b98`
 
 ## Deferred
 
+- **[G12]** The broader CLR spatial method set—including `STContains`, `STWithin`, `STIntersection`, `STBuffer`, `STArea`, and `STAsText`—is supported with documented unit/SRID semantics.
+  - Depends on: G29; AOI construction/intersection MVP behavior is covered by Plan 4.
+  - Trigger: Reconsider only when a runtime-enforceable implementation path can meet SQL Server geography semantics for a defined subset. Plan 9 found no safe implementation at the current SQLite/SpatiaLite seam; Plan 10 preserves those rejections unless new evidence changes the boundary.
 - **[G46]** DuckDB's community `geography` extension provides production support for any member of the six-method G12 set.
   - Trigger: Reconsider only if a future maintained release supplies the missing/incorrect operations and passes the G37 semantic contract, including SQL Server boundary and SRID behavior.
 - **[G34]** The server is hosted and validated against SDA applications using representative real client workflows.
@@ -118,7 +118,7 @@ Source State: STATE_8.md (Plan 8 complete); PR #1 merged as `62a6b98`
 ## Ranking Rationale
 
 - The completed pre-hosting foundation is **G32 → G29 → G30**, followed by the bounded package-compatibility work in **G11** (Plans 5 and 6).
-- **G36** is active because Plan 8's bounded read succeeded but production role, supported semantics, deployment, security, and workload criteria remain unresolved. It is a decision/acceptance-contract goal, not implementation authorization. **G31** remains sequenced because metadata correctness underpins multi-table spatial behavior. **G33-1** remains a bounded exploratory spike; completed **G33-2** did not authorize backend adoption. G28 remains deferred until its correctness prerequisites are complete.
+- **G36** is active because Plan 8's bounded read succeeded but production role, supported semantics, deployment, security, and workload criteria remain unresolved. It is a decision/acceptance-contract goal, not implementation authorization. **G31** remains sequenced because metadata correctness underpins multi-table spatial behavior. **G33-1** remains a bounded exploratory spike; completed **G33-2** did not authorize backend adoption. **G12** is deferred after Plan 9 found no safe geography-compatible implementation at the current seam; Plan 10 must preserve explicit rejections absent new evidence. G28 remains deferred until its correctness prerequisites are complete.
 - **G34** remains deferred despite the local opt-in soilDB harness: hosted validation requires an identified deployment target and authorization. **G35** is a maintenance decision, not a reason to remove the current supplementary harness now.
 
 ## Decisions (2026-11-18–19)
