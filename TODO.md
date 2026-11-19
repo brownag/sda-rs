@@ -6,9 +6,9 @@ Decouple the default sda-rs compatibility tests from soilDB's private endpoint o
 ## Tasks
 
 ### 1. Inventory and capture representative requests
-- [ ] Inspect the soilDB integration tests and local soilDB query-generation functions to identify representative SDA queries, parameters, and expected result shapes.
-- [ ] Capture minimal SQL/request fixtures for the selected query families, recording provenance and any data prerequisites; do not copy soilDB implementation code.
-- [ ] Commit the tracked plan separately before implementation.
+- [x] Inspect the soilDB integration tests and local soilDB query-generation functions to identify representative SDA queries, parameters, and expected result shapes.
+- [x] Capture three minimal query fixtures: SDA_spatialQuery mukey CTE, SDA_spatialQuery areasymbol CTE, and get_SDA_muaggatt join. Their originating calls and prerequisites are recorded alongside the fixtures.
+- [x] Commit the tracked plan separately before implementation (`70bf2aa`).
 
 ### 2. Run fixtures against the backend
 - [ ] Add backend-owned tests that submit the captured fixtures directly to sda-rs, using deterministic fixtures or clearly gated external data as appropriate.
