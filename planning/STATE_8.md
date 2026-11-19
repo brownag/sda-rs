@@ -32,7 +32,7 @@ Plan: `planning/EXECUTION_PLAN_8.md`
 | 3 | 8.3.1 Corrected community geography install and synthetic evaluation | done | `de80cd5` |
 | 4 | 8.4.1 Iterative DuckDB spatial-filter preflight | done; corrected plan shows RTree-backed filter pushdown | `10202d4`, `548f50a`, `0714756` |
 | 5 | 8.5.1 Conditional bounded Iowa comparison | done with DuckDB transaction error; possible reads unknown | `18cd367`, `3a85296` |
-| 6 | 8.6.1 Repair and retry bounded DuckDB execution | approved by orchestrator 2026-11-19; conservatively reserve 29/100 candidates for prior attempt | — |
+| 6 | 8.6.1 Repair and retry bounded DuckDB execution | complete; streaming retry returned 24 rows; conservative charge 58/100 | `ab37920`; planning commit pending |
 
 ## Task Reports
 
@@ -82,14 +82,17 @@ Plan: `planning/EXECUTION_PLAN_8.md`
 - The query may have read rows before failing; exact number is unknown. Before/after source fingerprints matched; no other source query or write occurred.
 - Conservatively reserve all 29 RTree candidates against the 100-feature cap. Task 8.6.1 may diagnose and correct the scratch execution path; recovery requires separate orchestrator approval.
 
-### 8.6.1 — Recovery approved
+### 8.6.1 — Complete
 
-- The orchestrator approved diagnosis and bounded retry on 2026-11-19.
-- Authorization covers only scratch execution-path changes and, after offline validation and read-only RTree/fingerprint gates, the exact Task 8.5.1 query.
-- The uncertain Task 8.5.1 invocation is charged 29 candidates; no more than 71 additional candidate reads may be charged.
+- TODO: `planning/tasks/8.6.1.todo.md`; report: Wave 6 in `planning/reports/G33-2-duckdb-spatial-followup.md`.
+- Report commit: `ab37920`.
+- Streaming Arrow scratch correction passed synthetic geometry validation, `cargo fmt --check`, and offline release build.
+- Read-only RTree recheck returned 29 candidates. The exact approved query returned 24 GeoArrow-WKB Binary geometries, one batch, zero nulls.
+- Source fingerprints matched before/after. Conservative cumulative charge: 29 prior uncertain + 29 retry = 58/100; no further attempt needed.
+- No parity or performance conclusion is claimed; prior attempt's read count remains unknown.
 
 ## Final Acceptance Gate
 
 - Verify corrected community-extension outcome and synthetic lockdown gate; run `git diff --check`.
-- Waves 1–4 did not read Iowa feature-table rows. Wave 5 had explicit orchestrator authorization for the exact query, but DuckDB failed internally and whether it read any rows is unknown. Wave 6 may diagnose/fix the scratch harness and retry only the exact query while accounting conservatively against the remaining 100-feature budget, after separate orchestrator approval. No OS sandbox is to be used.
+- Waves 1–4 did not read Iowa feature-table rows. Wave 5's authorized query failed internally and its read count remains unknown. Wave 6's separately approved streaming correction succeeded with 24 returned rows; cumulative conservative candidate charge is 58/100 and source fingerprints match. No OS sandbox was used.
 - Do not run full Rust suites for this research-only plan; no production files are in scope.
