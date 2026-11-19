@@ -65,6 +65,26 @@ Learn method pages. There was no SQL Server runtime.
 | `STArea` / `ST_Area` | A 1-degree square returned `Double(1.0)`; `ST_Area_Spheroid` on a synthetic north-of-equator polygon returned `Double(12305128751.042904)` with `geometry_always_xy=true`. Empty polygon returned `Double(0.0)`; NULL returned `Null`. | SQL Server geography area uses SRID-associated square units (square meters for 4326) and returns zero for empty or zero-/one-dimensional instances. Ordinary DuckDB area is planar coordinate units. The spheroid result is a distinct WGS84-oriented operation, not demonstrated SQL Server numeric parity. |
 | `STAsText` / `ST_AsText` | WKT is returned as Rust `Text`; `POINT Z (1 2 3)` and `POINT M (1 2 3)` retained Z/M. | SQL Server returns WKT text and omits Z/M. This observed dimensional behavior differs; only a restricted ordinary 2D comparison may be useful. |
 
+### Native spatial result types (supplemental probe)
+
+The original `ST_Intersection` and `ST_Buffer` observations wrapped their
+results in `ST_AsText`; therefore their recorded `Text` type was the wrapper's
+output type, not the native spatial operation's type. A focused rerun queried
+the functions directly, using the same in-memory synthetic geometries and
+cached extension load followed by autoload/autoinstall lockdown and
+`enable_external_access=false`. The direct Rust `ValueRef` observations were:
+
+- `ST_Intersection(...)` returned `Geometry([ ... ])` (DuckDB Rust
+  `ValueRef::Geometry`), for the polygon/line crossing whose wrapped WKT is
+  `LINESTRING (0 0.5, 1 0.5)`.
+- `ST_Buffer(..., 1)` returned `Geometry([ ... ])` (`ValueRef::Geometry`),
+  for the planar point buffer. The `ST_AsText(ST_Buffer(...))` expression
+  returned `Text(POLYGON (...))` (`ValueRef::Text`).
+
+Thus the native results are DuckDB `GEOMETRY` values represented as
+`ValueRef::Geometry`; only their `ST_AsText` wrappers are Rust `Text`. This is
+an observed DuckDB/Rust representation, not a SQL Server geography type claim.
+
 The DuckDB 2.0 Spatial reference lists the corresponding operations; it does
 not make name similarity a geography contract. The probe also found that
 `spatial_version()` and `ST_SRID` were unavailable, and `duckdb_extensions()`
