@@ -4,8 +4,8 @@ Plan: `planning/EXECUTION_PLAN_7.md`
 
 ## Baseline
 
-- Branch: `main`; baseline HEAD at planning start: `6b6ec34`; two commits ahead of `origin/main`.
-- User-owned worktree changes exist in `planning/GOALS.md` and G33-1/G33-2 spike notes; older G33/G34 paths have staged-add/working-tree-delete changes. Preserve them. Plan 7 files use unique paths, and the DuckDB task is self-contained if those notes are absent from its worktree.
+- Planning branch: `main`; implementation branch: `spatial-readiness` in `/tmp/opencode/sda-rs-spatial-readiness`, created from planning HEAD `b0dae6a`. Baseline HEAD at planning start: `6b6ec34`; current `main` is three commits ahead of `origin/main`.
+- User-owned worktree changes remain on `main` in `planning/GOALS.md` and G33-1/G33-2 spike notes; older G33/G34 paths have working-tree deletions. Preserve them. Plan 7 files use unique paths, and the DuckDB task is self-contained if those notes are absent from its worktree.
 - Plans 1–6 exist. Planning artifacts are tracked and must be committed separately from implementation.
 - Active ADRs 0001–0006 are Accepted; no supersession is authorized.
 - `cargo test`: passed (70 unit tests; 23 integration tests; 0 failures).
@@ -17,7 +17,8 @@ Plan: `planning/EXECUTION_PLAN_7.md`
 - Iowa GeoPackage: `/data/SSURGO/output/iowa_ssurgo.gpkg`; use read-only. Existing Plan 6 reports list stable area symbol `IA001` and mukey `1857266`.
 - Targeted large files: `src/spatial.rs` (547 lines), `src/transpiler/spatial.rs` (1,330 lines); use grep anchors from task specs.
 - No task worker has started. Do not infer task completion from baseline checks.
-- No Plan 7 task worktrees exist yet. Before execution, choose/confirm a non-default task branch and verify user-owned changes are not lost or accidentally staged. Plan 3–5 detached worktrees are retained; four stale `.claude` worktree registrations are reported as prunable by Git. Do not reuse or remove any without inspecting and explicit authorization.
+- Plan 7 task worktree: `/tmp/opencode/sda-rs-spatial-readiness`, branch `spatial-readiness`, created from `b0dae6a`; active. It excludes the user-owned changes left on `main`. Plan 3–5 detached worktrees are retained; four stale `.claude` worktree registrations are reported as prunable by Git. Do not reuse or remove any without inspecting and explicit authorization.
+- Clean implementation baseline on `spatial-readiness`: `cargo test` passed (70 unit tests; 23 integration tests; 0 failures); `cargo fmt --check` passed; `git diff --check` passed. Configured SpatiaLite suite not rerun yet.
 
 ## Decisions and Hazards
 
