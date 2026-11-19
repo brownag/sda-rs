@@ -16,12 +16,28 @@ From any directory, using the scratch harness:
 CARGO_NET_OFFLINE=true CARGO_TARGET_DIR=/tmp/opencode/sda-rs-duckdb-evaluation/target \
   cargo check --manifest-path /tmp/opencode/sda-rs-duckdb-evaluation/Cargo.toml
 CARGO_NET_OFFLINE=true CARGO_TARGET_DIR=/tmp/opencode/sda-rs-duckdb-evaluation/target \
-  cargo run --release --offline --manifest-path /tmp/opencode/sda-rs-duckdb-evaluation/Cargo.toml
+  cargo run --release --offline --manifest-path /tmp/opencode/sda-rs-duckdb-evaluation/Cargo.toml \
+  --bin sda-rs-duckdb-evaluation
 CARGO_NET_OFFLINE=true CARGO_TARGET_DIR=/tmp/opencode/sda-rs-duckdb-evaluation/target \
   cargo run --release --offline --manifest-path /tmp/opencode/sda-rs-duckdb-evaluation/Cargo.toml --bin benchmark
+CARGO_NET_OFFLINE=true CARGO_TARGET_DIR=/tmp/opencode/sda-rs-duckdb-evaluation/target \
+  cargo run --release --offline --manifest-path /tmp/opencode/sda-rs-duckdb-evaluation/Cargo.toml --bin rss_probe
 ```
 
 The prototype initializes two threads and a 1 GiB DuckDB memory setting for the primary database. A second connection sets `enable_external_access=false`; extension autoload is disabled. These are probe settings, not proposed limits.
+
+For the RSS/thread snapshot, remove any prior ready marker, then run the built `rss_probe` binary and inspect it during its 20-second sample window:
+
+```sh
+rm -f /tmp/opencode/sda-rs-duckdb-evaluation/disposable/ready
+/tmp/opencode/sda-rs-duckdb-evaluation/target/release/rss_probe &
+pid=$!
+while [ ! -f /tmp/opencode/sda-rs-duckdb-evaluation/disposable/ready ]; do sleep 0.1; done
+ps -o pid,nlwp,rss,vsz -p "$pid"
+wait "$pid"
+```
+
+On orchestrator rerun, both the primary runner and benchmark binary passed all assertions. Timing distributions varied from the recorded run (for example, scalar median was 1.234 ms in the primary runner and 0.998 ms in the benchmark binary versus 1.058 ms in the recorded primary run), reinforcing that this is a directional single-host probe, not a production capacity result.
 
 ## Workload timings
 
@@ -51,7 +67,7 @@ Spatial was not run. The scratch evaluation did not load or provision a verified
 | Local file access | `read_csv_auto` read the probe-authored CSV with default external access enabled. |
 | External access setting | With `enable_external_access=false`, local CSV reading failed with a permission error (“file system operations are disabled by configuration”). `INSTALL spatial` also failed while accessing the extension cache directory. No network attempt was made. |
 | Extension behavior | Extension autoload was disabled. Loading a pre-existing extension was not tested; `INSTALL spatial` denial under the external-access setting is the only extension probe. |
-| Threads/memory/temp | Configuration accepted `threads(2)` and `max_memory("1GB")`. No temp-storage quota was configured or tested. In a separate small in-memory probe (20,000 rows with 1 KiB strings), process snapshot showed RSS 58,752 KiB, VSZ 11,809,828 KiB, and 160 threads. This is a single process snapshot, not peak RSS; the high thread count is surprising despite primary connection setting and may include runtime/engine workers. No concurrency/load scaling was measured. |
+| Threads/memory/temp | Configuration accepted `threads(2)` and `max_memory("1GB")`. No temp-storage quota was configured or tested. In a small in-memory probe (20,000 rows with 1 KiB strings), an initial process snapshot showed RSS 58,752 KiB, VSZ 11,809,828 KiB, and 160 threads. A later direct `rss_probe` rerun showed RSS 20,324 KiB, VSZ 5,451,972 KiB, and 74 threads. These are isolated snapshots, not peak RSS; the thread count varied despite the requested setting and may include runtime/engine workers. No concurrency/load scaling was measured. |
 | Network | Not probed; explicitly avoided. |
 | Spatial SQL | Not probed. |
 

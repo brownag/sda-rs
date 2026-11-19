@@ -35,7 +35,7 @@ Plan: `planning/EXECUTION_PLAN_10.md`
 | 2 | 10.2.1 | done | User approved 20% geometric-mean median-latency improvement; <=10% individual non-spatial regression; spatial reported separately. |
 | 3 | 10.3.1 | done | Additive accepted ADR 0007; commit 8429946. |
 | 3 | 10.3.2 | done | DuckDB-specific policy with explicit blockers; commit ca8db56. |
-| 4 | 10.4.1 | pending approval | Re-scoped to local-only capability/performance/resource evaluation; no production backend wiring. |
+| 4 | 10.4.1 | done | Local-only capability evaluation recorded in `planning/reports/duckdb-capability-evaluation.md`; no production wiring. |
 | 5 | 10.5.1 | blocked | Wait for Task 10.4.1 results and follow-up production-scope approval. |
 | 5 | 10.5.2 | blocked | Wait for Task 10.4.1 engine/artifact findings and follow-up production-scope approval. |
 | 6 | 10.6.1 | blocked | Wait for follow-up production-scope approval and completed prerequisite tasks. |
@@ -82,12 +82,17 @@ Plan: `planning/EXECUTION_PLAN_10.md`
 
 ## 10.4.1
 
-- **Status:** Prior production-boundary implementation attempt stopped before edits. User has requested evaluation-first scope; revised Task 10.4.1 awaits approval.
-- **Prior feasibility finding:** Candidate `duckdb = "=1.20000.2"` source exposes connection interruption, external-access and extension-autoload settings, and memory/thread settings; no obvious Rust API for temp-storage quota/isolation was found. Source inspection did not prove enforcement against untrusted SQL.
-- **Rescope:** Local-only scratch capability/resource/performance evaluation; no application source, repository dependency changes, production backend, external/user data, live network requests, or untrusted SQL.
-- **Next gate:** After the capability report, pause for user decision on production controls, limits, and any implementation scope.
+- **Status:** Done as an exploratory evaluation; report committed as `2332549`.
+- **Files:** `planning/reports/duckdb-capability-evaluation.md`, `planning/tasks/10.4.1.todo.md`; scratch prototype only under `/tmp/opencode/sda-rs-duckdb-evaluation/`.
+- **Candidate:** Rust `duckdb = "=1.20000.2"`, bundled DuckDB `v2.0.0`; no repository dependency/source changes.
+- **Checks:** Scratch `cargo check` and release runner assertions passed; orchestrator reran primary runner and benchmark successfully; `git diff --check` passed. Reproduction commands in report.
+- **Findings:** Synthetic scalar/join/temp-table/results work; raw `execute_batch` left an earlier insert after a later statement failed. External-access disabled blocked tested local CSV read and extension install; default settings allowed a scratch persistent file and local CSV read.
+- **Performance:** Directional only; DuckDB and SQLite executor/serializer paths were not equivalent, so no valid performance-target verdict. Spatial/network not probed.
+- **Resources:** Requested memory/thread settings accepted. Process snapshots varied between ~58 MiB/160 threads and ~20 MiB/74 threads; neither is peak/capacity evidence. Temp-storage limits and concurrent scaling unmeasured.
+- **Next gate:** User review of evidence and approval of production controls/limits/scope before Tasks 10.5.1, 10.5.2, or 10.6.1.
 - **Worker:** `openai/gpt-6-luna`; no further escalation.
 
 ## Worker Usage
 
-- No workers have run yet.
+- Plan 10 tasks 10.3.1, 10.3.2, and 10.4.1 used delegated workers; worker reports identify `openai/gpt-6-luna`. Token/cost telemetry was unavailable.
+- Task 10.4.1 had one incomplete scratch-runner attempt followed by a successful bounded retry; orchestrator reran the primary and benchmark binaries.
