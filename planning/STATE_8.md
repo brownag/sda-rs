@@ -30,8 +30,8 @@ Plan: `planning/EXECUTION_PLAN_8.md`
 | 1 | 8.1.1 Official Spatial synthetic evaluation and no-feature-row Iowa preflight | done | `cb45a3c`, `87c2deb` |
 | 2 | 8.2.1 Community geography initial attempt | done (setup blocker) | `31d06b2` |
 | 3 | 8.3.1 Corrected community geography install and synthetic evaluation | done | `de80cd5` |
-| 4 | 8.4.1 DuckDB EXPLAIN-only Iowa preflight | active; RTree gate passed, DuckDB EXPLAIN mode required | `10202d4` |
-| 5 | 8.5.1 Conditional bounded Iowa comparison | gated; no feature reads without passing EXPLAIN and explicit approval | — |
+| 4 | 8.4.1 DuckDB EXPLAIN-only Iowa preflight | done with blocker; invalid ST_Read parameter, no plan | `10202d4`, `548f50a` |
+| 5 | 8.5.1 Conditional bounded Iowa comparison | blocked; no passing DuckDB EXPLAIN and no feature reads without explicit approval | — |
 
 ## Task Reports
 
@@ -60,14 +60,16 @@ Plan: `planning/EXECUTION_PLAN_8.md`
 - Extension `geography` `f777314ad0`, SHA-256 `f0c5172314e86530d7680b34c62bc092acd64ae8440b43428a5be7ecbe1ad7ad`; six method observations and contract limits are in the report.
 - No Iowa reads or OS sandbox; no production/Cargo/cached Spatial changes. `git diff --check` passed; working tree was clean after commit.
 
-### 8.4.1 — Preflight only; feature read remains blocked
+### 8.4.1 — Complete with DuckDB EXPLAIN blocker
 
-- Preflight report appended in `planning/reports/G33-2-duckdb-spatial-followup.md`; report commit `10202d4`; TODO: `planning/tasks/8.4.1.todo.md`.
+- Report appended in `planning/reports/G33-2-duckdb-spatial-followup.md`; preflight commits `10202d4` and `548f50a`; TODO: `planning/tasks/8.4.1.todo.md`.
 - SQLite opened the exact GeoPackage with URI `mode=ro` and `PRAGMA query_only=ON`; metadata confirmed `mupolygon.geom`, POLYGON, SRS 4326.
 - RTree candidate query used `LIMIT 101`, returned 29 IDs, and `EXPLAIN QUERY PLAN` showed `VIRTUAL TABLE INDEX 2:B0D1B2D3`.
 - Source SHA-256/size/mtime matched before and after: `7b81951e...e90571a8`, 6,406,705,152 bytes, mtime `2026-11-18 07:31:13.192297150 -0800`.
-- DuckDB spatial-filter `EXPLAIN` was not run because the scratch probe lacks an EXPLAIN-only mode. This gate remains unmet; no feature query or `ST_Read` ran, and zero feature rows were read/returned.
-- Next: add a scratch-only EXPLAIN mode under the clarified Task 8.4.1 scope; do not authorize feature reads unless its plan demonstrates bounded indexed access and a separate orchestrator gate is passed.
+- Scratch `cargo fmt --check` and offline build passed. The single EXPLAIN-only invocation failed closed because DuckDB rejected `spatial_filter_box` for `ST_Read`; no DuckDB plan was produced, so indexed/bounded access is not demonstrated.
+- Source fingerprint immediately before/after that invocation matched: SHA-256 `7b81951e...e90571a8`, 6,406,705,152 bytes, mtime `2026-11-18 07:31:13.192297150 -0800`.
+- No `EXPLAIN ANALYZE`, underlying `ST_Read`, or feature-table query ran; zero Iowa feature rows were read/returned. No network, OS sandbox, source write, or repository code change.
+- Task 8.5.1 remains blocked. Any investigation of another DuckDB filter parameter/route or any feature read requires a newly approved plan.
 
 ## Final Acceptance Gate
 
