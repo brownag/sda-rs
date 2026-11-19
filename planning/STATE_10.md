@@ -34,7 +34,7 @@ Plan: `planning/EXECUTION_PLAN_10.md`
 | 2 | 10.2.1 | done | User approved 20% geometric-mean median-latency improvement; <=10% individual non-spatial regression; spatial reported separately. |
 | 3 | 10.3.1 | done | Additive accepted ADR 0007; commit 8429946. |
 | 3 | 10.3.2 | done | DuckDB-specific policy with explicit blockers; commit ca8db56. |
-| 4 | 10.4.1 | pending | Opt-in execution boundary; requires dependency authorization. |
+| 4 | 10.4.1 | blocked | Feasibility stop: required security/resource controls and numeric calibration remain unverified; no implementation started. |
 | 5 | 10.5.1 | pending | Spatial/result compatibility. |
 | 5 | 10.5.2 | pending | Pinned deployment artifact. |
 | 6 | 10.6.1 | pending | CI/docs/final acceptance. |
@@ -77,6 +77,16 @@ Plan: `planning/EXECUTION_PLAN_10.md`
 - **Wave 3 gates:** `cargo fmt --check && git diff --check && cargo test` passed (75 unit, 30 integration; 0 failures).
 - **Wave 3 gates:** `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed (75 unit, 30 integration; 0 failures).
 - **Deviation:** No numeric resource limits were invented; no OS sandbox or source changes.
+- **Worker:** `openai/gpt-6-luna`; no further escalation.
+
+## 10.4.1
+
+- **Status:** Blocked at the required feasibility gate; no source, manifest, lockfile, or dependency changes.
+- **Files:** `planning/tasks/10.4.1.todo.md` records the stop and findings.
+- **Candidate inspected:** DuckDB/Rust client `=1.20000.2`; local source exposes connection interruption, external-access and extension-autoload settings, and memory/thread settings.
+- **Blockers:** Source inspection does not prove enforcement against untrusted SQL; no obvious Rust API for temporary-storage quota/isolation was found. Write/temp-table, file/network/extension restriction, cancellation/cleanup, resource-bound, and numeric calibration/approval evidence remains incomplete.
+- **Decision:** Do not enable DuckDB or weaken `docs/security/duckdb-execution-policy.md`. Resume only after a testable enforceable control design and required numeric resource approvals are established.
+- **Commands:** No tests run; this was a read-only feasibility stop.
 - **Worker:** `openai/gpt-6-luna`; no further escalation.
 
 ## Worker Usage
