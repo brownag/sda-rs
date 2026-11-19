@@ -7,16 +7,18 @@ Decouple the default sda-rs compatibility tests from soilDB's private endpoint o
 
 ### 1. Inventory and capture representative requests
 - [x] Inspect the soilDB integration tests and local soilDB query-generation functions to identify representative SDA queries, parameters, and expected result shapes.
-- [x] Capture three minimal query fixtures: SDA_spatialQuery mukey CTE, SDA_spatialQuery areasymbol CTE, and get_SDA_muaggatt join. Their originating calls and prerequisites are recorded alongside the fixtures.
+- [x] Add a local R capture script that uses query_string=TRUE to refresh fixtures without contacting SDA, and records the soilDB version/commit, originating R call, exact query, format, expected columns, and expected key rows.
+- [x] Capture representative complex fixtures, including SDA_spatialQuery-generated WKT CTEs, with provenance and data prerequisites; do not copy soilDB implementation code.
 - [x] Commit the tracked plan separately before implementation (`70bf2aa`).
 
 ### 2. Run fixtures against the backend
-- [ ] Add backend-owned tests that submit the captured fixtures directly to sda-rs, using deterministic fixtures or clearly gated external data as appropriate.
-- [ ] Cover the selected query families, including spatial cases, without requiring soilDB to be installed or `soilDB.sda.tabular.post.rest.url` to exist.
-- [ ] Keep the existing opt-in soilDB/Iowa integration test as optional supplementary compatibility coverage; it must not be part of the default test path.
+- [ ] Add an always-on Rust tier that parses/transpiles every fixture and compares generated SQLite SQL to checked-in expected SQL snapshots without requiring SpatiaLite or external data.
+- [ ] Add a deterministic in-memory Rust replay tier for fixtures whose supported capabilities can be set up locally; assert result columns and key rows.
+- [ ] Keep Iowa GeoPackage/SpatiaLite replay opt-in and retain the existing soilDB client harness only as supplementary local coverage; neither soilDB nor the unpublished URL option may be required by default tests.
+- [ ] Document fixture provenance, refresh workflow, and how deployments can reuse request fixtures without adding auth/deployment behavior to this change.
 
 ### 3. Validate and document
-- [ ] Run default tests with no SpatiaLite/soilDB-specific environment and configured spatial tests where available.
+- [ ] Run default tests with no SpatiaLite, R, soilDB, or soilDB-specific URL option; run configured spatial and optional soilDB/Iowa tests where available.
 - [ ] Run formatting, Clippy, and diff checks; document fixture provenance and how to refresh them.
 - [ ] Update the Makefile/README test documentation if command boundaries or prerequisites change.
 - [ ] Commit each verified test/docs unit using focused Conventional Commits; keep planning-only progress in separate `docs(planning):` commits.
@@ -25,5 +27,6 @@ Decouple the default sda-rs compatibility tests from soilDB's private endpoint o
 - Repository: `/home/andrew/workspace/sda-rs`; branch: `feature/sda-readiness`; worktree was clean at plan creation.
 - Planning artifacts are tracked.
 - Preserve soilDB checkout and Iowa GeoPackage as read-only. Do not depend on unpublished soilDB changes in default tests.
+- The local soilDB checkout is on `feat/custom-sda1` and has pre-existing modifications; use it read-only and do not stage or alter its files.
 - Preserve optional soilDB integration coverage if it remains useful; do not add Databricks App authentication or deployment behavior in this task.
 - No push, pull, fetch, or other remote actions.
