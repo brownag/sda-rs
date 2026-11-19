@@ -1,0 +1,1 @@
+WITH geom_data(areasymbol) AS (SELECT areasymbol FROM sapolygon WHERE sapolygonkey IN (SELECT DISTINCT sapolygonkey FROM SDA_GET_SAPOLYGONKEY_FROM_INTERSECTION_WITH_WKTWGS84('GEOMETRYCOLLECTION (POINT (0.5 0.5))'))) SELECT geom_data.areasymbol FROM geom_data
