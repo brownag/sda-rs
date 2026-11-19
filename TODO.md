@@ -6,26 +6,28 @@ Address valid inline review findings on PR #1 and prepare concise draft replies 
 ## Tasks
 
 ### 1. Verify findings and establish response plan
-- [x] Verified and classified all 14 actionable inline findings; each is valid against the reviewed PR head. Addressing specifics in tasks below.
-- [ ] Commit this tracked plan separately before implementation.
+- [x] Verified and classified all 16 actionable inline findings; each is valid against the reviewed PR head. Addressing specifics in tasks below.
+- [x] Commit this tracked plan separately before implementation (`8077ac6`).
 
 ### 2. Correctness, execution, and spatial fixes
-- [ ] Fix deadline enforcement across statement batches and rows; replace the misleading deadline test with an authorized CPU workload and assert interruption/success cases.
-- [ ] Allow temporary index creation only for temp tables, and preserve denial of persistent index creation.
-- [ ] Fix CLI help/version exit behavior and make spatial capability detection ignore SQL literals/comments.
-- [ ] Resolve Web-Mercator CRS metadata for read-only GeoPackages without writing to them; return a structured error if unavailable.
-- [ ] Correct spatial predicate SRID alignment and NULL handling; add executed non-origin coverage.
-- [ ] Correct table-input key comparison to avoid false matches from numeric casts; add regression coverage.
-- [ ] Reject unsupported column-alias lists for scalar/table WKT TVFs and add tests.
-- [ ] Fix SQL preprocessing scanners to preserve comments and delimited identifiers.
-- [ ] Make the configured spatial security integration test skip cleanly when SpatiaLite is not configured.
-- [ ] Make the soilDB test prove the package routes to the local endpoint; resolve Cargo's executable path from JSON build output.
+- [x] Enforce one deadline across statement batches and row iteration; add expiration/interruption coverage.
+- [x] Allow temporary indexes while preserving denial of persistent indexes.
+- [x] Restore CLI help/version exit behavior and ignore SQL literals/comments in spatial capability detection.
+- [x] Supply Web-Mercator CRS metadata in request-local SpatiaLite state without writing to the GeoPackage.
+- [x] Align spatial predicate SRIDs and require true intersection; add executed non-origin coverage.
+- [x] Compare table-input keys without lossy numeric casts; add regression coverage.
+- [x] Reject unsupported column-alias lists for scalar/table WKT TVFs and add tests.
+- [x] Preserve SQL comments and delimited identifiers in preprocessing; add regression coverage.
+- [x] Make environment-dependent configured spatial tests skip cleanly when SpatiaLite is unset; validate both test modes.
+- [x] Make the soilDB harness prove requests route to the local endpoint, resolve Cargo's executable path from JSON build output, and pass the configured integration suite (`60d9b0c`).
 
 ### 3. Documentation, validation, and review replies
-- [ ] Update SDA_Get support and spatial contract documentation to match implemented support.
-- [ ] Run focused tests, configured full Rust tests, `cargo fmt --check`, `cargo clippy --all-targets`, `git diff --check`, and configured soilDB integration tests where prerequisites permit.
-- [ ] Draft a response for each inline finding, including any skipped finding and reason; do not post replies or make other remote changes.
-- [ ] Commit verified fixes in focused local commits and update this plan in a separate planning-only commit.
+- [x] Update SDA_Get support and spatial contract documentation to match implemented support.
+- [x] Update SDA_Get support and spatial contract documentation to match implemented support (`7edf016`).
+- [x] Run focused/full validation: default and SpatiaLite-configured `cargo test`, soilDB integration suite, `cargo fmt --check`, `cargo clippy --all-targets`, and `git diff --check`. Clippy passes with one pre-existing `needless_question_mark` warning in `src/executor/sqlite.rs:138`.
+- [x] Commit fixes in focused Conventional Commits: `7484f8e`, `8f12bd2`, `60d9b0c`, `7edf016`.
+- [ ] Draft a response for each inline finding, referencing the local commit that addresses it; do not post replies or make other remote changes.
+- [ ] Commit this plan progress separately after response drafts are prepared.
 
 ## Notes
 - Repository: `/home/andrew/workspace/sda-rs`; branch: `feature/sda-readiness`.
@@ -33,3 +35,12 @@ Address valid inline review findings on PR #1 and prepare concise draft replies 
 - PR #1 is open against `main`; prepare drafts only, do not post GitHub replies.
 - Preserve the soilDB checkout and Iowa GeoPackage as read-only.
 - No push, pull, fetch, or other remote writes.
+
+## Discovered Tasks
+- [x] `cargo test` without `SDA_TEST_SPATIALITE` also failed in `aoi_contract.rs`, `mukey_contract.rs`, and `sda_get_contract.rs`; all configured spatial contracts now skip cleanly when unset.
+
+## Implementation Commit Map
+- `7484f8e fix(sqlite): enforce deadlines and allow temp indexes`
+- `8f12bd2 fix(spatial): align CRS and harden SQL rewrites`
+- `60d9b0c test(soildb): verify local endpoint integration`
+- `7edf016 docs(spatial): document supported SDA_Get functions`
