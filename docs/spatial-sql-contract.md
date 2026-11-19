@@ -44,6 +44,8 @@ The transpiler currently recognizes:
   exactly one argument. The referenced relation's GeoPackage geometry column
   is wrapped with `GeomFromGPB`; metadata for joined geometry relations is
   resolved independently, including when the relations share a column name.
+  This is an existing SpatiaLite/planar geometry operation and does not claim
+  SQL Server `geography` semantics.
 - `SDA_Get_*_from_intersection_with_WktWgs84/WktWm('literal WKT')` variants
   catalogued as supported in [the SDA_Get support matrix](sda-get-support.md).
   These return the documented distinct keys, use the relation's discovered
@@ -66,6 +68,18 @@ function list and per-function prerequisites are maintained in the support
 matrix. Unsupported arities, correlated/nonliteral scalar arguments,
 qualified/method-call syntax, unsupported AST contexts, and column alias lists
 are rejected rather than silently treated as valid results.
+
+The CLR instance methods `.STContains(...)`, `.STWithin(...)`, and
+`.STIntersection(...)` are explicitly rejected as unsupported for SQL Server
+`geography` compatibility. They are not lowered to SpatiaLite's GEOS planar
+`ST_Contains`, `ST_Within`, or `ST_Intersection`: the configured feasibility
+probe showed mismatched-SRID predicate behavior that differs from SQL Server,
+and the planar operations do not establish geodetic predicate or overlay
+semantics. The rejection applies regardless of apparent arity; no partial
+geometry implementation is implied. Free-function spellings are not method
+rewrites. See the
+[`G12 geography feasibility report`](../planning/reports/G12-geography-method-feasibility.md)
+for the evidence matrix and probe results.
 
 ## Coordinate reference systems and units
 
@@ -105,6 +119,10 @@ Implementation and test anchors:
   `require_spatial`, and `initialize`.
 - `tests/aoi_contract.rs`: configured SpatiaLite AOI execution and the
   no-SpatiaLite structured error.
+- `tests/spatial_methods_contract.rs`: configured execution of the existing
+  `.STIntersects` operation and explicit rejection of the unsupported
+  geography instance methods; `.STIntersects` results are not geography-parity
+  evidence.
 - `tests/mukey_contract.rs`: configured SpatiaLite mukey TVF result and
   supported query contexts.
 - `src/transpiler/spatial.rs` unit tests: constructor/method rewrites,

@@ -1014,6 +1014,7 @@ fn is_spatial_expression(expression: &Expression) -> bool {
         }
         Expression::MethodCall(call) => {
             call.method.name.eq_ignore_ascii_case("STIntersects")
+                || unsupported_geography_method(&call.method.name)
                 || call.method.name.eq_ignore_ascii_case("STGeomFromText")
                 || intersection_spec(&call.method.name).is_some()
                 || scalar_wkt_spec(&call.method.name).is_some()
@@ -1028,6 +1029,12 @@ fn rewrite_node(
     geometry_relations: &[(String, String, String)],
 ) -> Result<Expression, polyglot_sql::Error> {
     Ok(match node {
+        Expression::MethodCall(call) if unsupported_geography_method(&call.method.name) => {
+            return Err(polyglot_sql::Error::InvalidInput(format!(
+                ".{} is unsupported for SQL Server geography compatibility",
+                call.method.name
+            )));
+        }
         Expression::MethodCall(call) if scalar_wkt_spec(&call.method.name).is_some() => {
             return Err(polyglot_sql::Error::InvalidInput(
                 "qualified scalar WKT TVF syntax is unsupported".into(),
@@ -1112,6 +1119,12 @@ fn rewrite_node(
         }
         other => other,
     })
+}
+
+fn unsupported_geography_method(name: &str) -> bool {
+    ["STContains", "STWithin", "STIntersection"]
+        .iter()
+        .any(|method| name.eq_ignore_ascii_case(method))
 }
 
 #[cfg(test)]
@@ -1359,6 +1372,41 @@ mod tests {
         assert!(sql.to_ascii_lowercase().contains("geomfromtext"), "{sql}");
         assert_eq!(capability().effective_geometry_column(), Some("soil_shape"));
         assert!(capability().is_geometry_column("shape_dynamic"));
+    }
+
+    #[test]
+    fn rejects_unsupported_geography_instance_methods_without_lowering() {
+        for sql in [
+            "SELECT geom.STContains(other)",
+            "SELECT geom.stwithin(other)",
+            "SELECT geom.STIntersection(other)",
+            "SELECT geom.STContains()",
+            "SELECT geom.STWithin(other, extra)",
+        ] {
+            let error =
+                crate::transpiler::transpile_with_spatial(sql, Some(&capability())).expect_err(sql);
+            assert!(
+                error
+                    .to_string()
+                    .contains("unsupported for SQL Server geography compatibility"),
+                "{sql}: {error}"
+            );
+            assert!(!error.to_string().contains("ST_Contains"), "{error}");
+            assert!(!error.to_string().contains("ST_Within"), "{error}");
+            assert!(!error.to_string().contains("ST_Intersection"), "{error}");
+        }
+    }
+
+    #[test]
+    fn does_not_rewrite_unsupported_method_names_as_free_functions() {
+        let output = crate::transpiler::transpile_with_spatial(
+            "SELECT STContains(geom, other), STWithin(geom, other), STIntersection(geom, other)",
+            Some(&capability()),
+        )
+        .unwrap();
+        assert!(output[0].contains("STCONTAINS("), "{output:?}");
+        assert!(output[0].contains("STWITHIN("), "{output:?}");
+        assert!(output[0].contains("STINTERSECTION("), "{output:?}");
     }
 
     #[test]
