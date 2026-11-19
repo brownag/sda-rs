@@ -125,6 +125,40 @@ The buffer output was long and sampled only to establish its numeric units;
 it is not asserted to match SQL Server output. The runtime probe tests
 SpatiaLite operations only; no SQL Server engine was available or queried.
 
+### Ellipsoidal-area warning and follow-up
+
+The original probe's stdout included the reported crossing-equator polygon
+area `12308463893.975204`, but stderr also emitted this warning:
+
+```text
+RTTOPO error: ptarray_area_spheroid: cannot handle ptarray that crosses equator
+```
+
+Therefore that numeric result is **not clean evidence of error-free
+ellipsoidal behavior**. The `ST_Area(...,1)` observation above must be read
+with this material qualification; it is not evidence of a successful
+cross-equator calculation.
+
+One additional bounded in-memory probe used only a synthetic polygon wholly
+north of the equator. Exact command:
+
+```sh
+python3 -c "import sqlite3; c=sqlite3.connect(':memory:'); c.enable_load_extension(True); c.load_extension('/usr/lib/x86_64-linux-gnu/mod_spatialite.so'); c.enable_load_extension(False); c.execute('SELECT InitSpatialMetadata(1)'); print('versions:', c.execute('SELECT spatialite_version(), proj_version(), geos_version(), rttopo_version()').fetchone()); print('north-of-equator ST_Area:', c.execute(\"SELECT ST_Area(GeomFromText('POLYGON((0 1,0 2,1 2,1 1,0 1))',4326),1)\").fetchone())"
+```
+
+Exact stdout:
+
+```text
+versions: ('5.1.0', 'Rel. 9.4.1, June 1st, 2024', '3.12.2-CAPI-1.18.2', '1.1.0')
+north-of-equator ST_Area: (12304814950.073112,)
+```
+
+No stderr warning was emitted in this additional run. This establishes only
+that this north-of-equator synthetic case returned a number without that
+warning; it does not establish SQL Server numerical parity, error-free
+ellipsoidal behavior for other inputs, or a geography-compatible area
+contract.
+
 ## Project boundaries and accepted decisions
 
 - `docs/spatial-sql-contract.md` documents only constructor and
@@ -166,6 +200,7 @@ SpatiaLite operations only; no SQL Server engine was available or queried.
   configured-build probe evidence where applicable.
 - Geography-versus-planar distinction: explicit; no planar substitution is
   called geography-compatible.
-- Probe: bounded, in-memory, synthetic WKT only; exact command and observed
-  versions/results recorded above.
+- Probe: bounded, in-memory, synthetic WKT only; exact commands, observed
+  versions/results, and the crossing-equator stderr warning and qualification
+  are recorded above.
 - No source, dependency, existing contract, or data files changed.
