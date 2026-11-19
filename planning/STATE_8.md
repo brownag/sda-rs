@@ -30,8 +30,8 @@ Plan: `planning/EXECUTION_PLAN_8.md`
 | 1 | 8.1.1 Official Spatial synthetic evaluation and no-feature-row Iowa preflight | done | `cb45a3c`, `87c2deb` |
 | 2 | 8.2.1 Community geography initial attempt | done (setup blocker) | `31d06b2` |
 | 3 | 8.3.1 Corrected community geography install and synthetic evaluation | done | `de80cd5` |
-| 4 | 8.4.1 Iterative DuckDB spatial-filter preflight | active; initial `spatial_filter_box` mismatch is a correction target, not a terminal blocker | `10202d4`, `548f50a` |
-| 5 | 8.5.1 Conditional bounded Iowa comparison | blocked; no passing DuckDB EXPLAIN and no feature reads without explicit approval | — |
+| 4 | 8.4.1 Iterative DuckDB spatial-filter preflight | done; corrected plan shows RTree-backed filter pushdown | `10202d4`, `548f50a`, `0714756` |
+| 5 | 8.5.1 Conditional bounded Iowa comparison | feature-read gate approved by orchestrator; micro-plan pending, max 100 features | — |
 
 ## Task Reports
 
@@ -66,13 +66,14 @@ Plan: `planning/EXECUTION_PLAN_8.md`
 - SQLite opened the exact GeoPackage with URI `mode=ro` and `PRAGMA query_only=ON`; metadata confirmed `mupolygon.geom`, POLYGON, SRS 4326.
 - RTree candidate query used `LIMIT 101`, returned 29 IDs, and `EXPLAIN QUERY PLAN` showed `VIRTUAL TABLE INDEX 2:B0D1B2D3`.
 - Source SHA-256/size/mtime matched before and after: `7b81951e...e90571a8`, 6,406,705,152 bytes, mtime `2026-11-18 07:31:13.192297150 -0800`.
-- Scratch `cargo fmt --check` and offline build passed. The initial EXPLAIN-only invocation failed closed because DuckDB rejected `spatial_filter_box` for `ST_Read`; this is an API mismatch to correct, not a terminal blocker.
+- Scratch `cargo fmt --check` and offline build passed. The initial EXPLAIN-only invocation failed because DuckDB rejected `spatial_filter_box`; subsequent distinct queries resolved the mismatch.
 - Source fingerprint immediately before/after that invocation matched: SHA-256 `7b81951e...e90571a8`, 6,406,705,152 bytes, mtime `2026-11-18 07:31:13.192297150 -0800`.
-- No `EXPLAIN ANALYZE`, underlying `ST_Read`, or feature-table query ran; zero Iowa feature rows were read/returned. No source write, OS sandbox, or repository code change.
-- The plan amendment allows official DuckDB 2.0/GDAL documentation research and iterative scratch-only EXPLAIN corrections; no package/extension downloads. Task 8.5.1 remains blocked until bounded access is demonstrated and separately approved.
+- Four distinct EXPLAIN attempts were recorded; the fourth shows the exact bbox filter pushed into `ST_Read`. DuckDB 2.0 docs/source and GDAL GeoPackage source confirm the filter API and RTree use.
+- All per-attempt source fingerprints matched; no `EXPLAIN ANALYZE`, underlying `ST_Read`, or feature-table query ran. Zero Iowa feature rows were read/returned; no download, source-data write, OS sandbox, or repository code change.
+- **Gate decision:** Based on the passing DuckDB plan, GDAL RTree implementation evidence, and matching 29-ID read-only SQLite preflight, the orchestrator approves Task 8.5.1 to read at most 100 features using only the exact planned filter query. Read-only procedures, no SQL writes, and before/after source fingerprints remain required.
 
 ## Final Acceptance Gate
 
 - Verify corrected community-extension outcome and synthetic lockdown gate; run `git diff --check`.
-- Waves 1–4 must not read Iowa feature-table rows. Wave 4 may iterate on scratch-only EXPLAIN queries using official API evidence. Permit Wave 5 only after review of passing DuckDB EXPLAIN/indexed/bounded-access evidence and explicit orchestrator approval; no OS sandbox is to be used.
+- Waves 1–4 did not read Iowa feature-table rows. Wave 5 has explicit orchestrator authorization for at most 100 features using the exact Wave 4 filter plan; the worker must still produce and pass its micro-plan before execution. No OS sandbox is to be used.
 - Do not run full Rust suites for this research-only plan; no production files are in scope.
