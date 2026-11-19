@@ -241,3 +241,109 @@ WKT outputs, or NULL/empty/dimensional behavior were observed.
 The extension is documented as S2 spherical, not SQL Server's ellipsoidal
 geography contract. No parity claim is made. No Iowa feature rows or source
 data were accessed.
+
+## Wave 3 — Task 8.3.1 corrected community geography attempt
+
+### Corrected official install and lockdown
+
+- The prior Wave 2 attempt remains historical and was not repeated. The
+  standalone Rust probe uses the existing scratch manifest pinned to
+  `duckdb = "=1.20000.2"` with `bundled`; source, manifest, lockfile, target,
+  extension cache, and logs are under `/tmp/opencode/sda-rs-plan8-duckdb/`.
+- Exact offline build command:
+
+  ```sh
+  CARGO_TARGET_DIR=/tmp/opencode/sda-rs-plan8-duckdb/target \
+    cargo build --offline --release \
+    --manifest-path /tmp/opencode/sda-rs-plan8-duckdb/Cargo.toml
+  ```
+
+  Result: success. The initial correction to the scratch verifier needed a
+  further adjustment because this DuckDB client does not implement Rust
+  `FromSql` for `Vec<String>`; the final verifier checks list count and first
+  element in SQL.
+- The one corrected official install/load invocation was:
+
+  ```sh
+  /tmp/opencode/sda-rs-plan8-duckdb/target/release/duckdb-probe geography-synthetic
+  ```
+
+  Before install it set `extension_directories` and verified its effective
+  value was exactly one entry, the scratch DuckDB home. Output:
+
+  ```text
+  engine_before_install=v2.0.0
+  extension_directories=(1, "/tmp/opencode/sda-rs-plan8-duckdb/duckdb-home")
+  install=success
+  load=success
+  external_access=false
+  external_access_reenable=rejected
+  engine=v2.0.0
+  extension_metadata=Err(DuckDBFailure(Error { code: Unknown, extended_code: 1 }, Some("Permission Error: Cannot access directory \"/tmp/opencode/sda-rs-plan8-duckdb/duckdb-home/v2.0.0/linux_amd64\" - file system operations are disabled by configuration")))
+  ```
+
+  Thus the official install and load succeeded; after lockdown DuckDB's
+  metadata query could not access the extension directory. A later load-only
+  synthetic invocation (no second install) obtained metadata before lockdown:
+  extension `geography`, version `f777314ad0`, path
+  `/tmp/opencode/sda-rs-plan8-duckdb/duckdb-home/v2.0.0/linux_amd64/geography.duckdb_extension`.
+  SHA-256:
+  `f0c5172314e86530d7680b34c62bc092acd64ae8440b43428a5be7ecbe1ad7ad`.
+- Both invocations verified `enable_external_access=false` and that a
+  re-enable attempt was rejected before synthetic SQL. No OS sandbox or
+  Bubblewrap was used. Full logs are retained in the scratch directory.
+  The probe disabled `autoload_known_extensions` and
+  `autoinstall_known_extensions`, set `memory_limit='1GB'` and `threads=2`,
+  then disabled external access before verifying lockdown and issuing probe
+  SQL.
+
+### Synthetic S2 probes and contract comparison
+
+- A subsequent load-only invocation used the installed scratch extension and
+  re-established lockdown before any probe SQL. No network/install command was
+  run in this invocation. Its exact command was:
+
+  ```sh
+  /tmp/opencode/sda-rs-plan8-duckdb/target/release/duckdb-probe geography-probe
+  ```
+
+- The official community catalog describes the extension as global processing
+  on the sphere using Google's S2 library, lists `GEOGRAPHY` as internally
+  blob-backed, and shows a blank Linux AMD64 compatibility row including
+  DuckDB 2.0.0:
+  <https://duckdb.org/community_extensions/extensions/geography>.
+  The maintained function reference describes `s2_area` as square meters on a
+  perfect sphere and documents `s2_contains`, `s2_within`, `s2_intersection`,
+  and `s2_astext`; its function list has no buffer function:
+  <https://raw.githubusercontent.com/paleolimbot/duckdb-geography/main/docs/function-reference.md>.
+- Observed DuckDB/Rust result representations: predicates have SQL `BOOLEAN`
+  and Rust `ValueRef::Boolean`; `s2_intersection` has SQL `GEOGRAPHY` and is
+  returned by this client as `ValueRef::Blob`; area has SQL `DOUBLE` and Rust
+  `ValueRef::Double`; text has SQL `VARCHAR` and Rust `ValueRef::Text`.
+  Casting ordinary WKT to `GEOGRAPHY` reports logical `GEOGRAPHY`, while the
+  underlying Rust value is a blob.
+- Results and comparison:
+
+  | SQL Server method | Observed mapping/result | Contract assessment |
+  |---|---|---|
+  | `STContains` | `s2_contains` returned `true` for an interior point, `false` for one edge point, and `true` for a polygon vertex; the call's logical result was `BOOLEAN`/Rust Boolean. | Boundary behavior differs from the documented SQL Server `STContains` result for boundary points; S2 spherical semantics also do not establish SQL Server SRID-dependent ellipsoidal parity. Not compatible as a general mapping. |
+  | `STWithin` | Reversed `s2_contains(point, polygon)` returned `false` for an interior point. A direct `s2_within(point, polygon)` query errored: `Catalog Error: Scalar Function with name s2_within does not exist! Did you mean "s2_dwithin"?` | The maintained reference lists `s2_within`, but this installed binary does not expose it. No defensible working mapping was observed; incompatible/unverified for SQL Server behavior. |
+  | `STIntersection` | Result logical type `GEOGRAPHY`, Rust `ValueRef::Blob`; `s2_astext` rendered the polygon/line result as `LINESTRING (0 0.5001523435130507, 1 0.5001523435130508)`. Disjoint point intersection rendered `GEOMETRYCOLLECTION EMPTY`. | Spherical overlay is observed, but not SQL Server ellipsoidal/SRID parity. SQL Server returns geography and has additional geodetic domains/behaviors not established here. |
+  | `STBuffer` | No `s2%buffer%` function was returned by `duckdb_functions()` (query returned no rows); maintained function reference also lists no buffer. | Unsupported: no defensible S2 buffer equivalent was identified. No planar substitute was used. |
+  | `STArea` | `s2_area` SQL `DOUBLE`, Rust `ValueRef::Double`; 1-degree synthetic square `12364036567.076418`, empty polygon `0.0`, point `0.0`. | Documented units are square meters on a perfect sphere. SQL Server 4326 uses square meters but SRID-specific ellipsoidal semantics; numerical equality/parity is not established. |
+  | `STAsText` | `s2_astext` SQL `VARCHAR`, Rust `ValueRef::Text`; point WKT `POINT (0.9999999999999998 2)`, disjoint intersection `GEOMETRYCOLLECTION EMPTY`. Z and M point inputs both rendered as 2D `POINT (0.9999999999999998 2)`. | Omitting Z/M matches the documented SQL Server WKT dimensional behavior for this example, but broader types and geography-specific cases remain unverified. |
+
+- Inputs used ordinary WKT longitude/latitude coordinates; a synthetic
+  `SRID=4326;POINT (1 2)` input was rejected with
+  `Invalid Error: Expected geometry type at byte 0`. No SRID-setting or
+  SRID-mismatch interface was established, so SQL Server's mismatch-to-NULL
+  contract is not met/verified. The antimeridian-crossing polygon contained
+  `POINT (180 0.5)` and its intersection WKT was that point. SQL `NULL`
+  propagated to tested contains, area, and text outputs. Z/M ordinates were
+  discarded; empty area was zero and disjoint intersection was an empty
+  geometry collection. No separate empty-input predicate or dimensional
+  overlay behavior was tested.
+- No SQL Server runtime was available; these are DuckDB observations and
+  documentation comparisons, not parity claims. No Iowa data or feature rows
+  were read. No source build, mirror, fork, production change, repository Cargo
+  change, or cached Spatial binary modification occurred.
