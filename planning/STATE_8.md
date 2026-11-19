@@ -32,7 +32,7 @@ Plan: `planning/EXECUTION_PLAN_8.md`
 | 3 | 8.3.1 Corrected community geography install and synthetic evaluation | done | `de80cd5` |
 | 4 | 8.4.1 Iterative DuckDB spatial-filter preflight | done; corrected plan shows RTree-backed filter pushdown | `10202d4`, `548f50a`, `0714756` |
 | 5 | 8.5.1 Conditional bounded Iowa comparison | done with DuckDB transaction error; possible reads unknown | `18cd367`, `3a85296` |
-| 6 | 8.6.1 Repair and retry bounded DuckDB execution | complete; streaming retry returned 24 rows; conservative charge 58/100 | `ab37920`; planning commit pending |
+| 6 | 8.6.1 Repair and retry bounded DuckDB execution | complete; streaming retry returned 24 rows; conservative charge 58/100 | `ab37920`, `c8b8a2d` |
 
 ## Task Reports
 
@@ -85,7 +85,7 @@ Plan: `planning/EXECUTION_PLAN_8.md`
 ### 8.6.1 — Complete
 
 - TODO: `planning/tasks/8.6.1.todo.md`; report: Wave 6 in `planning/reports/G33-2-duckdb-spatial-followup.md`.
-- Report commit: `ab37920`.
+- Commits: report `ab37920`; planning/status `c8b8a2d`.
 - Streaming Arrow scratch correction passed synthetic geometry validation, `cargo fmt --check`, and offline release build.
 - Read-only RTree recheck returned 29 candidates. The exact approved query returned 24 GeoArrow-WKB Binary geometries, one batch, zero nulls.
 - Source fingerprints matched before/after. Conservative cumulative charge: 29 prior uncertain + 29 retry = 58/100; no further attempt needed.
