@@ -30,7 +30,7 @@ Plan: `planning/EXECUTION_PLAN_8.md`
 | 1 | 8.1.1 Official Spatial synthetic evaluation and no-feature-row Iowa preflight | done | `cb45a3c`, `87c2deb` |
 | 2 | 8.2.1 Community geography initial attempt | done (setup blocker) | `31d06b2` |
 | 3 | 8.3.1 Corrected community geography install and synthetic evaluation | done | `de80cd5` |
-| 4 | 8.4.1 Conditional bounded Iowa comparison | gated pending orchestrator review of Wave 1–3 evidence and preflight plan | — |
+| 4 | 8.4.1 Conditional bounded Iowa comparison | preflight done; DuckDB EXPLAIN gate unmet, zero feature rows | `10202d4` |
 
 ## Task Reports
 
@@ -58,6 +58,15 @@ Plan: `planning/EXECUTION_PLAN_8.md`
 - Lockdown preceded synthetic probes: autoload/autoinstall disabled, 1 GB and 2-thread limits, external access false; re-enable rejected.
 - Extension `geography` `f777314ad0`, SHA-256 `f0c5172314e86530d7680b34c62bc092acd64ae8440b43428a5be7ecbe1ad7ad`; six method observations and contract limits are in the report.
 - No Iowa reads or OS sandbox; no production/Cargo/cached Spatial changes. `git diff --check` passed; working tree was clean after commit.
+
+### 8.4.1 — Preflight only; feature read remains blocked
+
+- Preflight report appended in `planning/reports/G33-2-duckdb-spatial-followup.md`; report commit `10202d4`; TODO: `planning/tasks/8.4.1.todo.md`.
+- SQLite opened the exact GeoPackage with URI `mode=ro` and `PRAGMA query_only=ON`; metadata confirmed `mupolygon.geom`, POLYGON, SRS 4326.
+- RTree candidate query used `LIMIT 101`, returned 29 IDs, and `EXPLAIN QUERY PLAN` showed `VIRTUAL TABLE INDEX 2:B0D1B2D3`.
+- Source SHA-256/size/mtime matched before and after: `7b81951e...e90571a8`, 6,406,705,152 bytes, mtime `2026-11-18 07:31:13.192297150 -0800`.
+- DuckDB spatial-filter `EXPLAIN` was not run because the scratch probe lacks an EXPLAIN-only mode. This gate remains unmet; no feature query or `ST_Read` ran, and zero feature rows were read/returned.
+- Next: prepare/review a scratch-only EXPLAIN mode; do not authorize feature reads unless its plan demonstrates bounded indexed access and a separate orchestrator gate is passed.
 
 ## Final Acceptance Gate
 
