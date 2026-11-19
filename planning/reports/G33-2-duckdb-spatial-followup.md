@@ -347,3 +347,54 @@ data were accessed.
   documentation comparisons, not parity claims. No Iowa data or feature rows
   were read. No source build, mirror, fork, production change, repository Cargo
   change, or cached Spatial binary modification occurred.
+
+## Wave 4 — Task 8.4.1 preflight-only outcome
+
+- This invocation was limited to file fingerprinting and read-only SQLite
+  metadata/RTree access. No DuckDB probe was run: the scratch probe source
+  supports only `geography-synthetic` and `geography-probe`, not a bounded
+  Iowa/EXPLAIN-only mode. Therefore the DuckDB spatial-filter `EXPLAIN` gate
+  remains unmet and no feature-row access is authorized.
+- Exact source: `/data/SSURGO/output/iowa_ssurgo.gpkg`. Before and after
+  preflight SHA-256 was
+  `7b81951e495799aec46eb3fdd1505131cc62374f2d336420706494fae90571a8`,
+  size `6406705152` bytes, mtime `2026-11-18 07:31:13.192297150 -0800`.
+  This matches the recorded prior SHA-256 and size.
+- Exact SQLite command:
+
+  ```sh
+  python3 - <<'PY'
+  import sqlite3
+  p='/data/SSURGO/output/iowa_ssurgo.gpkg'
+  c=sqlite3.connect('file:'+p+'?mode=ro', uri=True)
+  c.execute('PRAGMA query_only=ON')
+  print('query_only:', c.execute('PRAGMA query_only').fetchone())
+  for name, sql, params in [
+   ('gpkg_contents', 'SELECT table_name,data_type,srs_id FROM gpkg_contents WHERE table_name=?', ('mupolygon',)),
+   ('gpkg_geometry_columns', 'SELECT table_name,column_name,geometry_type_name,srs_id FROM gpkg_geometry_columns WHERE table_name=?', ('mupolygon',)),
+   ('rtree_schema', "SELECT sql FROM sqlite_master WHERE type='table' AND name=?", ('rtree_mupolygon_geom',)),
+  ]: print(name+':', c.execute(sql, params).fetchall())
+  sql='SELECT id FROM rtree_mupolygon_geom WHERE minx <= ? AND maxx >= ? AND miny <= ? AND maxy >= ? LIMIT 101'
+  params=(-93.69,-93.7,41.51,41.5)
+  print('candidate_sql:',sql)
+  print('candidate_params:',params)
+  print('explain_query_plan:',c.execute('EXPLAIN QUERY PLAN '+sql,params).fetchall())
+  ids=c.execute(sql,params).fetchall()
+  print('candidate_count:',len(ids))
+  print('candidate_ids:',ids)
+  c.close()
+  PY
+  ```
+
+- SQLite reported `query_only: (1)`, `mupolygon` as a feature layer in SRS
+  4326, geometry column `geom` of type `POLYGON`, and RTree schema
+  `CREATE VIRTUAL TABLE "rtree_mupolygon_geom" USING rtree(id, minx, maxx, miny, maxy)`.
+- Exact RTree SQL was
+  `SELECT id FROM rtree_mupolygon_geom WHERE minx <= ? AND maxx >= ? AND miny <= ? AND maxy >= ? LIMIT 101`,
+  with parameters `(-93.69, -93.7, 41.51, 41.5)`. Exact SQLite plan:
+  `[(3, 0, 0, 'SCAN rtree_mupolygon_geom VIRTUAL TABLE INDEX 2:B0D1B2D3')]`.
+  It returned 29 RTree candidate IDs (below the 100-feature ceiling).
+- **Zero feature-table queries were executed; zero Iowa feature rows were
+  returned or read.** This RTree evidence does not replace the missing DuckDB
+  spatial-filter `EXPLAIN` and is not authorization for feature reads. Stop
+  pending separate explicit orchestrator approval.
