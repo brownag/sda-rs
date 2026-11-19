@@ -45,8 +45,10 @@ async fn query(app: &axum::Router, sql: &str) -> String {
 
 #[tokio::test]
 async fn active_intersection_tvfs_return_expected_keys_for_both_crs() {
-    let extension = std::env::var("SDA_TEST_SPATIALITE")
-        .expect("SDA_TEST_SPATIALITE must be set for configured spatial acceptance");
+    let Ok(extension) = std::env::var("SDA_TEST_SPATIALITE") else {
+        eprintln!("SDA_TEST_SPATIALITE not set; skipping configured SDA_Get contract");
+        return;
+    };
     let uri = database_uri();
     let holder = Connection::open(&uri).unwrap();
     {
@@ -119,6 +121,11 @@ async fn active_intersection_tvfs_return_expected_keys_for_both_crs() {
             "SELECT mukey, typeof(mukey) AS key_type FROM \
              SDA_Get_Mukey_from_intersection_with_WktWgs84('POINT(0.5 0.5)')",
             r#"{"Table":[["mukey","key_type"],["inside","text"]]}"#,
+        ),
+        (
+            "SELECT mukey, typeof(mukey) AS key_type FROM \
+             SDA_Get_Mukey_from_intersection_with_WktWgs84('POINT(10 10)')",
+            r#"{"Table":[["mukey","key_type"],["outside","text"]]}"#,
         ),
         (
             "SELECT mukey, typeof(mukey) AS key_type FROM \
@@ -485,4 +492,14 @@ async fn active_intersection_tvfs_return_expected_keys_for_both_crs() {
     ] {
         assert_eq!(query(&app, sql).await, "{}");
     }
+
+    assert_eq!(
+        query(
+            &app,
+            "~DeclareIntTable(@mu)~ INSERT INTO @mu VALUES (0); \
+             SELECT * FROM SDA_Get_MupolygonWktWgs84_from_MukeyTable(@mu)"
+        )
+        .await,
+        "{}"
+    );
 }

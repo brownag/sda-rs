@@ -74,7 +74,6 @@ struct TableWktTarget {
     input_key: &'static str,
     output: &'static str,
     srid: i32,
-    key_is_text: bool,
     column: String,
 }
 
@@ -237,7 +236,6 @@ fn table_wkt_spec(
     &'static str,
     &'static str,
     i32,
-    bool,
 )> {
     [
         (
@@ -247,7 +245,6 @@ fn table_wkt_spec(
             "v",
             "AreasymbolWkt84",
             4326,
-            true,
         ),
         (
             AREASYMBOL_TABLE_WKT_WM_FUNCTION,
@@ -256,7 +253,6 @@ fn table_wkt_spec(
             "v",
             "AreasymbolWktWm",
             3857,
-            true,
         ),
         (
             MUPOLYGON_TABLE_WKT_84_FUNCTION,
@@ -265,7 +261,6 @@ fn table_wkt_spec(
             "i",
             "MupolygonWktWgs84",
             4326,
-            false,
         ),
         (
             MUPOLYGON_TABLE_WKT_WM_FUNCTION,
@@ -274,7 +269,6 @@ fn table_wkt_spec(
             "i",
             "MupolygonWktWm",
             3857,
-            false,
         ),
         (
             MUPOINT_TABLE_WKT_84_FUNCTION,
@@ -283,7 +277,6 @@ fn table_wkt_spec(
             "i",
             "MupointWktWgs84",
             4326,
-            false,
         ),
         (
             MUPOINT_TABLE_WKT_WM_FUNCTION,
@@ -292,7 +285,6 @@ fn table_wkt_spec(
             "i",
             "MupointWktWm",
             3857,
-            false,
         ),
         (
             MULINE_TABLE_WKT_84_FUNCTION,
@@ -301,7 +293,6 @@ fn table_wkt_spec(
             "i",
             "MulineWktWgs84",
             4326,
-            false,
         ),
         (
             MULINE_TABLE_WKT_WM_FUNCTION,
@@ -310,7 +301,6 @@ fn table_wkt_spec(
             "i",
             "MulineWktWm",
             3857,
-            false,
         ),
     ]
     .into_iter()
@@ -323,18 +313,10 @@ pub(super) fn parser_compatibility(sql: &str) -> String {
 
     let mut output = String::with_capacity(sql.len());
     let mut index = 0;
-    let mut in_string = false;
     while index < sql.len() {
         let bytes = sql.as_bytes();
-        if bytes[index] == b'\'' {
-            output.push('\'');
-            index += 1;
-            if in_string && bytes.get(index) == Some(&b'\'') {
-                output.push('\'');
-                index += 1;
-            } else {
-                in_string = !in_string;
-            }
+        if let Some(end) = copy_protected_sql(&sql, index, &mut output) {
+            index = end;
             continue;
         }
         let end = index + NEEDLE.len();
@@ -346,10 +328,9 @@ pub(super) fn parser_compatibility(sql: &str) -> String {
             .unwrap_or_default()
             .trim_start()
             .starts_with('(');
-        if !in_string
-            && sql
-                .get(index..end)
-                .is_some_and(|part| part.eq_ignore_ascii_case(NEEDLE))
+        if sql
+            .get(index..end)
+            .is_some_and(|part| part.eq_ignore_ascii_case(NEEDLE))
             && token_boundary(index.checked_sub(1).and_then(|i| bytes.get(i)))
             && token_boundary(bytes.get(end))
             && is_call
@@ -369,22 +350,13 @@ fn expand_table_macros(sql: &str) -> String {
     let mut output = String::with_capacity(sql.len());
     let mut declarations = Vec::new();
     let mut index = 0;
-    let mut in_string = false;
 
     while index < sql.len() {
-        let bytes = sql.as_bytes();
-        if bytes[index] == b'\'' {
-            output.push('\'');
-            index += 1;
-            if in_string && bytes.get(index) == Some(&b'\'') {
-                output.push('\'');
-                index += 1;
-            } else {
-                in_string = !in_string;
-            }
+        if let Some(end) = copy_protected_sql(sql, index, &mut output) {
+            index = end;
             continue;
         }
-        if !in_string && bytes[index] == b'~' {
+        if sql.as_bytes()[index] == b'~' {
             if let Some(end_offset) = sql[index + 1..].find('~') {
                 let end = index + 1 + end_offset;
                 let macro_text = &sql[index + 1..end];
@@ -442,21 +414,12 @@ fn parse_table_macro(input: &str) -> Option<(String, String)> {
 fn replace_table_variables(sql: &str, variables: &[String]) -> String {
     let mut output = String::with_capacity(sql.len());
     let mut index = 0;
-    let mut in_string = false;
     while index < sql.len() {
-        let bytes = sql.as_bytes();
-        if bytes[index] == b'\'' {
-            output.push('\'');
-            index += 1;
-            if in_string && bytes.get(index) == Some(&b'\'') {
-                output.push('\'');
-                index += 1;
-            } else {
-                in_string = !in_string;
-            }
+        if let Some(end) = copy_protected_sql(sql, index, &mut output) {
+            index = end;
             continue;
         }
-        if !in_string && bytes[index] == b'@' {
+        if sql.as_bytes()[index] == b'@' {
             let end = sql[index..]
                 .find(|character: char| {
                     !(character == '@' || character.is_ascii_alphanumeric() || character == '_')
@@ -476,6 +439,45 @@ fn replace_table_variables(sql: &str, variables: &[String]) -> String {
         index += character.len_utf8();
     }
     output
+}
+
+fn copy_protected_sql(sql: &str, start: usize, output: &mut String) -> Option<usize> {
+    let bytes = sql.as_bytes();
+    let first = *bytes.get(start)?;
+    let (closing, doubled) = match first {
+        b'\'' | b'"' | b'`' => (first, true),
+        b'[' => (b']', true),
+        b'-' if bytes.get(start + 1) == Some(&b'-') => {
+            let end = sql[start..]
+                .find('\n')
+                .map_or(sql.len(), |offset| start + offset + 1);
+            output.push_str(&sql[start..end]);
+            return Some(end);
+        }
+        b'/' if bytes.get(start + 1) == Some(&b'*') => {
+            let end = sql[start + 2..]
+                .find("*/")
+                .map_or(sql.len(), |offset| start + offset + 4);
+            output.push_str(&sql[start..end]);
+            return Some(end);
+        }
+        _ => return None,
+    };
+
+    let mut end = start + 1;
+    while end < bytes.len() {
+        if bytes[end] == closing {
+            if doubled && bytes.get(end + 1) == Some(&closing) {
+                end += 2;
+                continue;
+            }
+            end += 1;
+            break;
+        }
+        end += 1;
+    }
+    output.push_str(&sql[start..end]);
+    Some(end)
 }
 
 pub(super) fn rewrite(
@@ -500,7 +502,7 @@ pub(super) fn rewrite(
         let mut table_wkt_targets = Vec::new();
         for node in statement.dfs() {
             if let Expression::Function(function) = node {
-                if let Some((name, table, key, input_key, output, srid, key_is_text)) =
+                if let Some((name, table, key, input_key, output, srid)) =
                     table_wkt_spec(&function.name)
                 {
                     if table_wkt_targets
@@ -522,7 +524,6 @@ pub(super) fn rewrite(
                         input_key,
                         output,
                         srid,
-                        key_is_text,
                         column: capability
                             .geometry_override()
                             .or_else(|| metadata.map(|metadata| metadata.geometry_column.as_str()))
@@ -690,6 +691,12 @@ fn expand_source(
         }
         Expression::Alias(alias) => match &alias.this {
             Expression::Function(function) if table_wkt_spec(&function.name).is_some() => {
+                if !alias.column_aliases.is_empty() {
+                    return Err(polyglot_sql::Error::InvalidInput(format!(
+                        "{} TVF does not support column alias lists",
+                        function.name
+                    )));
+                }
                 Some((function, Some(alias.alias.clone())))
             }
             _ => None,
@@ -705,6 +712,12 @@ fn expand_source(
         }
         Expression::Alias(alias) => match &alias.this {
             Expression::Function(function) if scalar_wkt_spec(&function.name).is_some() => {
+                if !alias.column_aliases.is_empty() {
+                    return Err(polyglot_sql::Error::InvalidInput(format!(
+                        "{} TVF does not support column alias lists",
+                        function.name
+                    )));
+                }
                 (function, Some(alias.alias.clone()))
             }
             _ => return expand_intersection_source(source, targets),
@@ -747,7 +760,7 @@ fn expand_intersection_source(
     let argument = function.args[0].clone();
     let geometry_srid = target.geometry_srid.unwrap_or(target.input_srid);
     let predicate = format!(
-        "ST_Intersects(ST_Transform(GeomFromGPB(mp.__geom__), {}), GeomFromText(__wkt__, {}))",
+        "ST_Intersects(ST_Transform(GeomFromGPB(mp.__geom__), {0}), ST_Transform(GeomFromText(__wkt__, {1}), {0})) = 1",
         geometry_srid, target.input_srid
     );
     let filter = if target.table == "mupolygon" {
@@ -877,14 +890,7 @@ fn expand_table_wkt_source(
             target.function
         )));
     }
-    let join = if target.key_is_text {
-        format!("mp.{} = input.{}", target.key, target.input_key)
-    } else {
-        format!(
-            "CAST(mp.{} AS INTEGER) = input.{}",
-            target.key, target.input_key
-        )
-    };
+    let join = format!("mp.{} = input.{}", target.key, target.input_key);
     let query = format!(
         "SELECT * FROM (SELECT mp.{key}, AsText(ST_Transform(GeomFromGPB(mp.__geom__), {srid})) AS {output} FROM {table} AS mp INNER JOIN {input_table} AS input ON {join}) AS __sda",
         key = target.key,
@@ -1039,6 +1045,7 @@ mod tests {
             assert!(generated.contains("shape_dynamic"), "{generated}");
             assert!(generated.contains("GEOMFROMGPB"), "{generated}");
             assert!(generated.contains("ST_TRANSFORM"), "{generated}");
+            assert!(generated.contains("= 1"), "{generated}");
             assert!(generated.contains("areasymbol <> 'US'"), "{generated}");
             assert!(!generated.contains(MUKEY_FUNCTION), "{generated}");
         }
@@ -1068,6 +1075,19 @@ mod tests {
     }
 
     #[test]
+    fn wkt_tvfs_reject_column_alias_lists() {
+        for sql in [
+            "SELECT * FROM SDA_Get_MupolygonWktWgs84_from_Mukey(11) AS w(shape)",
+            "~DeclareIntTable(@mu)~ SELECT * FROM \
+             SDA_Get_MupolygonWktWgs84_from_MukeyTable(@mu) AS w(key, shape)",
+        ] {
+            let error =
+                crate::transpiler::transpile_with_spatial(sql, Some(&capability())).unwrap_err();
+            assert!(error.to_string().contains("column alias lists"), "{error}");
+        }
+    }
+
+    #[test]
     fn table_input_macros_expand_and_join_through_request_temp_tables() {
         let sql = "~DeclareIntTable(@mu)~ INSERT INTO @mu VALUES (11); \
                    SELECT mukey, MupolygonWktWgs84 \
@@ -1087,10 +1107,7 @@ mod tests {
             generated[2].contains("INNER JOIN __sda_temp_"),
             "{generated:?}"
         );
-        assert!(
-            generated[2].contains("CAST(mp.mukey AS INTEGER) = input.i"),
-            "{generated:?}"
-        );
+        assert!(generated[2].contains("mp.mukey = input.i"), "{generated:?}");
         assert!(generated[2].contains("MupolygonWktWgs84"), "{generated:?}");
         assert!(generated
             .iter()
@@ -1104,6 +1121,17 @@ mod tests {
                 "~DeclareVarchar255Table(@names)~ INSERT INTO @names VALUES ('@names')"
             ),
             "CREATE TABLE #names (v VARCHAR(255)); INSERT INTO #names VALUES ('@names')"
+        );
+    }
+
+    #[test]
+    fn macro_preprocessing_preserves_comments_and_delimited_identifiers() {
+        let sql = "~DeclareIntTable(@mu)~ -- author's @mu and ~DeclareIntTable(@x)~\n\
+                   SELECT '@mu' AS literal, [@mu] AS identifier, @mu AS input";
+        assert_eq!(
+            parser_compatibility(sql),
+            "CREATE TABLE #mu (i INT); -- author's @mu and ~DeclareIntTable(@x)~\n\
+             SELECT '@mu' AS literal, [@mu] AS identifier, #mu AS input"
         );
     }
 

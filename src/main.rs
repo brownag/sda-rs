@@ -11,7 +11,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .init();
     let (arguments, bind_address) = sda_rs::config::extract_bind_address(std::env::args_os())?;
-    let config = Config::try_parse_from(arguments)?;
+    let config = Config::parse_from(arguments);
     let listener = TcpListener::bind((bind_address.as_str(), config.port)).await?;
     axum::serve(listener, app(config)).await?;
     Ok(())
