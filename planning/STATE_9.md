@@ -11,7 +11,7 @@ Plan: `planning/EXECUTION_PLAN_9.md`
 - `cargo test --test spatial_methods_contract`: passed (1 test).
 - `cargo fmt --check`: passed.
 - `git diff --check`: passed.
-- Configured SpatiaLite full-suite baseline not run during planning; run it serially before wave 1 or at its boundary: `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test`.
+- Configured SpatiaLite full-suite baseline: passed before Wave 1 (75 unit tests; 26 integration tests; 0 failures).
 - `src/transpiler/spatial.rs` is 1,519 lines; use task grep anchors.
 - Plan 7's G12 report classifies five methods unsupported and `STAsText` conditionally feasible only under restrictions not enforceable by the current rewrite seam. Current contract and tests explicitly reject all six.
 - ADRs 0001–0006 are accepted; no supersession authorized.
@@ -28,7 +28,7 @@ Plan: `planning/EXECUTION_PLAN_9.md`
 
 | Wave | Tasks | Status | Code commit |
 |---|---|---|---|
-| 1 | 9.1.1 G12 feasibility revalidation | pending | — |
+| 1 | 9.1.1 G12 feasibility revalidation | done | — (report-only) |
 | 2 | 9.2.1 evidence-backed method behavior | pending | — |
 
 ## Final Acceptance Gate (Orchestrator-Owned)
@@ -38,3 +38,13 @@ Pending after Wave 2: run serially `cargo fmt --check`, `git diff --check`, `car
 ## Task Reports
 
 <!-- Append each worker's report under its task ID, at most 15 lines. -->
+
+## 9.1.1
+
+- Status: done; all six methods no-go at current seam; report now explains why no safe runtime-enforceable input bound exists, including for `STAsText`.
+- Files: `planning/reports/G12-geography-method-feasibility.md` (added Plan 9 assessment and explicit matrix outcomes); `planning/tasks/9.1.1.todo.md` (completed checklist).
+- Commit: none yet; report and tracked planning state are isolated in the Plan 9 worktree.
+- Tests: report-only task; `git diff --check` passed.
+- Wave boundary: `cargo fmt --check`, `git diff --check`, configured full `cargo test` passed (75 unit, 26 integration); configured `cargo test --test spatial_methods_contract` passed (1).
+- Deviations: none. No probes repeated because existing documented probe evidence covered the identified questions.
+- Handoff: Task 9.2.1 may verify and clarify existing explicit rejections; do not implement planar substitutes.
