@@ -32,7 +32,7 @@ Plan: `planning/EXECUTION_PLAN_8.md`
 | 3 | 8.3.1 Corrected community geography install and synthetic evaluation | done | `de80cd5` |
 | 4 | 8.4.1 Iterative DuckDB spatial-filter preflight | done; corrected plan shows RTree-backed filter pushdown | `10202d4`, `548f50a`, `0714756` |
 | 5 | 8.5.1 Conditional bounded Iowa comparison | done with DuckDB transaction error; possible reads unknown | `18cd367`, `3a85296` |
-| 6 | 8.6.1 Repair and retry bounded DuckDB execution | complete; streaming retry returned 24 rows; conservative charge 58/100 | `ab37920`, `c8b8a2d` |
+| 6 | 8.6.1 Repair and retry bounded DuckDB execution | complete; streaming retry returned 24 rows; conservative charge 58/100 | `ab37920`, `c8b8a2d`, `485ac73` |
 
 ## Task Reports
 
@@ -93,6 +93,8 @@ Plan: `planning/EXECUTION_PLAN_8.md`
 
 ## Final Acceptance Gate
 
-- Verify corrected community-extension outcome and synthetic lockdown gate; run `git diff --check`.
-- Waves 1–4 did not read Iowa feature-table rows. Wave 5's authorized query failed internally and its read count remains unknown. Wave 6's separately approved streaming correction succeeded with 24 returned rows; cumulative conservative candidate charge is 58/100 and source fingerprints match. No OS sandbox was used.
-- Do not run full Rust suites for this research-only plan; no production files are in scope.
+- [x] Corrected community-extension outcome and synthetic lockdown gate are recorded in Wave 3; all six method contracts are assessed in the report.
+- [x] Waves 1–4 did not read Iowa feature-table rows. Wave 5's authorized query failed internally and its read count remains unknown. Wave 6's separately approved streaming correction succeeded with 24 returned rows; cumulative conservative candidate charge is 58/100 and source fingerprints match. No OS sandbox was used.
+- [x] `git diff --check` passes. No production changes or dependency changes were in scope; the baseline Rust test suites passed before this research-only plan.
+
+Plan 8 is complete. It remains an evaluation only; backend adoption requires a separate plan and decision.
