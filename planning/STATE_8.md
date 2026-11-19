@@ -29,8 +29,8 @@ Plan: `planning/EXECUTION_PLAN_8.md`
 |---|---|---|---|
 | 1 | 8.1.1 Official Spatial synthetic evaluation and no-feature-row Iowa preflight | done | `cb45a3c`, `87c2deb` |
 | 2 | 8.2.1 Community geography initial attempt | done (setup blocker) | `31d06b2` |
-| 3 | 8.3.1 Corrected community geography install and synthetic evaluation | pending micro-plan | — |
-| 4 | 8.4.1 Conditional bounded Iowa comparison | gated; no feature reads without explicit approval | — |
+| 3 | 8.3.1 Corrected community geography install and synthetic evaluation | done | `de80cd5` |
+| 4 | 8.4.1 Conditional bounded Iowa comparison | gated pending orchestrator review of Wave 1–3 evidence and preflight plan | — |
 
 ## Task Reports
 
@@ -49,7 +49,15 @@ Plan: `planning/EXECUTION_PLAN_8.md`
 - Report/TODO: `planning/reports/G33-2-duckdb-spatial-followup.md`, `planning/tasks/8.2.1.todo.md`; commit `31d06b2`.
 - Offline scratch rustfmt/build passed; sole attempt failed before network access because DuckDB used `/home/andrew/.duckdb/extensions/v2.0.0`. The historical command used Bubblewrap; do not repeat it.
 - No extension loaded, no synthetic methods ran, no Iowa feature rows were read; all six methods remain runtime-unverified for community geography.
-- Follow-up 8.3.1 may make one corrected official install/load attempt after setting `extension_directories` to scratch; do not repeat Task 8.2.1.
+- Follow-up 8.3.1 made one corrected official install/load attempt after setting `extension_directories` to scratch; do not repeat either install attempt.
+
+### 8.3.1 — Complete
+
+- Report/TODO: Wave 3 section in `planning/reports/G33-2-duckdb-spatial-followup.md`; `planning/tasks/8.3.1.todo.md`; commit `de80cd5`.
+- Offline build passed; one corrected official community install/load succeeded after verifying `extension_directories` contained only the scratch home.
+- Lockdown preceded synthetic probes: autoload/autoinstall disabled, 1 GB and 2-thread limits, external access false; re-enable rejected.
+- Extension `geography` `f777314ad0`, SHA-256 `f0c5172314e86530d7680b34c62bc092acd64ae8440b43428a5be7ecbe1ad7ad`; six method observations and contract limits are in the report.
+- No Iowa reads or OS sandbox; no production/Cargo/cached Spatial changes. `git diff --check` passed; working tree was clean after commit.
 
 ## Final Acceptance Gate
 
