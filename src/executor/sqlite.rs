@@ -1,11 +1,42 @@
-use std::{error::Error, fmt};
+use std::{
+    error::Error,
+    fmt,
+    time::{Duration, Instant},
+};
 
-use rusqlite::{types::Value, Connection};
+use rusqlite::{
+    hooks::{AuthAction, Authorization, TransactionOperation},
+    limits::Limit,
+    types::Value,
+    Connection, OpenFlags,
+};
 
 use crate::{
     result::ResultSet,
     spatial::{self, SpatialCapability},
 };
+
+const SQL_TEXT_LIMIT: i32 = 2 * 1024 * 1024;
+const SQLITE_VALUE_LIMIT: i32 = 64 * 1024 * 1024;
+const EXECUTION_DEADLINE: Duration = Duration::from_secs(60);
+const MAX_RETURNED_ROWS: usize = 100_000;
+
+#[derive(Clone, Copy)]
+struct ExecutionLimits {
+    sql_text: i32,
+    sqlite_value: i32,
+    deadline: Duration,
+    returned_rows: usize,
+}
+
+impl ExecutionLimits {
+    const DEFAULT: Self = Self {
+        sql_text: SQL_TEXT_LIMIT,
+        sqlite_value: SQLITE_VALUE_LIMIT,
+        deadline: EXECUTION_DEADLINE,
+        returned_rows: MAX_RETURNED_ROWS,
+    };
+}
 
 #[derive(Debug)]
 pub enum ExecutorError {
@@ -13,6 +44,11 @@ pub enum ExecutorError {
     Spatial(spatial::SpatialError),
     Preparation(String),
     Join(tokio::task::JoinError),
+    ReturnedRowLimit(usize),
+    Rollback {
+        execution: Box<Self>,
+        rollback: rusqlite::Error,
+    },
 }
 
 impl fmt::Display for ExecutorError {
@@ -22,6 +58,16 @@ impl fmt::Display for ExecutorError {
             Self::Spatial(error) => write!(f, "{error}"),
             Self::Preparation(error) => write!(f, "SQL preparation failed: {error}"),
             Self::Join(error) => write!(f, "SQLite worker failed: {error}"),
+            Self::ReturnedRowLimit(limit) => {
+                write!(f, "SQLite returned-row limit exceeded ({limit})")
+            }
+            Self::Rollback {
+                execution,
+                rollback,
+            } => write!(
+                f,
+                "{execution}; transaction rollback also failed: {rollback}"
+            ),
         }
     }
 }
@@ -114,6 +160,13 @@ where
 fn open_connection(path: &str) -> Result<Connection, rusqlite::Error> {
     if path == ":memory:" {
         Connection::open_in_memory()
+    } else if let Some(path) = path.strip_prefix("readonly:") {
+        Connection::open_with_flags(
+            path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY
+                | OpenFlags::SQLITE_OPEN_NO_MUTEX
+                | OpenFlags::SQLITE_OPEN_URI,
+        )
     } else {
         Connection::open(path)
     }
@@ -124,48 +177,138 @@ fn open_initialized(
     extension: Option<&str>,
     geometry_override: Option<&str>,
 ) -> Result<(Connection, SpatialCapability), ExecutorError> {
+    open_initialized_with_limits(path, extension, geometry_override, ExecutionLimits::DEFAULT)
+}
+
+fn open_initialized_with_limits(
+    path: &str,
+    extension: Option<&str>,
+    geometry_override: Option<&str>,
+    limits: ExecutionLimits,
+) -> Result<(Connection, SpatialCapability), ExecutorError> {
     let connection = open_connection(path)?;
     let spatial = spatial::initialize(&connection, extension, geometry_override)?;
+    connection.set_limit(Limit::SQLITE_LIMIT_SQL_LENGTH, limits.sql_text);
+    connection.set_limit(Limit::SQLITE_LIMIT_LENGTH, limits.sqlite_value);
+    connection.authorizer(Some(authorize_sqlite_action));
     Ok((connection, spatial))
+}
+
+fn authorize_sqlite_action(context: rusqlite::hooks::AuthContext<'_>) -> Authorization {
+    let temp_database = context.database_name == Some("temp");
+    let allowed = match context.action {
+        AuthAction::Select | AuthAction::Read { .. } => true,
+        AuthAction::CreateTempTable { .. } | AuthAction::DropTempTable { .. } => temp_database,
+        AuthAction::CreateTempIndex { .. } | AuthAction::DropTempIndex { .. } => temp_database,
+        AuthAction::Insert { .. } | AuthAction::Update { .. } | AuthAction::Delete { .. } => {
+            temp_database
+        }
+        AuthAction::Transaction {
+            operation: TransactionOperation::Begin,
+        } => true,
+        AuthAction::Function { function_name } => {
+            !function_name.eq_ignore_ascii_case("load_extension")
+        }
+        _ => false,
+    };
+
+    if allowed {
+        Authorization::Allow
+    } else {
+        Authorization::Deny
+    }
 }
 
 fn execute_on(
     connection: &Connection,
     statements: &[String],
 ) -> Result<Vec<ResultSet>, ExecutorError> {
+    execute_on_with_limits(connection, statements, ExecutionLimits::DEFAULT)
+}
+
+fn execute_on_with_limits(
+    connection: &Connection,
+    statements: &[String],
+    limits: ExecutionLimits,
+) -> Result<Vec<ResultSet>, ExecutorError> {
+    let started = Instant::now();
+    connection.progress_handler(1000, Some(move || started.elapsed() >= limits.deadline));
     let transaction = connection.unchecked_transaction()?;
-    let mut result_sets = Vec::new();
+    let execution = (|| {
+        let mut result_sets = Vec::new();
+        let mut returned_rows = 0usize;
 
-    for sql in statements {
-        let mut statement = transaction.prepare(sql)?;
-        let column_count = statement.column_count();
-        if column_count == 0 {
-            statement.execute([])?;
-            continue;
-        }
-
-        let columns = statement
-            .column_names()
-            .into_iter()
-            .map(str::to_owned)
-            .collect();
-        let mut rows = statement.query([])?;
-        let mut values = Vec::new();
-        while let Some(row) = rows.next()? {
-            let mut result_row = Vec::with_capacity(column_count);
-            for index in 0..column_count {
-                result_row.push(row.get::<_, Value>(index)?);
+        for sql in statements {
+            check_deadline(started, limits.deadline)?;
+            let mut statement = transaction.prepare(sql)?;
+            let column_count = statement.column_count();
+            if column_count == 0 {
+                statement.execute([])?;
+                continue;
             }
-            values.push(result_row);
-        }
-        result_sets.push(ResultSet {
-            columns,
-            rows: values,
-        });
-    }
 
-    transaction.commit()?;
-    Ok(result_sets)
+            let columns = statement
+                .column_names()
+                .into_iter()
+                .map(str::to_owned)
+                .collect();
+            let mut rows = statement.query([])?;
+            let mut values = Vec::new();
+            while let Some(row) = rows.next()? {
+                check_deadline(started, limits.deadline)?;
+                if returned_rows >= limits.returned_rows {
+                    return Err(ExecutorError::ReturnedRowLimit(limits.returned_rows));
+                }
+                let mut result_row = Vec::with_capacity(column_count);
+                for index in 0..column_count {
+                    result_row.push(row.get::<_, Value>(index)?);
+                }
+                values.push(result_row);
+                returned_rows += 1;
+            }
+            result_sets.push(ResultSet {
+                columns,
+                rows: values,
+            });
+        }
+        Ok::<_, ExecutorError>(result_sets)
+    })();
+
+    match execution {
+        Ok(result_sets) => {
+            // No submitted SQL runs while authorization is suspended; bypass
+            // only the synchronous executor-owned commit operation.
+            connection.authorizer(None::<fn(rusqlite::hooks::AuthContext<'_>) -> Authorization>);
+            let commit = transaction.commit();
+            connection.authorizer(Some(authorize_sqlite_action));
+            commit?;
+            Ok(result_sets)
+        }
+        Err(execution) => {
+            // Explicitly roll back before returning, with authorization
+            // suspended only for this synchronous executor-owned operation.
+            connection.authorizer(None::<fn(rusqlite::hooks::AuthContext<'_>) -> Authorization>);
+            let rollback = transaction.rollback();
+            connection.authorizer(Some(authorize_sqlite_action));
+            match rollback {
+                Ok(()) => Err(execution),
+                Err(rollback) => Err(ExecutorError::Rollback {
+                    execution: Box::new(execution),
+                    rollback,
+                }),
+            }
+        }
+    }
+}
+
+fn check_deadline(started: Instant, deadline: Duration) -> Result<(), ExecutorError> {
+    if started.elapsed() >= deadline {
+        return Err(ExecutorError::Sqlite(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_INTERRUPT),
+            None,
+        )));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -181,6 +324,147 @@ mod tests {
             std::process::id(),
             NEXT_SHARED_DB.fetch_add(1, Ordering::Relaxed)
         )
+    }
+
+    fn small_limits() -> ExecutionLimits {
+        ExecutionLimits {
+            sql_text: 4096,
+            sqlite_value: 512,
+            deadline: Duration::from_secs(60),
+            returned_rows: 2,
+        }
+    }
+
+    fn limited_connection(limits: ExecutionLimits) -> Connection {
+        open_initialized_with_limits(":memory:", None, None, limits)
+            .unwrap()
+            .0
+    }
+
+    fn assert_value_length_boundary(
+        connection: &Connection,
+        limits: ExecutionLimits,
+        query_for_length: impl Fn(usize) -> String,
+    ) {
+        let mut accepted = 0;
+        let mut rejected = limits.sqlite_value as usize + 1;
+        while rejected - accepted > 1 {
+            let candidate = accepted + (rejected - accepted) / 2;
+            if execute_on_with_limits(connection, &[query_for_length(candidate)], limits).is_ok() {
+                accepted = candidate;
+            } else {
+                rejected = candidate;
+            }
+        }
+
+        assert!(
+            execute_on_with_limits(connection, &[query_for_length(accepted)], limits).is_ok(),
+            "largest accepted value should remain accepted"
+        );
+        assert!(
+            execute_on_with_limits(connection, &[query_for_length(rejected)], limits).is_err(),
+            "first value beyond the effective SQLite boundary should be rejected"
+        );
+    }
+
+    #[test]
+    fn enforces_sql_text_limit_at_and_over_boundary() {
+        let limits = ExecutionLimits {
+            sql_text: 64,
+            ..small_limits()
+        };
+        let connection = limited_connection(limits);
+        let exact_sql = format!("SELECT 1 --{}", "x".repeat(64 - "SELECT 1 --".len()));
+        let over_sql = format!("{exact_sql}x");
+
+        assert_eq!(
+            execute_on_with_limits(&connection, &[exact_sql], limits).unwrap()[0].rows,
+            [vec![Value::Integer(1)]]
+        );
+        assert!(execute_on_with_limits(&connection, &[over_sql], limits).is_err());
+    }
+
+    #[test]
+    fn enforces_string_and_blob_limits_at_and_over_boundary() {
+        let limits = small_limits();
+        let connection = limited_connection(limits);
+        // SQLite also applies this limit to internal row/string bookkeeping;
+        // find the effective byte boundary, then verify the next byte fails.
+        assert_value_length_boundary(&connection, limits, |length| {
+            format!("SELECT length('{}')", "x".repeat(length))
+        });
+        assert_value_length_boundary(&connection, limits, |length| {
+            format!("SELECT length(zeroblob({length}))")
+        });
+    }
+
+    #[test]
+    fn deadline_interrupts_batch_and_allows_work_with_time() {
+        let sufficient_limits = ExecutionLimits {
+            deadline: Duration::from_secs(1),
+            ..small_limits()
+        };
+        let connection = limited_connection(sufficient_limits);
+        let cpu_query = "SELECT length(randomblob(100))";
+        assert!(
+            execute_on_with_limits(&connection, &[cpu_query.into()], sufficient_limits).is_ok()
+        );
+
+        let expired_limits = ExecutionLimits {
+            deadline: Duration::ZERO,
+            ..small_limits()
+        };
+        let connection = limited_connection(expired_limits);
+        assert!(matches!(
+            execute_on_with_limits(&connection, &[cpu_query.into()], expired_limits),
+            Err(ExecutorError::Sqlite(rusqlite::Error::SqliteFailure(error, _)))
+                if error.code == rusqlite::ErrorCode::OperationInterrupted
+        ));
+    }
+
+    #[test]
+    fn constrained_temp_tables_can_create_indexes_but_persistent_indexes_are_denied() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch("CREATE TABLE persistent(k TEXT)")
+            .unwrap();
+        connection.authorizer(Some(authorize_sqlite_action));
+        let limits = small_limits();
+        assert!(execute_on_with_limits(
+            &connection,
+            &[
+                "CREATE TEMP TABLE temp_t(k TEXT PRIMARY KEY)".into(),
+                "INSERT INTO temp_t VALUES ('x')".into(),
+                "SELECT * FROM temp_t".into(),
+            ],
+            limits,
+        )
+        .is_ok());
+
+        assert!(matches!(
+            connection.execute("CREATE INDEX persistent_k ON persistent(k)", []),
+            Err(rusqlite::Error::SqliteFailure(error, _))
+                if error.code == rusqlite::ErrorCode::AuthorizationForStatementDenied
+        ));
+    }
+
+    #[test]
+    fn enforces_total_row_limit_across_statements() {
+        let limits = small_limits();
+        let connection = limited_connection(limits);
+        let boundary = vec!["SELECT 1 UNION ALL SELECT 2".into()];
+        assert_eq!(
+            execute_on_with_limits(&connection, &boundary, limits).unwrap()[0]
+                .rows
+                .len(),
+            2
+        );
+
+        let over = vec!["SELECT 1 UNION ALL SELECT 2".into(), "SELECT 3".into()];
+        assert!(matches!(
+            execute_on_with_limits(&connection, &over, limits),
+            Err(ExecutorError::ReturnedRowLimit(2))
+        ));
     }
 
     #[test]
@@ -242,19 +526,18 @@ mod tests {
 
     #[test]
     fn rolls_back_failed_statement_batch() {
-        let uri = shared_memory_uri();
-        let holder = Connection::open(&uri).unwrap();
-        holder
-            .execute_batch("CREATE TABLE t(x INTEGER); INSERT INTO t VALUES (1);")
+        let (connection, _) = open_initialized(":memory:", None, None).unwrap();
+        connection
+            .execute_batch("CREATE TEMP TABLE t(x INTEGER); INSERT INTO t VALUES (1);")
             .unwrap();
 
-        let result = execute(
-            &uri,
+        let result = execute_on(
+            &connection,
             &["UPDATE t SET x = 2".into(), "SELECT * FROM missing".into()],
         );
 
         assert!(result.is_err());
-        let value: i64 = holder
+        let value: i64 = connection
             .query_row("SELECT x FROM t", [], |row| row.get(0))
             .unwrap();
         assert_eq!(value, 1);
@@ -262,21 +545,20 @@ mod tests {
 
     #[test]
     fn commits_successful_statement_batch() {
-        let uri = shared_memory_uri();
-        let holder = Connection::open(&uri).unwrap();
-        holder
-            .execute_batch("CREATE TABLE t(x INTEGER); INSERT INTO t VALUES (1);")
-            .unwrap();
-
-        let results = execute(
-            &uri,
-            &["UPDATE t SET x = 2".into(), "SELECT x FROM t".into()],
+        let (connection, _) = open_initialized(":memory:", None, None).unwrap();
+        let results = execute_on(
+            &connection,
+            &[
+                "CREATE TEMP TABLE t(x INTEGER)".into(),
+                "INSERT INTO t VALUES (1)".into(),
+                "UPDATE t SET x = 2".into(),
+                "SELECT x FROM t".into(),
+            ],
         )
         .unwrap();
 
         assert_eq!(results[0].rows, [vec![Value::Integer(2)]]);
-        let fresh = Connection::open(&uri).unwrap();
-        let value: i64 = fresh
+        let value: i64 = connection
             .query_row("SELECT x FROM t", [], |row| row.get(0))
             .unwrap();
         assert_eq!(value, 2);

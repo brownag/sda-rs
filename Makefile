@@ -1,4 +1,4 @@
-.PHONY: help install build test lint format check run clean all
+.PHONY: help install build test test-soildb lint format check run clean all
 
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
@@ -18,6 +18,9 @@ build: ## Build the project
 
 test: ## Run all tests
 	$(CARGO) test
+
+test-soildb: ## Run opt-in soilDB/Iowa integration tests (requires explicit local data paths)
+	./scripts/test-soildb.sh
 
 lint: ## Run clippy and check formatting
 	$(CARGO) fmt --check

@@ -1,14 +1,15 @@
 [package]
 name = "sda-rs"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "MIT"
+authors = ["Andrew Gene Brown <brown.andrewg@gmail.com>"]
 
 [dependencies]
 axum = "0.8"
 clap = { version = "4", features = ["derive", "env"] }
 polyglot-sql = "0.14"
-rusqlite = { version = "0.32", features = ["load_extension"] }
+rusqlite = { version = "0.32", features = ["functions", "hooks", "limits", "load_extension"] }
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
 tower-http = { version = "0.6", features = ["cors", "limit", "trace"] }

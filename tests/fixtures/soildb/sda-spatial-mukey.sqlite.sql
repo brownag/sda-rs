@@ -1,0 +1,1 @@
+WITH geom_data(mukey, muname) AS (SELECT mukey, muname FROM mapunit WHERE mapunit.mukey IN (SELECT DISTINCT mukey FROM SDA_GET_MUKEY_FROM_INTERSECTION_WITH_WKTWGS84('GEOMETRYCOLLECTION (POINT (0.5 0.5))'))) SELECT geom_data.mukey, geom_data.muname FROM geom_data

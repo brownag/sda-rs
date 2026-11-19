@@ -62,15 +62,124 @@ impl SpatialCapability {
 /// Conservatively recognizes spatial operations currently reserved for the
 /// spatial rewrite path; ordinary SQL remains executable without SpatiaLite.
 pub fn requires_spatial(sql: &str) -> bool {
-    let sql = sql.to_ascii_lowercase();
-    [
+    const MARKERS: &[&str] = &[
         "stgeomfromtext",
         "stintersects",
         "sda_get_mukey_from_intersection_with_wktwgs84",
+        "sda_get_mukey_from_intersection_with_wktwm",
+        "sda_get_mupolygonkey_from_intersection_with_wktwgs84",
+        "sda_get_mupolygonkey_from_intersection_with_wktwm",
+        "sda_get_sapolygonkey_from_intersection_with_wktwgs84",
+        "sda_get_sapolygonkey_from_intersection_with_wktwm",
+        "sda_get_areasymbol_from_intersection_with_wktwgs84",
+        "sda_get_areasymbol_from_intersection_with_wktwm",
+        "sda_get_mupointkey_from_intersection_with_wktwgs84",
+        "sda_get_mupointkey_from_intersection_with_wktwm",
+        "sda_get_mulinekey_from_intersection_with_wktwgs84",
+        "sda_get_mulinekey_from_intersection_with_wktwm",
+        "sda_get_featlinekey_from_intersection_with_wktwgs84",
+        "sda_get_featlinekey_from_intersection_with_wktwm",
+        "sda_get_featpointkey_from_intersection_with_wktwgs84",
+        "sda_get_featpointkey_from_intersection_with_wktwm",
+        "sda_get_areasymbolwktwgs84_from_areasymbol",
+        "sda_get_areasymbolwktwm_from_areasymbol",
+        "sda_get_mupolygonwktwgs84_from_mukey",
+        "sda_get_mupolygonwktwm_from_mukey",
+        "sda_get_mupointwktwgs84_from_mukey",
+        "sda_get_mupointwktwm_from_mukey",
+        "sda_get_mulinewktwgs84_from_mukey",
+        "sda_get_mulinewktwm_from_mukey",
+        "sda_get_areasymbolwktwgs84_from_areasymboltable",
+        "sda_get_areasymbolwktwm_from_areasymboltable",
+        "sda_get_mupolygonwktwgs84_from_mukeytable",
+        "sda_get_mupolygonwktwm_from_mukeytable",
+        "sda_get_mupointwktwgs84_from_mukeytable",
+        "sda_get_mupointwktwm_from_mukeytable",
+        "sda_get_mulinewktwgs84_from_mukeytable",
+        "sda_get_mulinewktwm_from_mukeytable",
+        "sda_get_sapolygonkey_from_intersection_with_sastatusmap_wktwgs84",
+        "sda_get_sapolygonkey_from_intersection_with_sastatusmap_wktwm",
         "spatialite_",
-    ]
-    .iter()
-    .any(|marker| sql.contains(marker))
+    ];
+    let bytes = sql.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'\'' => index = skip_quoted(bytes, index, b'\''),
+            b'"' | b'`' => index = skip_quoted(bytes, index, bytes[index]),
+            b'[' => index = skip_bracket_identifier(bytes, index),
+            b'-' if bytes.get(index + 1) == Some(&b'-') => index = skip_line_comment(bytes, index),
+            b'/' if bytes.get(index + 1) == Some(&b'*') => index = skip_block_comment(bytes, index),
+            byte if byte.is_ascii_alphabetic() || byte == b'_' => {
+                let start = index;
+                index += 1;
+                while bytes
+                    .get(index)
+                    .is_some_and(|byte| byte.is_ascii_alphanumeric() || *byte == b'_')
+                {
+                    index += 1;
+                }
+                let token = sql[start..index].to_ascii_lowercase();
+                let mut next = index;
+                while bytes.get(next).is_some_and(u8::is_ascii_whitespace) {
+                    next += 1;
+                }
+                if (token.starts_with("spatialite_") || MARKERS.contains(&token.as_str()))
+                    && bytes.get(next) == Some(&b'(')
+                {
+                    return true;
+                }
+            }
+            _ => index += 1,
+        }
+    }
+    false
+}
+
+fn skip_quoted(bytes: &[u8], start: usize, quote: u8) -> usize {
+    let mut index = start + 1;
+    while index < bytes.len() {
+        if bytes[index] == quote {
+            if bytes.get(index + 1) == Some(&quote) {
+                index += 2;
+            } else {
+                return index + 1;
+            }
+        } else {
+            index += 1;
+        }
+    }
+    index
+}
+
+fn skip_bracket_identifier(bytes: &[u8], start: usize) -> usize {
+    let mut index = start + 1;
+    while index < bytes.len() {
+        if bytes[index] == b']' {
+            if bytes.get(index + 1) == Some(&b']') {
+                index += 2;
+            } else {
+                return index + 1;
+            }
+        } else {
+            index += 1;
+        }
+    }
+    index
+}
+
+fn skip_line_comment(bytes: &[u8], start: usize) -> usize {
+    bytes[start..]
+        .iter()
+        .position(|byte| *byte == b'\n')
+        .map_or(bytes.len(), |offset| start + offset + 1)
+}
+
+fn skip_block_comment(bytes: &[u8], start: usize) -> usize {
+    bytes[start + 2..]
+        .windows(2)
+        .position(|window| window == b"*/")
+        .map_or(bytes.len(), |offset| start + offset + 4)
 }
 
 #[derive(Debug)]
@@ -125,6 +234,51 @@ pub fn initialize(
             path: path.to_owned(),
             message: error.to_string(),
         })?;
+        // SpatiaLite's transform functions consult `spatial_ref_sys`, while
+        // GeoPackages keep equivalent definitions in `gpkg_spatial_ref_sys`.
+        // Seed missing EPSG rows in memory so read-only GeoPackages can still
+        // use Transform without modifying their database.
+        if table_exists(connection, "gpkg_spatial_ref_sys")?
+            && !table_exists(connection, "spatial_ref_sys")?
+        {
+            connection
+                .execute_batch(
+                    "CREATE TEMP TABLE spatial_ref_sys (
+                        srid INTEGER PRIMARY KEY,
+                        auth_name TEXT,
+                        auth_srid INTEGER,
+                        ref_sys_name TEXT,
+                        proj4text TEXT,
+                        srtext TEXT
+                    );
+                    INSERT INTO spatial_ref_sys
+                    SELECT srs_id, organization, organization_coordsys_id,
+                           srs_name, '', definition
+                    FROM gpkg_spatial_ref_sys;",
+                )
+                .map_err(|error| SpatialError::Metadata(error.to_string()))?;
+            let has_web_mercator: bool = connection
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM spatial_ref_sys WHERE srid = 3857)",
+                    [],
+                    |row| row.get(0),
+                )
+                .map_err(|error| SpatialError::Metadata(error.to_string()))?;
+            if !has_web_mercator {
+                connection
+                    .execute(
+                        "INSERT INTO spatial_ref_sys
+                         (srid, auth_name, auth_srid, ref_sys_name, proj4text, srtext)
+                         VALUES (
+                            3857, 'EPSG', 3857, 'WGS 84 / Pseudo-Mercator',
+                            '+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs',
+                            'PROJCS[\"WGS 84 / Pseudo-Mercator\",GEOGCS[\"WGS 84\",DATUM[\"World Geodetic System 1984\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4326\"]],PROJECTION[\"Popular Visualisation Pseudo Mercator\",AUTHORITY[\"EPSG\",\"1024\"]],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",0],PARAMETER[\"scale_factor\",1],PARAMETER[\"false_easting\",0],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"3857\"]]'
+                         )",
+                        [],
+                    )
+                    .map_err(|error| SpatialError::Metadata(error.to_string()))?;
+            }
+        }
         connection
             .query_row("SELECT spatialite_version()", [], |row| {
                 row.get::<_, String>(0)
@@ -186,6 +340,16 @@ pub fn initialize(
     })
 }
 
+fn table_exists(connection: &Connection, table: &str) -> Result<bool, SpatialError> {
+    connection
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1)",
+            [table],
+            |row| row.get(0),
+        )
+        .map_err(|error| SpatialError::Metadata(error.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -203,6 +367,56 @@ mod tests {
             capability.require_spatial().unwrap_err().to_string(),
             "Spatial capability unavailable: SpatiaLite is not loaded"
         );
+    }
+
+    #[test]
+    fn spatial_detection_ignores_literals_comments_and_delimited_identifiers() {
+        for sql in [
+            "SELECT 'SDA_Get_MupolygonWktWgs84_from_Mukey(1)'",
+            "-- SDA_Get_Mukey_from_intersection_with_WktWgs84('POINT(0 0)')\nSELECT 1",
+            "/* SDA_Get_Mukey_from_intersection_with_WktWgs84('x') */ SELECT 1",
+            "SELECT [SDA_Get_MupolygonWktWgs84_from_Mukey](1)",
+        ] {
+            assert!(!requires_spatial(sql), "{sql}");
+        }
+        assert!(requires_spatial(
+            "SELECT * FROM SDA_Get_MupolygonWktWgs84_from_Mukey(1)"
+        ));
+        assert!(requires_spatial("SELECT Spatialite_Transform(geom, 3857)"));
+    }
+
+    #[test]
+    fn read_only_geopackage_crs_mapping_includes_web_mercator() {
+        let Ok(extension) = std::env::var("SDA_TEST_SPATIALITE") else {
+            return;
+        };
+        let connection = Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE gpkg_spatial_ref_sys (
+                    srs_name TEXT, srs_id INTEGER, organization TEXT,
+                    organization_coordsys_id INTEGER, definition TEXT, description TEXT
+                );
+                INSERT INTO gpkg_spatial_ref_sys VALUES (
+                    'WGS 84', 4326, 'EPSG', 4326,
+                    'GEOGCS[\"WGS 84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS 84\",6378137,298.257223563]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433]]',
+                    ''
+                );
+                CREATE TABLE gpkg_geometry_columns (
+                    table_name TEXT, column_name TEXT, srs_id INTEGER
+                );
+                INSERT INTO gpkg_geometry_columns VALUES ('mupolygon', 'geom', 4326);",
+            )
+            .unwrap();
+        initialize(&connection, Some(&extension), None).unwrap();
+        let projected: Option<String> = connection
+            .query_row(
+                "SELECT AsText(ST_Transform(GeomFromText('POINT(10 10)', 4326), 3857))",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(projected.is_some());
     }
 
     #[test]

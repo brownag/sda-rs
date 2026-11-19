@@ -4,22 +4,23 @@ Plan: `planning/EXECUTION_PLAN_5.md`. Active goal: explicit and tested SQLite se
 
 ## Baseline (recorded before wave 1)
 
-- Branch: `feature/sqlite-mvp`; HEAD `46beb3c`.
+- Branch: `feature/sda-readiness`; HEAD `4198dc8`.
 - Intentional Magic Wand edit to `planning/GOALS.md` is present; preserve it and keep it in planning-only commits.
 - Prior Plan 3/4 worktrees remain retained; no cleanup performed.
 - `cargo fmt --check`: passed.
 - `git diff --check`: passed.
-- `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test`: passed (52 unit + 11 integration tests; 0 failures).
+- `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test`: passed (52 unit + 11 integration tests; 0 failures). Live SpatiaLite tests executed.
 - Live SpatiaLite extension path: `/usr/lib/x86_64-linux-gnu/mod_spatialite.so`; configured live tests executed.
 - Accepted ADRs 0001–0006 remain in force; no supersession authorized.
+- Plan 6 artifacts were committed separately as `9cc9873` while this orchestration was active; Plan 5 did not edit them.
 
 ## Wave board
 
 | Wave | Tasks | Status | Code commit |
 |---|---|---|---|
-| 1 | 5.1.1 Persistent-state authorizer | pending | — |
-| 2 | 5.2.1 Extension lifecycle; 5.2.2 test UDF flags | pending | — |
-| 3 | 5.3.1 SQLite/row limits; 5.3.2 serialized-output cap | pending | — |
+| 1 | 5.1.1 Persistent-state authorizer | done | `50b9f34`, `7283746` |
+| 2 | 5.2.1 Extension lifecycle; 5.2.2 test UDF flags | done | `076fa29`, `b2b8c12` |
+| 3 | 5.3.1 SQLite/row limits; 5.3.2 serialized-output cap | done | `c37d6bc`, `a538b89` |
 
 ## Orchestration decisions and hazards
 
@@ -31,6 +32,61 @@ Plan: `planning/EXECUTION_PLAN_5.md`. Active goal: explicit and tested SQLite se
 - Maximum two workers; isolated worktrees for parallel tasks. Planning artifacts are tracked and committed separately.
 - Run configured full suites serially at each wave boundary. No remote Git operations.
 
+## Worktree registry
+
+| Task | Repo/worktree | Branch state | Created | Lifecycle |
+|---|---|---|---|---|
+| 5.2.1 | `/home/andrew/workspace/sda-rs` → `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-5-task-5.2.1` | detached; commits integrated | 2026-11-18 | retained; cleanup not authorized |
+| 5.2.2 | `/home/andrew/workspace/sda-rs` → `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-5-task-5.2.2` | detached; commits integrated | 2026-11-18 | retained; cleanup not authorized |
+| 5.3.1 | `/home/andrew/workspace/sda-rs` → `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-5-task-5.3.1` | detached; commits integrated | 2026-11-18 | retained; cleanup not authorized |
+| 5.3.2 | `/home/andrew/workspace/sda-rs` → `/home/andrew/.local/share/opencode/worktree/6a1b92/plan-5-task-5.3.2` | detached; commits integrated | 2026-11-18 | retained; cleanup not authorized |
+
 ## Task reports
 
 <!-- Workers append "## {{id}}" sections below, max 15 lines each. -->
+
+## 5.1.1
+- **Status:** complete.
+- **Files:** `Cargo.toml`; `src/executor/sqlite.rs`; `docs/security/sqlite-execution-policy.md`; `tests/security_contract.rs`.
+- **Commits:** `50b9f34` authorizer policy; `7283746` executor transaction lifecycle and regression coverage.
+- **Targeted tests:** `cargo test --test security_contract` — 3 passed; `cargo test executor::sqlite::tests` — 8 passed.
+- **Wave checks:** fmt and diff checks passed; configured full suite — 52 unit + 14 integration tests passed, 0 failed; live SpatiaLite tests executed.
+- **Coverage:** persistent UPDATE denied without side effects; temp create/populate/read and successful batch commit work; failed batch rolls back; user BEGIN/COMMIT rejected.
+- **Deviation:** full suite exposed stale persistent-write unit expectations and denied automatic rollback; escalated and fixed within task scope. Dependency versions unchanged.
+- **Gotcha:** authorizer is suspended only for synchronous executor-owned commit/rollback and restored afterward; submitted transaction-control SQL remains denied.
+
+## 5.2.1
+- **Status:** complete.
+- **Files:** `tests/extension_security_contract.rs`.
+- **Commits:** planning `aa57b56`; code `076fa29`.
+- **Targeted test:** configured extension contract — 2 passed; fmt and diff checks passed.
+- **Wave checks:** configured full suite — 52 unit + 16 integration tests passed, 0 failed; live SpatiaLite tests executed.
+- **Coverage:** ordinary SQLite without extension, configured SpatiaLite spatial query, and query-controlled `load_extension` rejection.
+- **Deviations/gotchas:** none; production extension lifecycle unchanged.
+
+## 5.2.2
+- **Status:** complete.
+- **Files:** `Cargo.toml`; `tests/udf_flags_contract.rs`.
+- **Commits:** planning `44c6c1e`; code `b2b8c12`.
+- **Targeted test:** `cargo test --test udf_flags_contract` — 1 passed; fmt and diff checks passed.
+- **Wave checks:** configured full suite — 52 unit + 16 integration tests passed, 0 failed; live SpatiaLite tests executed.
+- **Coverage:** test-only scalar UDF uses `SQLITE_UTF8 | SQLITE_DIRECTONLY`; direct invocation passes and view invocation is denied.
+- **Deviations/gotchas:** none; no production UDF registered.
+
+## 5.3.1
+- **Status:** complete.
+- **Files:** `Cargo.toml`; `src/executor/sqlite.rs`; `tests/sqlite_limits_contract.rs`.
+- **Commits:** planning `0d93110`; code `c37d6bc`.
+- **Targeted tests:** `cargo test executor::sqlite::tests` — 12 passed; `cargo test --test sqlite_limits_contract` — 1 passed; fmt and diff checks passed.
+- **Wave checks:** configured full suite — 57 unit + 18 integration tests passed, 0 failed; live SpatiaLite tests executed.
+- **Coverage:** SQL text, string/BLOB, deadline interruption, and aggregate row boundaries; batch rollback/temp workflows remain covered.
+- **Deviation/gotcha:** lower-cap tests use private unit helpers; integration test verifies public/default SQL-text behavior. No dependency versions changed.
+
+## 5.3.2
+- **Status:** complete.
+- **Files:** `src/serializer.rs`; `tests/serializer_limits_contract.rs`.
+- **Commits:** planning `a98a8ce`; code `a538b89`.
+- **Targeted tests:** `cargo test serializer::tests` — 7 passed; `cargo test --test serializer_limits_contract` — 1 passed; existing `serializer_contract` — 1 passed.
+- **Wave checks:** configured full suite — 57 unit + 18 integration tests passed, 0 failed; live SpatiaLite tests executed.
+- **Coverage:** JSON/XML exact-cap output succeeds; overflow errors during generation; public JSON contract below cap remains unchanged.
+- **Deviations/gotchas:** none; existing structured route error mapping preserved, routes unchanged.

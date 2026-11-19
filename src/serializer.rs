@@ -1,7 +1,7 @@
-use std::fmt::Write as _;
-
 use crate::result::ResultSet;
 use rusqlite::types::Value;
+
+const MAX_RESPONSE_SIZE: usize = 64 * 1024 * 1024;
 
 /// Output formats supported by the SDA tabular endpoint.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -14,23 +14,31 @@ pub enum Format {
 
 /// Serialize result sets in an SDA tabular response format.
 pub fn serialize(result_sets: &[ResultSet], format: Format) -> Result<String, SerializeError> {
+    serialize_with_limit(result_sets, format, MAX_RESPONSE_SIZE)
+}
+
+fn serialize_with_limit(
+    result_sets: &[ResultSet],
+    format: Format,
+    limit: usize,
+) -> Result<String, SerializeError> {
     match format {
-        Format::Json => Ok(json_results(result_sets, Headers::None)),
-        Format::JsonColumnName => Ok(json_results(result_sets, Headers::Names)),
-        Format::JsonColumnNameMetadata => Ok(json_results(result_sets, Headers::Metadata)),
-        Format::Xml => xml_results(result_sets),
+        Format::Json => json_results(result_sets, Headers::None, limit),
+        Format::JsonColumnName => json_results(result_sets, Headers::Names, limit),
+        Format::JsonColumnNameMetadata => json_results(result_sets, Headers::Metadata, limit),
+        Format::Xml => xml_results(result_sets, limit),
     }
 }
 
 /// Error raised when a result cannot be represented in the requested format.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SerializeError {
-    column: String,
+    message: String,
 }
 
 impl std::fmt::Display for SerializeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "invalid XML element name for column \"{}\"", self.column)
+        f.write_str(&self.message)
     }
 }
 
@@ -43,8 +51,43 @@ enum Headers {
     Metadata,
 }
 
-fn json_results(result_sets: &[ResultSet], headers: Headers) -> String {
-    let mut output = String::from("{");
+struct BoundedOutput {
+    text: String,
+    limit: usize,
+}
+
+impl BoundedOutput {
+    fn push_str(&mut self, value: &str) -> Result<(), SerializeError> {
+        if value.len() > self.limit.saturating_sub(self.text.len()) {
+            return Err(SerializeError {
+                message: format!("serialized response exceeds {} bytes", self.limit),
+            });
+        }
+        self.text.push_str(value);
+        Ok(())
+    }
+
+    fn push(&mut self, value: char) -> Result<(), SerializeError> {
+        if value.len_utf8() > self.limit.saturating_sub(self.text.len()) {
+            return Err(SerializeError {
+                message: format!("serialized response exceeds {} bytes", self.limit),
+            });
+        }
+        self.text.push(value);
+        Ok(())
+    }
+}
+
+fn json_results(
+    result_sets: &[ResultSet],
+    headers: Headers,
+    limit: usize,
+) -> Result<String, SerializeError> {
+    let mut output = BoundedOutput {
+        text: String::new(),
+        limit,
+    };
+    output.push('{')?;
     let mut first_table = true;
     let mut emitted = 0usize;
     for set in result_sets {
@@ -52,7 +95,7 @@ fn json_results(result_sets: &[ResultSet], headers: Headers) -> String {
             continue;
         }
         if !first_table {
-            output.push(',');
+            output.push(',')?;
         }
         first_table = false;
         let key = if emitted == 0 {
@@ -61,15 +104,15 @@ fn json_results(result_sets: &[ResultSet], headers: Headers) -> String {
             format!("Table{emitted}")
         };
         emitted += 1;
-        output.push_str(&json_string(&key));
-        output.push_str(":[");
+        json_string(&mut output, &key)?;
+        output.push_str(":[")?;
         let mut first_row = true;
         if !matches!(headers, Headers::None) {
             json_row(
                 &mut output,
                 set.columns.iter().map(String::as_str),
                 &mut first_row,
-            );
+            )?;
         }
         if matches!(headers, Headers::Metadata) {
             let metadata: Vec<_> = set
@@ -82,66 +125,76 @@ fn json_results(result_sets: &[ResultSet], headers: Headers) -> String {
                 &mut output,
                 metadata.iter().map(String::as_str),
                 &mut first_row,
-            );
+            )?;
         }
         for row in &set.rows {
             if !first_row {
-                output.push(',');
+                output.push(',')?;
             }
             first_row = false;
-            output.push('[');
+            output.push('[')?;
             for (i, value) in row.iter().enumerate() {
                 if i > 0 {
-                    output.push(',');
+                    output.push(',')?;
                 }
                 match value {
-                    Value::Null => output.push_str("null"),
-                    _ => output.push_str(&json_string(&value_text(value))),
+                    Value::Null => output.push_str("null")?,
+                    Value::Text(value) => json_string(&mut output, value)?,
+                    Value::Integer(value) => json_string(&mut output, &value.to_string())?,
+                    Value::Real(value) => json_string(&mut output, &value.to_string())?,
+                    Value::Blob(value) => {
+                        output.push('"')?;
+                        for byte in value {
+                            output.push_str(&format!("{byte:02X}"))?;
+                        }
+                        output.push('"')?;
+                    }
                 }
             }
-            output.push(']');
+            output.push(']')?;
         }
-        output.push(']');
+        output.push(']')?;
     }
-    output.push('}');
-    output
+    output.push('}')?;
+    Ok(output.text)
 }
 
-fn json_row<'a>(output: &mut String, values: impl Iterator<Item = &'a str>, first: &mut bool) {
+fn json_row<'a>(
+    output: &mut BoundedOutput,
+    values: impl Iterator<Item = &'a str>,
+    first: &mut bool,
+) -> Result<(), SerializeError> {
     if !*first {
-        output.push(',');
+        output.push(',')?;
     }
     *first = false;
-    output.push('[');
+    output.push('[')?;
     for (i, value) in values.enumerate() {
         if i > 0 {
-            output.push(',');
+            output.push(',')?;
         }
-        output.push_str(&json_string(value));
+        json_string(output, value)?;
     }
-    output.push(']');
+    output.push(']')?;
+    Ok(())
 }
 
-fn json_string(value: &str) -> String {
-    let mut output = String::with_capacity(value.len() + 2);
-    output.push('"');
+fn json_string(output: &mut BoundedOutput, value: &str) -> Result<(), SerializeError> {
+    output.push('"')?;
     for ch in value.chars() {
         match ch {
-            '"' => output.push_str("\\\""),
-            '\\' => output.push_str("\\\\"),
-            '\u{08}' => output.push_str("\\b"),
-            '\u{0C}' => output.push_str("\\f"),
-            '\n' => output.push_str("\\n"),
-            '\r' => output.push_str("\\r"),
-            '\t' => output.push_str("\\t"),
-            ch if ch <= '\u{1F}' => {
-                let _ = write!(output, "\\u{:04x}", ch as u32);
-            }
-            ch => output.push(ch),
+            '"' => output.push_str("\\\"")?,
+            '\\' => output.push_str("\\\\")?,
+            '\u{08}' => output.push_str("\\b")?,
+            '\u{0C}' => output.push_str("\\f")?,
+            '\n' => output.push_str("\\n")?,
+            '\r' => output.push_str("\\r")?,
+            '\t' => output.push_str("\\t")?,
+            ch if ch <= '\u{1F}' => output.push_str(&format!("\\u{:04x}", ch as u32))?,
+            ch => output.push(ch)?,
         }
     }
-    output.push('"');
-    output
+    output.push('"')
 }
 
 fn value_text(value: &Value) -> String {
@@ -191,43 +244,76 @@ fn is_xml_name(name: &str) -> bool {
         && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
 }
 
-fn xml_results(result_sets: &[ResultSet]) -> Result<String, SerializeError> {
-    let mut xml = String::from("<NewDataSet>");
+fn xml_results(result_sets: &[ResultSet], limit: usize) -> Result<String, SerializeError> {
+    let mut xml = BoundedOutput {
+        text: String::new(),
+        limit,
+    };
+    xml.push_str("<NewDataSet>")?;
     for set in result_sets.iter().filter(|set| !set.rows.is_empty()) {
         if let Some(bad) = set.columns.iter().find(|name| !is_xml_name(name)) {
             return Err(SerializeError {
-                column: bad.clone(),
+                message: format!("invalid XML element name for column \"{bad}\""),
             });
         }
         for row in &set.rows {
-            xml.push_str("<Table>");
+            xml.push_str("<Table>")?;
             for (index, value) in row.iter().enumerate() {
                 let name = set.columns.get(index).map(String::as_str).unwrap_or("");
                 if !is_xml_name(name) {
                     return Err(SerializeError {
-                        column: name.to_owned(),
+                        message: format!("invalid XML element name for column \"{name}\""),
                     });
                 }
                 if matches!(value, Value::Null) {
-                    let _ = write!(xml, "<{name} />");
+                    xml.push('<')?;
+                    xml.push_str(name)?;
+                    xml.push_str(" />")?;
                 } else {
-                    let _ = write!(xml, "<{name}>{}</{name}>", xml_escape(&value_text(value)));
+                    xml.push('<')?;
+                    xml.push_str(name)?;
+                    xml.push('>')?;
+                    xml_value(&mut xml, value)?;
+                    xml.push_str("</")?;
+                    xml.push_str(name)?;
+                    xml.push('>')?;
                 }
             }
-            xml.push_str("</Table>");
+            xml.push_str("</Table>")?;
         }
     }
-    xml.push_str("</NewDataSet>");
-    Ok(xml)
+    xml.push_str("</NewDataSet>")?;
+    Ok(xml.text)
 }
 
-fn xml_escape(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&apos;")
+fn xml_value(output: &mut BoundedOutput, value: &Value) -> Result<(), SerializeError> {
+    match value {
+        Value::Text(text) => xml_escape(output, text),
+        Value::Blob(bytes) => {
+            for byte in bytes {
+                output.push_str(&format!("{byte:02X}"))?;
+            }
+            Ok(())
+        }
+        _ => xml_escape(output, &value_text(value)),
+    }
+}
+
+fn xml_escape(output: &mut BoundedOutput, text: &str) -> Result<(), SerializeError> {
+    for ch in text.chars() {
+        output.push_str(match ch {
+            '&' => "&amp;",
+            '<' => "&lt;",
+            '>' => "&gt;",
+            '"' => "&quot;",
+            '\'' => "&apos;",
+            _ => {
+                output.push(ch)?;
+                continue;
+            }
+        })?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -238,6 +324,25 @@ mod tests {
         ResultSet {
             columns: columns.iter().map(|s| (*s).to_owned()).collect(),
             rows,
+        }
+    }
+
+    #[test]
+    fn bounded_serialization_accepts_exact_limit_and_rejects_overflow() {
+        let sets = [set(&["x"], vec![vec![Value::Text("a".into())]])];
+        for (format, exact) in [
+            (Format::Json, r#"{"Table":[["a"]]}"#),
+            (
+                Format::Xml,
+                "<NewDataSet><Table><x>a</x></Table></NewDataSet>",
+            ),
+        ] {
+            assert_eq!(
+                serialize_with_limit(&sets, format, exact.len()).unwrap(),
+                exact
+            );
+            let error = serialize_with_limit(&sets, format, exact.len() - 1).unwrap_err();
+            assert!(error.to_string().contains("exceeds"));
         }
     }
 

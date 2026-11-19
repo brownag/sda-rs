@@ -1,5 +1,6 @@
 pub mod config;
 pub mod executor;
+pub mod gpkg_geometry;
 pub mod request;
 pub mod result;
 pub mod routes;
