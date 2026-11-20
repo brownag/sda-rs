@@ -28,7 +28,7 @@ Plan: `planning/EXECUTION_PLAN_12.md`
 
 | Wave | Task | Status | Notes |
 |---|---|---|---|
-| 1 | 12.1.1 | pending | Optional bundled DuckDB dependency and disabled-by-default feature. |
+| 1 | 12.1.1 | done | Verified and committed as `1e0aba2`; targeted build and dependency-graph checks passed. |
 | 2 | 12.2.1 | pending | Gate the integration-test target and verify default/opt-in tests. |
 
 ## Task Reports
