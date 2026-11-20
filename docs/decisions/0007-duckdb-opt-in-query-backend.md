@@ -64,10 +64,14 @@ during deployment; request handling performs no extension network access.
 
 This ADR records the backend contract only. It does not authorize adding or
 updating dependencies, implement the backend, or approve a performance result.
-The approved qualification target is at least 20% improvement in geometric-mean
-median latency across scalar/select, captured join, batch/temp-table, and
-serialization workloads, with no individual workload regressing by more than
-10%; spatial results are reported separately.
+The approved qualification objective is at least 20% improvement in
+geometric-mean median latency across scalar/select, captured join,
+batch/temp-table, and serialization workloads, with no individual workload
+regressing by more than 10%; spatial results are reported separately. Measure
+and report these results, but missing the 20% objective alone is not a
+qualification or release blocker. This performance objective does not waive
+security qualification requirements. Numeric resource limits remain separate
+and require measurement and explicit approval.
 
 ## Consequences
 
