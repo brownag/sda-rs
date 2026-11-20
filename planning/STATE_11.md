@@ -33,7 +33,7 @@ Plan: `planning/EXECUTION_PLAN_11.md`
 | Wave | Task | Status | Notes |
 |---|---|---|---|
 | 1 | 11.1.1 | done | Pinned dev-dependency and in-memory DuckDB engine smoke test; all serial wave gates passed. |
-| 2 | 11.2.1 | pending | Raw T-SQL-to-DuckDB translation assertions, including the IIF gap. |
+| 2 | 11.2.1 | done | Raw T-SQL-to-DuckDB translation assertions, including the IIF gap; all serial wave gates passed. |
 | 3 | 11.3.1 | pending | Supported DuckDB query execution, value mapping, SDA JSON, and SQLite comparison. |
 | 4 | 11.4.1 | pending | Test-only IIF/batch adaptations, unsupported type assertion, and spike report. |
 
@@ -53,6 +53,20 @@ Plan: `planning/EXECUTION_PLAN_11.md`
 - Limitations: engine/API smoke only; no T-SQL translation, value mapping, SDA serialization, IIF/CTAS handling, performance, or production claims.
 - Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation. Token/cost telemetry unavailable.
 - Orchestrator gates: targeted DuckDB test passed (1); `cargo fmt --check` and `git diff --check` passed; default and configured-SpatiaLite `cargo test` each passed (75 unit + 31 integration, 0 failures).
+
+## 11.2.1
+
+- Status: done; worker verification and orchestrator wave gates passed.
+- Files changed: `tests/duckdb_pipeline_contract.rs` only (4 new tests: TOP+ISNULL, bracketed identifiers, STRING_AGG, unresolved IIF; existing smoke test preserved).
+- Implementation commit: `d710380` (`test(duckdb): assert raw T-SQL to DuckDB dialect output`). TODO and state edits excluded; Plan 10 artifacts untouched.
+- Targeted command: `CARGO_NET_OFFLINE=true cargo test --offline --test duckdb_pipeline_contract` -> 5 passed, 0 failed.
+- `git diff --check` passed; `rustfmt --check` on the test file passed. No `Cargo.toml`/`Cargo.lock`, `src/`, fixture, runtime, CI, or ADR changes.
+- Behavior: T-SQL `TOP` -> `LIMIT`, `ISNULL` -> `COALESCE`, `[ident]` -> `"ident"`, `STRING_AGG` -> `LISTAGG`; raw IIF output remains `IIF(...)` (unresolved) with no CASE rewrite.
+- Deviations: see the micro-plan deviation below.
+- Limitations: translation-only assertions; no DuckDB execution, result mapping, SDA serialization, IIF adaptation, CTAS handling, performance, or production claims.
+- Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation. Token/cost telemetry unavailable.
+- Orchestrator gates: targeted DuckDB test passed (5); `cargo fmt --check` and `git diff --check` passed; default and configured-SpatiaLite `cargo test` each passed (75 unit + 31 integration, 0 failures).
+- Micro-plan deviation: supported translations were split into focused tests rather than one table-driven test; assertions and task scope are unchanged.
 
 ## Worker Usage
 
