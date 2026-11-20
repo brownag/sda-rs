@@ -29,7 +29,7 @@ Plan: `planning/EXECUTION_PLAN_12.md`
 | Wave | Task | Status | Notes |
 |---|---|---|---|
 | 1 | 12.1.1 | done | Verified and committed as `1e0aba2`; targeted build and dependency-graph checks passed. |
-| 2 | 12.2.1 | pending | Gate the integration-test target and verify default/opt-in tests. |
+| 2 | 12.2.1 | done | Verified and committed as `d567c3b`; test target gated behind `duckdb`; orchestrator final suites pending. |
 
 ## Task Reports
 
@@ -48,4 +48,18 @@ Plan: `planning/EXECUTION_PLAN_12.md`
 - `git diff --check` -> passed; diff contains only `Cargo.toml`.
 - **Deviations:** none.
 - **Limitations:** Linux x86_64 only; compile-time inclusion does not select or enable a runtime backend or authorize production use.
+- **Worker model:** `opencode-go/deepseek-v4.1-flash`; no escalation. Token/cost telemetry unavailable.
+
+## 12.2.1
+
+- **Status:** Done; `duckdb_pipeline_contract` target gated behind the `duckdb` feature.
+- **Files changed:** `Cargo.toml` only (explicit `[[test]]` with `path` and `required-features = ["duckdb"]`); `Cargo.lock` unchanged; test source and adapters untouched.
+- **Implementation commit:** `d567c3b` (`build(duckdb): gate duckdb integration test behind feature`).
+- `cargo test --locked` -> passed: 75 unit + 30 integration across 17 binaries; DuckDB target not compiled or reported.
+- `cargo test --test duckdb_pipeline_contract` (no feature) -> exit 101: "requires the features: `duckdb`" (expected negative).
+- `CARGO_NET_OFFLINE=true cargo test --offline --features duckdb --test duckdb_pipeline_contract` -> 12 passed; 0 failed.
+- `CARGO_NET_OFFLINE=true cargo test --offline --all-features --test duckdb_pipeline_contract` -> 12 passed; 0 failed.
+- `cargo fmt --check` and `git diff --check` -> passed; diff was only `Cargo.toml` (+5 lines).
+- **Deviations:** none.
+- **Limitations:** Linux x86_64 only; Cargo target gating only, with no runtime backend selection or production enablement. Orchestrator final default/SpatiaLite suites were not run here.
 - **Worker model:** `opencode-go/deepseek-v4.1-flash`; no escalation. Token/cost telemetry unavailable.
