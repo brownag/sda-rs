@@ -34,7 +34,7 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 | 3 | 13.3.1 | done | Contains/Within; commits `e5d3da5`, `099f85e`; pinned extension observations and rejection contract passed. |
 | 4 | 13.4.1 | done | Intersection/Buffer; commits `8b3f337`, `5a34354`; pinned extension observations and rejection contract passed. |
 | 5 | 13.5.1 | done | Area/AsText rejected pending evidence/guards; commits `61af77b`, `7c5bd13`, formatting follow-up `6abc15b`; G37 closed. |
-| 6 | 13.6.1 | pending | G38 lifecycle. |
+| 6 | 13.6.1 | done | G38 lifecycle; commits `03040a7`, `7bc00b4`, formatting follow-up `2d7e85f`; boundary suites passed. |
 | 7 | 13.7.1 | pending | G39 controls. |
 | 8 | 13.8.1 | pending | G40 compatibility. |
 | 9 | 13.9.1 | pending | G41 provisioning. |
@@ -118,3 +118,4 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 - `CARGO_NET_OFFLINE=true cargo test --offline --features duckdb --test duckdb_execution_contract`: passed, 4 tests; initial run exposed expected DuckDB CTAS count result, and the test now selects the temp-table query result.
 - `git diff --check`: passed. No dependencies, network, extension, routes/config, SQLite behavior, security policy, or deployment changes.
 - Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation or remote actions.
+- Wave boundary: `cargo fmt --check` and `git diff --check` passed after formatting-only commit `2d7e85f`; default `cargo test` and configured-SpatiaLite `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` each passed (75 unit + 30 integration); offline `duckdb_execution_contract` passed (4), pinned-artifact `duckdb_geography_contract` passed (7), and `duckdb_pipeline_contract` passed (12).
