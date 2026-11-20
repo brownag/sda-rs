@@ -1,0 +1,46 @@
+# State 11 — Test-Only DuckDB T-SQL Pipeline Spike
+
+Plan: `planning/EXECUTION_PLAN_11.md`
+
+## Baseline
+
+- Repository/worktree: `/home/andrew/workspace/sda-rs`
+- Branch: `feature/duckdb-production-backend-task`
+- Starting HEAD: `a859c41`
+- Planning artifacts are tracked and not ignored; user approved tracking Plan 11.
+- At initial inspection, preserve modified `planning/GOALS.md` and pre-existing untracked `planning/tasks/10.5.2.todo.md`, `planning/tasks/10.6.1.todo.md`; do not stage broad paths. User approved tracking Plan 11; `GOALS.md`, `EXECUTION_PLAN_11.md`, `PROMPT_TEMPLATE_11.md`, and `STATE_11.md` are staged for the focused planning-only commit.
+- `cargo fmt --check`: passed on 2026-11-20.
+- `cargo test`: passed on 2026-11-20 (75 unit + 30 integration; 0 failures).
+- `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test`: passed on 2026-11-20 (75 unit + 30 integration; 0 failures).
+- `git diff --check`: passed before Plan 11 drafting.
+- Existing code has no DuckDB dependency; `polyglot-sql` already supports the DuckDB dialect. Scratch DuckDB `=1.20000.2` built offline in Plan 10.
+- Accepted ADRs 0001–0007 remain in force. No production source implementation or runtime backend exists.
+
+## Decisions / Approval Gates
+
+- **2026-11-20 — Goal:** Advance G47 as a non-production T-SQL → DuckDB SQL → DuckDB execution → SDA-serializer slice.
+- **2026-11-20 — Reachability:** Test-only/internal; no public route or runtime backend selector.
+- **2026-11-20 — Dependency:** `duckdb = "=1.20000.2"` authorized as a dev-dependency only; do not include DuckDB code in normal binaries.
+- **2026-11-20 — Contract subset:** TOP/bracketed identifiers/ISNULL/IIF, captured synthetic soilDB join, STRING_AGG, and temp-table batch with CTAS count suppressed; unsupported or lossy value types must be rejected explicitly.
+- **2026-11-20 — Execution:** Serial on the current branch; required small-worker model `opencode-go/deepseek-v4.1-flash` with one escalation maximum to `openai/gpt-6-luna`. No worktrees.
+- **2026-11-20 — Artifacts:** Track plan files and keep planning-only commits separate from implementation.
+- **2026-11-20 — Plan approval:** User approved the four-wave decomposition; implementation has not started and remains gated by each task's micro-plan review.
+- **2026-11-20 — Regression gate:** Targeted DuckDB test offline, then formatting, default full suite, and configured-SpatiaLite full suite serially.
+- No production security/resource controls, spatial support, performance claim, runtime integration, or production enablement authorized.
+
+## Wave Board
+
+| Wave | Task | Status | Notes |
+|---|---|---|---|
+| 1 | 11.1.1 | pending | Pinned dev-dependency and in-memory DuckDB engine smoke test. |
+| 2 | 11.2.1 | pending | Raw T-SQL-to-DuckDB translation assertions, including the IIF gap. |
+| 3 | 11.3.1 | pending | Supported DuckDB query execution, value mapping, SDA JSON, and SQLite comparison. |
+| 4 | 11.4.1 | pending | Test-only IIF/batch adaptations, unsupported type assertion, and spike report. |
+
+## Task Reports
+
+<!-- Append concise worker reports below. -->
+
+## Worker Usage
+
+- Record worker model, escalation, and token/cost telemetry availability after task completion.

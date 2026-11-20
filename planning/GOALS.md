@@ -1,15 +1,15 @@
 # Project Goals (`planning/GOALS.md`)
 
-Last Updated: 2026-11-19
-Source State: STATE_9.md (Plan 9 complete); Plans 8–9 are merged on `main` as `7b1ad61`
+Last Updated: 2026-11-20
+Source State: STATE_10.md (Plan 10 DuckDB evaluation complete; production tasks paused)
 
 ## Circled Goal (Active)
 
-- **[G36]** The production acceptance contract is approved for DuckDB as an opt-in SDA query backend, with SQLite retained as the default and supported backend; DuckDB improves performance without requiring SpatiaLite.
-  - Depends on: G29, G30, G32, and completed G33-2 evaluation.
-  - Why now: Plan 8 demonstrated a bounded DuckDB GeoPackage read but did not establish service integration, production security, deployment support, workload suitability, or SQL Server geography parity. The current executor is SQLite-specific, and the active ADRs select SQLite/GeoPackage for the MVP.
-  - Exit criteria: The accepted contract targets Linux x86_64 first, preserves the documented query surface and explicit unsupported-method behavior, mirrors the SQLite security boundary, provisions a pinned/hash-verified official DuckDB Spatial extension at deployment (no request-time network), and defines opt-in/failure behavior. The existing contract suite is benchmarked against SQLite first; a numeric performance threshold is approved before backend implementation.
-  - First action: Build a decision matrix from Plan 8 evidence, the current executor/security contracts, and active ADRs; list the user decisions needed to approve production acceptance criteria.
+- **[G47]** A non-production DuckDB vertical slice accepts representative SDA T-SQL, translates it to DuckDB SQL, executes it, and returns the existing SDA response shape for a documented non-spatial subset.
+  - Why now: The scratch evaluation established a narrow working subset and surfaced concrete mismatches (`IIF`, CTAS count result shaping, and typed result mapping). A repository-local spike will test the real integration seam before production architecture, controls, or scope are selected.
+  - Evidence: `planning/reports/duckdb-tsql-pipeline-evaluation.md`; these findings are evaluation evidence, not production guarantees.
+  - Exit criteria: An approved plan defines a strictly opt-in/non-production slice; representative T-SQL translation, DuckDB execution, and SDA serialization have contract tests; supported and explicitly rejected cases are recorded; SQLite behavior remains unchanged; no production enablement or controls are inferred.
+  - First action: Create a scoped plan for the smallest vertical slice, starting with the `IIF` translation and non-row-producing batch result-shaping gaps, and identify the route/transpiler/executor/serializer seams.
 
 ## Sequenced Goals (Dependency DAG)
 
@@ -17,24 +17,28 @@ Source State: STATE_9.md (Plan 9 complete); Plans 8–9 are merged on `main` as 
   - Depends on: G29, G30.
   - Exit criteria: Tests demonstrate metadata resolution for each referenced table/geometry column and explicit rejection of missing or ambiguous metadata; existing Mukey validation and non-spatial queries remain intact.
   - First action: Audit `src/spatial.rs` and spatial-transpiler call sites against multi-table geometry queries; identify uncovered cases before planning implementation.
-- **[G37]** DuckDB's production query surface has an explicit, tested support/rejection matrix, including per-method outcomes for the six G12 geography methods.
-  - Depends on: G36, G29.
-  - Exit criteria: Every included SQL construct and spatial method has semantics, units/CRS requirements, NULL/error behavior, and acceptance tests. The six CLR geography methods retain Plan 9's explicit rejection unless new evidence establishes a runtime-enforceable SQL Server-compatible contract; no planar substitute or parity claim is allowed.
+- **[G36]** The production acceptance contract is reviewed and approved for DuckDB as an opt-in SDA query backend, with SQLite retained as the default and supported backend; the intended value is improved performance without requiring SpatiaLite.
+  - Depends on: G47, G29, G30, G32, and completed G33-2 evaluation.
+  - Exit criteria: User decisions resolve production role, supported query surface, Linux x86_64 initial target, security/resource controls, deployment behavior, and performance acceptance evidence. The existing SQLite contract remains the reference; the approved numerical performance gate is retained, but no performance result is claimed until a comparable end-to-end benchmark exists.
+  - Gate: This is a decision goal, not implementation authorization. Production tasks remain paused until explicit user approval.
+- **[G37]** DuckDB's production query surface has an explicit, tested support/rejection matrix, including T-SQL translation and per-method outcomes for the six G12 geography methods.
+  - Depends on: G36, G47, G29.
+  - Exit criteria: Included SQL constructs and spatial methods have defined semantics, units/CRS requirements, NULL/error behavior, and acceptance tests. `IIF`, batch result shaping, and DuckDB value mapping are resolved or explicitly rejected. The six CLR geography methods remain explicitly rejected absent an approved, runtime-enforceable SQL Server-compatible contract.
 - **[G38]** DuckDB execution preserves the chosen request isolation, blocking-worker, batch, and failure semantics.
   - Depends on: G36, G37.
   - Exit criteria: The backend boundary and connection lifecycle are documented and integration tests show request state isolation, cancellation/deadline behavior, and the agreed batch failure/rollback contract.
 - **[G39]** DuckDB query execution enforces reviewed file-access, write, extension-loading, and resource controls.
   - Depends on: G32, G36, G38.
   - Exit criteria: Adversarial tests demonstrate denied unauthorized reads/writes, extension changes, and resource-limit violations while valid read-only workloads continue to work.
-- **[G40]** GeoPackage schema, geometry metadata/encoding, and DuckDB result values meet the selected SDA response contract.
-  - Depends on: G31, G37, G38.
-  - Exit criteria: Fixtures cover relevant table metadata, geometry representations, CRS handling, NULL/empty/dimensional values, and serialized SDA result types.
-- **[G41]** DuckDB and required extensions are reproducibly versioned and available for every selected deployment platform.
+- **[G40]** GeoPackage schema, geometry metadata/encoding, DuckDB result values, and SDA response serialization meet the selected contract.
+  - Depends on: G31, G37, G38, G47.
+  - Exit criteria: Fixtures cover relevant table metadata, geometry representations, CRS handling, NULL/empty/dimensional values, DuckDB type mapping, and serialized SDA result types.
+- **[G41]** DuckDB and required extensions are reproducibly versioned and available for the selected deployment platform.
   - Depends on: G36.
-  - Exit criteria: The Linux x86_64 deployment process provisions pinned DuckDB and official Spatial artifacts from approved sources, verifies versions and hashes, and records license, provenance, upgrade, and request-time offline behavior.
-- **[G42]** DuckDB meets agreed memory, concurrency, latency, temporary-storage, and result-size targets on representative SDA workloads.
+  - Exit criteria: Linux x86_64 deployment provisions pinned DuckDB and official Spatial artifacts from approved sources, verifies versions and hashes, and records license, provenance, upgrade, and request-time offline behavior.
+- **[G42]** DuckDB meets the approved memory, concurrency, latency, temporary-storage, and result-size targets on representative SDA workloads.
   - Depends on: G38, G40, G41.
-  - Exit criteria: Reproducible workload tests compare DuckDB with the current backend against user-approved targets; peak resource use and failures are recorded.
+  - Exit criteria: Reproducible workload tests compare DuckDB with the current backend against approved targets; peak resource use and failures are recorded. Current scratch timings are non-comparable and do not establish this goal.
 - **[G43]** Users can explicitly select DuckDB while SQLite remains the default with a defined failure and fallback policy.
   - Depends on: G39, G40, G41, G42.
   - Exit criteria: Configuration and rollout tests prove default SQLite behavior is unchanged, opt-in selection is visible, non-spatial DuckDB queries remain available when Spatial is unavailable, spatial requests fail explicitly, and there is no silent SpatiaLite fallback.
@@ -118,7 +122,7 @@ Source State: STATE_9.md (Plan 9 complete); Plans 8–9 are merged on `main` as 
 ## Ranking Rationale
 
 - The completed pre-hosting foundation is **G32 → G29 → G30**, followed by the bounded package-compatibility work in **G11** (Plans 5 and 6).
-- **G36** is active because Plan 8's bounded read succeeded but production role, supported semantics, deployment, security, and workload criteria remain unresolved. It is a decision/acceptance-contract goal, not implementation authorization. **G31** remains sequenced because metadata correctness underpins multi-table spatial behavior. **G33-1** remains a bounded exploratory spike; completed **G33-2** did not authorize backend adoption. **G12** is deferred after Plan 9 found no safe geography-compatible implementation at the current seam; Plan 10 must preserve explicit rejections absent new evidence. G28 remains deferred until its correctness prerequisites are complete.
+- **G47** is active because the new scratch evaluation demonstrates a narrow T-SQL → DuckDB → SDA-serializer path, while exposing translation, batch response-shaping, and typed-value gaps. A repository-local spike is the next evidence-producing step; it is explicitly non-production and does not select controls. **G36** follows as a user decision gate before production work. The approved 20% aggregate performance target remains unverified: current DuckDB timings are not comparable end-to-end. **G31** remains sequenced because metadata correctness underpins multi-table spatial behavior. **G33-1** remains a bounded exploratory spike; completed **G33-2** did not authorize backend adoption. **G12** is deferred after Plan 9 found no safe geography-compatible implementation at the current seam; preserve explicit rejections absent new evidence. G28 remains deferred until its correctness prerequisites are complete.
 - **G34** remains deferred despite the local opt-in soilDB harness: hosted validation requires an identified deployment target and authorization. **G35** is a maintenance decision, not a reason to remove the current supplementary harness now.
 
 ## Decisions (2026-11-18–19)
@@ -134,5 +138,6 @@ Source State: STATE_9.md (Plan 9 complete); Plans 8–9 are merged on `main` as 
 - **D9 (G42):** The production value sought is performance. Establish a baseline with the existing committed contract-suite workloads first, then obtain approval for a numeric performance target before backend implementation.
 - **D10 (G41/G43):** Provision DuckDB Spatial during deployment from the official source; pin and verify the exact artifact/version. Requests do not use the network. If provisioning/verification fails, retain non-spatial capability and return a clear error for spatial requests; never fall back to SpatiaLite on DuckDB.
 - **D11 (G38):** Plan around the pinned DuckDB Rust crate. This records a planning assumption only; adding the repository dependency still requires explicit implementation authorization.
+- **D12 (G47, 2026-11-20):** User authorized the pinned `duckdb = "=1.20000.2"` crate and lockfile update as a dev-dependency for the test-only, non-production T-SQL → DuckDB → SDA-response spike. No DuckDB code is included in normal binaries; runtime selection, public routes, production controls, spatial support, and production enablement remain out of scope.
 
 Cleanup plan: `planning/EXECUTION_PLAN_2.md`.
