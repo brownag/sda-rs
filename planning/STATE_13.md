@@ -108,3 +108,13 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 - `git diff --check`: passed. No manifest, dependency, runtime, or remote changes.
 - DuckDB observations are limited to the pinned planar backend: geometry output, disjoint-empty/NULL behavior, buffer coordinate units, and CRS error. They do not establish SQL Server geography parity.
 - Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation.
+
+### 13.6.1 — Implement the internal DuckDB execution lifecycle (G38)
+- Status: complete; added feature-gated executor, request-local in-memory connection/temp state, blocking execution, whole-batch transaction rollback, and drop cleanup.
+- Files: `src/executor/mod.rs`, `src/executor/duckdb.rs`, `tests/duckdb_execution_contract.rs`, `Cargo.toml`.
+- Offline pinned-client experiment (`duckdb = "=1.20000.2"`): repeated `Connection::interrupt_handle().interrupt()` observed `INTERRUPT` while worker prepared/executed `SELECT count(*) FROM range(10000000) t1, range(1000000) t2`; immediate/repeated signaling covered the prepare/execution race.
+- Executor uses repeated interrupt signals after its caller-supplied deadline; contract verifies deadline interruption. No final numeric limit was selected.
+- Limitation/blocker: dropping the async future does not signal cancellation; Tokio's blocking task continues until completion/deadline. No future-drop cancellation guarantee is claimed.
+- `CARGO_NET_OFFLINE=true cargo test --offline --features duckdb --test duckdb_execution_contract`: passed, 4 tests; initial run exposed expected DuckDB CTAS count result, and the test now selects the temp-table query result.
+- `git diff --check`: passed. No dependencies, network, extension, routes/config, SQLite behavior, security policy, or deployment changes.
+- Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation or remote actions.
