@@ -33,7 +33,7 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 | 2 | 13.2.1 | done | Report committed; pinned official Spatial artifact downloaded to scratch after user authorization and SHA-256 verified. |
 | 3 | 13.3.1 | done | Contains/Within; commits `e5d3da5`, `099f85e`; pinned extension observations and rejection contract passed. |
 | 4 | 13.4.1 | done | Intersection/Buffer; commits `8b3f337`, `5a34354`; pinned extension observations and rejection contract passed. |
-| 5 | 13.5.1 | pending | Area/AsText; close G37. |
+| 5 | 13.5.1 | done | Area/AsText rejected pending evidence/guards; commits `61af77b`, `7c5bd13`, formatting follow-up `6abc15b`; G37 closed. |
 | 6 | 13.6.1 | pending | G38 lifecycle. |
 | 7 | 13.7.1 | pending | G39 controls. |
 | 8 | 13.8.1 | pending | G40 compatibility. |
@@ -45,13 +45,13 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 <!-- Append concise reports under task IDs. -->
 
 ### 13.5.1 — Apply evidence-backed Area/AsText behavior and close G37
-- Status: implementation changes made; task blocked at formatting check, so G37 wave is not reported complete.
+- Status: complete; `.STArea()` and `.STAsText()` remain explicitly rejected because required evidence and runtime guards are unestablished; G37 closed with no accepted domains.
 - Both `.STArea()` and `.STAsText()` remain explicit rejections: axis/reference/guard gates for area and semantic/dimension/NULL/per-value guard gates for WKT are unestablished.
 - Files changed: `src/transpiler/spatial.rs`, `docs/spatial-sql-contract.md`, `tests/spatial_methods_contract.rs`, `tests/duckdb_geography_contract.rs`; task TODO updated.
 - Six-method matrix records all six as unsupported with no established domain; no planar/approximate compatibility or byte-format parity claim.
 - `cargo test --offline --test spatial_methods_contract`: passed, 1 test.
 - Configured offline DuckDB geography target: passed, 7 tests; pinned artifact SHA-256 verified.
-- `cargo fmt --check`: failed twice on identical formatting differences; stopped per repeated-failure rule. `git diff --check` not run.
+- `cargo fmt --check` initially failed twice on identical formatting differences; orchestrator applied a formatting-only correction (`6abc15b`), after which `cargo fmt --check` and `git diff --check` passed.
 - Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation. No dependency, network/download/install, or remote actions.
 
 ### 13.1.1 — Reconcile Plan 7 completion records
