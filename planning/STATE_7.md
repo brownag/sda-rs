@@ -34,12 +34,12 @@ Plan: `planning/EXECUTION_PLAN_7.md`
 
 | Wave | Tasks | Status | Code commit |
 |---|---|---|---|
-| 1 | 7.1.1 G31 metadata; 7.1.2 G8/G9 configuration/body limit | pending | — |
-| 2 | 7.2.1 G33-2 DuckDB isolated evaluation | pending | — |
-| 3 | 7.3.1 G35 soilDB harness/fixture coverage comparison | pending | — |
-| 4 | 7.4.1 G12 geography semantics/feasibility matrix | pending | — |
-| 5 | 7.5.1 G12 predicates and intersection | pending | — |
-| 6 | 7.6.1 G12 buffer, area, and text | pending | — |
+| 1 | 7.1.1 G31 metadata; 7.1.2 G8/G9 configuration/body limit | done | `257202a`, `e93eed0` |
+| 2 | 7.2.1 G33-2 DuckDB isolated evaluation | done (runtime follow-up blocked) | `0b55ffb` |
+| 3 | 7.3.1 G35 soilDB harness/fixture coverage comparison | done | `e37910c` |
+| 4 | 7.4.1 G12 geography semantics/feasibility matrix | done | `7fcb406`, `640af68` |
+| 5 | 7.5.1 G12 predicates and intersection | done | `c28c322` |
+| 6 | 7.6.1 G12 buffer, area, and text | done | `2a8d335` |
 
 ## Worktree Registry
 
@@ -70,8 +70,22 @@ Plan: `planning/EXECUTION_PLAN_7.md`
 
 ## Final Acceptance Gate (Orchestrator-Owned)
 
-Pending after Wave 6: run and record `cargo fmt --check`, `git diff --check`, default `cargo test`, configured full `cargo test`, and `make test-soildb` serially. Preserve user edits when reconciling goals and state.
+Complete per the recorded final gate below. Plan-level completion is distinct from completion of any individual goal.
 
 ## Task Reports
 
 <!-- Append each worker's report under its task ID, at most 15 lines. -->
+
+### 7.1.1 — G31
+- Status: complete; worker commit `1c05bfaa7defda5b22362579f6f0289209f24dfb`, integrated as `65dabbe` on `spatial-readiness` and `257202a` on this branch.
+- Tests: metadata contract default/configured SpatiaLite (5 each); `cargo test mukey` (4 unit, 1 contract, 2 integration); fmt and diff checks passed.
+
+### 7.1.2 — G8/G9
+- Status: complete; worker commit `6160c094d8ab02f8aeb150b438ca4f709bdd311e`, integrated as `08c212a` on `spatial-readiness` and `e93eed0` on this branch.
+- Tests: `cargo test config::tests` (3 passed); `cargo test --test body_limit_contract` (1 passed); fmt and diff checks passed.
+
+### Final acceptance gate
+- `cargo fmt --check` and `git diff --check`: passed.
+- Default `cargo test`: passed (75 unit, 30 integration); configured SpatiaLite `cargo test`: passed (75 unit, 30 integration).
+- `make test-soildb`: passed; harness integration completed and server stopped.
+- Source: authoritative Plan 7 state at `spatial-readiness` commit `60584ed`; its soilDB checkout caveat remains applicable.
