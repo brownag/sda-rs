@@ -370,9 +370,7 @@ fn transpiler_rejects_geography_methods_before_any_duckdb_execution() {
                     assert!(!lowered.contains("st_area"), "{sql}: {message}");
                 } else if method.to_ascii_lowercase().contains("astext") {
                     assert!(
-                        message.contains(
-                            "no guarded semantic WKT transformation established"
-                        ),
+                        message.contains("no guarded semantic WKT transformation established"),
                         "{sql}: {message}"
                     );
                     assert!(!lowered.contains("st_astext"), "{sql}: {message}");
