@@ -33,7 +33,9 @@ fn pinned_interrupt_retries_across_prepare_execution_race() {
         }
     };
     assert!(
-        result.as_ref().is_err_and(|error| error.contains("INTERRUPT")),
+        result
+            .as_ref()
+            .is_err_and(|error| error.contains("INTERRUPT")),
         "expected DuckDB interrupt error, got {result:?}"
     );
 }
@@ -54,7 +56,10 @@ async fn temporary_tables_work_and_are_request_local() {
         Duration::from_secs(5),
     )
     .await;
-    assert!(next_request.is_err(), "temporary table leaked to next request");
+    assert!(
+        next_request.is_err(),
+        "temporary table leaked to next request"
+    );
 }
 
 #[tokio::test]
@@ -74,15 +79,16 @@ async fn later_statement_failure_fails_whole_batch_and_cleans_up() {
         Duration::from_secs(5),
     )
     .await;
-    assert!(next_request.is_err(), "failed batch state leaked to next request");
+    assert!(
+        next_request.is_err(),
+        "failed batch state leaked to next request"
+    );
 }
 
 #[tokio::test]
 async fn deadline_interrupts_query_despite_prepare_execution_race() {
     let result = execute(
-        vec![
-            "SELECT count(*) FROM range(10000000) t1, range(1000000) t2".to_owned(),
-        ],
+        vec!["SELECT count(*) FROM range(10000000) t1, range(1000000) t2".to_owned()],
         Duration::from_millis(10),
     )
     .await;
