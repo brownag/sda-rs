@@ -30,7 +30,7 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 | Wave | Task(s) | Status | Notes |
 |---|---|---|---|
 | 1 | 13.1.1, 13.1.2 | done | Integrated commits `76e9034`, `aeb5966`, `9f256c6`, `d0a0ca5`; serial boundary checks passed. |
-| 2 | 13.2.1 | done | Research report committed; missing local Spatial artifact blocks extension-backed checks in Waves 3–5. |
+| 2 | 13.2.1 | done | Report committed; pinned official Spatial artifact downloaded to scratch after user authorization and SHA-256 verified. |
 | 3 | 13.3.1 | pending | Contains/Within. |
 | 4 | 13.4.1 | pending | Intersection/Buffer. |
 | 5 | 13.5.1 | pending | Area/AsText; close G37. |
@@ -71,3 +71,4 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 - Deviation: worker used separate deliverable and bookkeeping commits, followed by a focused review-correction commit; no remote actions.
 - Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation used.
 - Verification retry: clarified that `ST_Area_Spheroid` axis order remains unresolved and removed the unverified OGC boundary rule as SQL Server behavior; no probes/downloads. Questions were resolved in `planning/tasks/13.2.1.todo.md`.
+- Post-task artifact update: after user authorization, downloaded official DuckDB v2.0.0 `linux_amd64` Spatial artifact from `https://extensions.duckdb.org/v2.0.0/linux_amd64/spatial.duckdb_extension.gz` to `/tmp/opencode/sda-rs-plan13-geography/`; uncompressed SHA-256 matches `8ec99d875355200316c743ede176e2cb50d2b712d2fa192ccbf19cc245a8d0bc`. Artifact availability is resolved; runtime identity/load and behavior remain unverified.

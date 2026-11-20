@@ -533,3 +533,14 @@ Project evidence:
 - [x] No dependency added or required; candidate libraries are research options only.
 - [x] Probe availability blocker recorded with exact commands and artifact identities;
       no probe result is presented as SQL Server parity, and no new runtime claim is made.
+
+## Post-report artifact update
+
+After this research task completed, the user authorized retrieving the official DuckDB
+v2.0.0 Linux x86_64 Spatial artifact. It was downloaded from
+`https://extensions.duckdb.org/v2.0.0/linux_amd64/spatial.duckdb_extension.gz` to
+`/tmp/opencode/sda-rs-plan13-geography/` and decompressed as
+`spatial.duckdb_extension`. Its SHA-256 is
+`8ec99d875355200316c743ede176e2cb50d2b712d2fa192ccbf19cc245a8d0bc`, matching the
+Plan 8 record. This resolves the artifact-availability blocker only; extension identity,
+load behavior, and all candidate semantics remain to be verified by the scoped tests.
