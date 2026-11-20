@@ -89,22 +89,35 @@ Sections 6.1-6.2 for the no-go assessment and
 rejection contract.
 
 The CLR instance method `.STIntersection(...)` is explicitly rejected as
-unsupported for SQL Server `geography` compatibility. It is not lowered to
-SpatiaLite's GEOS planar `ST_Intersection`: the configured feasibility probe
-showed mismatched-SRID predicate behavior that differs from SQL Server, and the
-planar operation does not establish geodetic overlay semantics. The rejection
-applies regardless of apparent arity; no partial geometry implementation is
-implied. Free-function spellings are not method rewrites. See the
-[`G12 geography feasibility report`](../planning/reports/G12-geography-method-feasibility.md)
-for the evidence matrix and probe results.
+unsupported for SQL Server `geography` compatibility. SQL Server returns
+geography, returns NULL for differing SRIDs, and documents empty/disjoint
+overlays within that result domain. The available planar overlay follows
+coordinate-plane edges; the spherical alternative follows great-circle edges.
+Neither establishes ellipsoidal geography overlay, including boundary behavior,
+FullGlobe, greater-than-hemisphere, curves, or SQL Server's SRID-mismatch NULL
+behavior. The method is unconditionally rejected across receiver/arity/case;
+NULL and invalid values do not reach an overlay backend through this seam.
+Free-function spellings are not method rewrites. See the
+[`G37 geography transformations report`](../planning/reports/G37-geography-transformations.md)
+Section 6.3 and `tests/duckdb_geography_contract.rs` for the no-go rationale and
+pinned planar observations; none is geography compatibility evidence.
 
-The CLR instance methods `.STBuffer(...)` and `.STArea()` are also explicitly
-rejected. SpatiaLite `ST_Buffer` is a planar operation whose distance follows
-the geometry coordinate units (not geography meters), and bare `ST_Area` is
-planar coordinate area (not SRID-dependent geography area). The optional
+The CLR instance method `.STBuffer(distance)` is explicitly rejected.
+SQL Server's result is geography and distance is in meters; its documented
+tolerance-based construction, negative-distance behavior, possible FullGlobe
+result, and maximum-distance error are not reproduced by available operations.
+Planar buffer distance is in coordinate units, not geography meters, and the
+spherical overlay facilities do not supply a buffer. The rejection is
+unconditional across receiver/arity/case; NULL and invalid values do not reach
+a buffer backend through this seam. See the
+[`G37 geography transformations report`](../planning/reports/G37-geography-transformations.md)
+Section 6.4. No planar or approximate operation is claimed as geography
+compatible.
+
+The CLR instance method `.STArea()` is also explicitly rejected. Bare `ST_Area`
+is planar coordinate area (not SRID-dependent geography area). The optional
 ellipsoidal SpatiaLite area operation has not been established as SQL Server
-compatible across supported inputs. Neither method is rewritten to those
-operations.
+compatible across supported inputs.
 
 `.STAsText()` is explicitly rejected in this release as well. The feasibility
 assessment finds text conversion conditionally feasible for bounded ordinary
@@ -163,10 +176,9 @@ Implementation and test anchors:
   `.STContains`/`.STWithin`, `.STBuffer`, `.STArea()`, and `.STAsText()`;
   `.STIntersects` results are not geography-parity evidence.
 - `tests/duckdb_geography_contract.rs` (feature `duckdb`): pinned Spatial
-  artifact identity, observed planar contains/within behavior (including a
-  documented-vs-observed boundary divergence), and the spheroid point-pair
-  measurement/proximity primitives, recorded as observations only; rejected
-  inputs never reach DuckDB for `.STContains` or `.STWithin`.
+  artifact identity, observed planar predicate, intersection, and buffer
+  behavior plus spheroid point-pair primitives, recorded as observations only;
+  rejected inputs never reach DuckDB for the tested geography methods.
 - `tests/mukey_contract.rs`: configured SpatiaLite mukey TVF result and
   supported query contexts.
 - `src/transpiler/spatial.rs` unit tests: constructor/method rewrites,

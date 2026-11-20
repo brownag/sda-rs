@@ -1031,6 +1031,7 @@ fn rewrite_node(
     Ok(match node {
         Expression::MethodCall(call) if unsupported_geography_method(&call.method.name) => {
             let detail = contains_within_no_go_reason(&call.method.name)
+                .or_else(|| overlay_buffer_no_go_reason(&call.method.name))
                 .map(|reason| format!(": {reason}"))
                 .unwrap_or_default();
             return Err(polyglot_sql::Error::InvalidInput(format!(
@@ -1135,6 +1136,22 @@ fn unsupported_geography_method(name: &str) -> bool {
     ]
     .iter()
     .any(|method| name.eq_ignore_ascii_case(method))
+}
+
+fn overlay_buffer_no_go_reason(name: &str) -> Option<&'static str> {
+    if name.eq_ignore_ascii_case("STIntersection") {
+        Some(
+            "no exact ellipsoidal overlay established; planar and spherical overlays differ \
+             from SQL Server geography, including result-domain and SRID behavior",
+        )
+    } else if name.eq_ignore_ascii_case("STBuffer") {
+        Some(
+            "no exact geography buffer established; available operations do not reproduce \
+             meter units, tolerance, negative-buffer, FullGlobe, and maximum-distance behavior",
+        )
+    } else {
+        None
+    }
 }
 
 /// Predicate-specific reason appended to the rejection of the methods for

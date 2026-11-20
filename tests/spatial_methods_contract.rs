@@ -129,23 +129,17 @@ async fn configured_spatial_methods_execute_supported_predicate_and_reject_unsup
         }
     }
 
-    for method in ["STIntersection"] {
-        let sql = format!(
-            "SELECT shape.{method}(geometry::STGeomFromText('POINT(0 0)', 4326)) FROM features"
-        );
-        let (status, body) = query(app.clone(), &sql).await;
-        assert_eq!(status, StatusCode::BAD_REQUEST, "{method}: {body}");
-        assert!(
-            body.contains(&format!(
-                ".{method} is unsupported for SQL Server geography compatibility"
-            )),
-            "{method}: {body}"
-        );
-        assert!(!body.contains("no such function"), "{method}: {body}");
-    }
-
     for (method, arguments) in [
+        (
+            "STIntersection",
+            ["()", "(geometry::STGeomFromText('POINT(0 0)', 4326))"],
+        ),
+        (
+            "stintersection",
+            ["()", "(geometry::STGeomFromText('POINT(0 0)', 4326), 1)"],
+        ),
         ("STBuffer", ["(1)", "(1, 2)"]),
+        ("stbuffer", ["()", "(1, 2)"]),
         ("STArea", ["()", "(1)"]),
         ("STAsText", ["()", "(1)"]),
     ] {
@@ -160,6 +154,19 @@ async fn configured_spatial_methods_execute_supported_predicate_and_reject_unsup
                     )),
                     "{sql}: {body}"
                 );
+                if method.to_ascii_lowercase().contains("intersection") {
+                    assert!(
+                        body.contains("no exact ellipsoidal overlay established"),
+                        "{sql}: {body}"
+                    );
+                    assert!(!body.contains("ST_Intersection"), "{sql}: {body}");
+                } else if method.to_ascii_lowercase().contains("buffer") {
+                    assert!(
+                        body.contains("no exact geography buffer established"),
+                        "{sql}: {body}"
+                    );
+                    assert!(!body.contains("ST_Buffer"), "{sql}: {body}");
+                }
                 assert!(!body.contains("no such function"), "{sql}: {body}");
             }
         }

@@ -204,6 +204,72 @@ fn duckdb_crs_mismatch_errors_instead_of_returning_null() {
 }
 
 #[test]
+fn duckdb_planar_overlay_and_buffer_are_observations_not_geography_compatibility() {
+    let Some(connection) = connect() else {
+        return;
+    };
+
+    // These describe only the pinned planar backend. SQL Server geography
+    // overlay and its meter/tolerance buffer are explicitly rejected upstream.
+    let intersection = format!(
+        "SELECT ST_GeometryType(g), ST_AsText(g)
+         FROM (SELECT ST_Intersection(
+             ST_GeomFromText('{POLYGON}'),
+             ST_GeomFromText('LINESTRING(-1 1, 3 1)')
+         ) AS g)"
+    );
+    let (kind, text): (String, String) = connection
+        .query_row(&intersection, [], |row| Ok((row.get(0)?, row.get(1)?)))
+        .expect("observe planar intersection output");
+    assert_eq!(kind, "LINESTRING");
+    assert!(text.starts_with("LINESTRING"), "{text}");
+
+    let disjoint = value(
+        &connection,
+        "SELECT ST_AsText(ST_Intersection(ST_GeomFromText('POINT(0 0)'), ST_GeomFromText('POINT(2 2)')))",
+    );
+    assert!(
+        matches!(disjoint, DuckValue::Text(ref text) if text.contains("EMPTY")),
+        "{disjoint:?}"
+    );
+    assert!(matches!(
+        value(
+            &connection,
+            "SELECT ST_Intersection(NULL, ST_GeomFromText('POINT(0 0)'))"
+        ),
+        DuckValue::Null
+    ));
+
+    let (buffer_type, buffer_text): (String, String) = connection
+        .query_row(
+            "SELECT ST_GeometryType(g), ST_AsText(g)
+             FROM (SELECT ST_Buffer(ST_GeomFromText('POINT(0 0)'), 1) AS g)",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("observe planar buffer output");
+    assert_eq!(buffer_type, "POLYGON");
+    assert!(buffer_text.starts_with("POLYGON"), "{buffer_text}");
+    assert!(buffer_text.contains("-1"), "{buffer_text}");
+    assert!(matches!(
+        value(&connection, "SELECT ST_Buffer(NULL, 1)"),
+        DuckValue::Null
+    ));
+
+    let mismatch = connection.query_row(
+        "SELECT ST_Intersection(
+             ST_SetCRS(ST_GeomFromText('POINT(0 0)'), 'EPSG:4326'),
+             ST_SetCRS(ST_GeomFromText('POINT(1 1)'), 'EPSG:3857'))",
+        [],
+        |row| row.get::<_, DuckValue>(0),
+    );
+    assert!(
+        mismatch.is_err(),
+        "pinned planar CRS mismatch must not be inferred as geography NULL"
+    );
+}
+
+#[test]
 fn duckdb_spheroid_primitives_are_point_pair_measurement_and_proximity_only() {
     let Some(connection) = connect() else {
         return;
@@ -253,7 +319,7 @@ fn duckdb_spheroid_primitives_are_point_pair_measurement_and_proximity_only() {
 }
 
 #[test]
-fn transpiler_rejects_contains_and_within_before_any_duckdb_execution() {
+fn transpiler_rejects_geography_methods_before_any_duckdb_execution() {
     let sqlite = rusqlite::Connection::open_in_memory().expect("open in-memory SQLite");
     sqlite
         .execute_batch(
@@ -264,7 +330,16 @@ fn transpiler_rejects_contains_and_within_before_any_duckdb_execution() {
     let capability = sda_rs::spatial::initialize(&sqlite, None, None)
         .expect("initialize spatial capability without an extension");
 
-    for method in ["STContains", "stcontains", "STWithin", "StWithin"] {
+    for method in [
+        "STContains",
+        "stcontains",
+        "STWithin",
+        "StWithin",
+        "STIntersection",
+        "stintersection",
+        "STBuffer",
+        "stbuffer",
+    ] {
         for receiver in ["shape", "geometry::STGeomFromText('POINT(0 0)', 4326)"] {
             for arguments in [
                 "()",
@@ -283,16 +358,32 @@ fn transpiler_rejects_contains_and_within_before_any_duckdb_execution() {
                     )),
                     "{sql}: {message}"
                 );
-                assert!(
-                    message.contains("no exact transformation established from available evidence"),
-                    "{sql}: {message}"
-                );
-                assert!(
-                    message.contains("SQL Server's boundary rule is not established"),
-                    "{sql}: {message}"
-                );
-                assert!(!lowered.contains("st_contains"), "{sql}: {message}");
-                assert!(!lowered.contains("st_within"), "{sql}: {message}");
+                if method.to_ascii_lowercase().contains("intersection") {
+                    assert!(
+                        message.contains("no exact ellipsoidal overlay established"),
+                        "{sql}: {message}"
+                    );
+                    assert!(!lowered.contains("st_intersection"), "{sql}: {message}");
+                } else if method.to_ascii_lowercase().contains("buffer") {
+                    assert!(
+                        message.contains("no exact geography buffer established"),
+                        "{sql}: {message}"
+                    );
+                    assert!(!lowered.contains("st_buffer"), "{sql}: {message}");
+                } else {
+                    assert!(
+                        message.contains(
+                            "no exact transformation established from available evidence"
+                        ),
+                        "{sql}: {message}"
+                    );
+                    assert!(
+                        message.contains("SQL Server's boundary rule is not established"),
+                        "{sql}: {message}"
+                    );
+                    assert!(!lowered.contains("st_contains"), "{sql}: {message}");
+                    assert!(!lowered.contains("st_within"), "{sql}: {message}");
+                }
             }
         }
     }
