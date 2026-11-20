@@ -32,7 +32,7 @@ Plan: `planning/EXECUTION_PLAN_11.md`
 
 | Wave | Task | Status | Notes |
 |---|---|---|---|
-| 1 | 11.1.1 | pending | Pinned dev-dependency and in-memory DuckDB engine smoke test. |
+| 1 | 11.1.1 | done | Pinned dev-dependency and in-memory DuckDB engine smoke test; all serial wave gates passed. |
 | 2 | 11.2.1 | pending | Raw T-SQL-to-DuckDB translation assertions, including the IIF gap. |
 | 3 | 11.3.1 | pending | Supported DuckDB query execution, value mapping, SDA JSON, and SQLite comparison. |
 | 4 | 11.4.1 | pending | Test-only IIF/batch adaptations, unsupported type assertion, and spike report. |
@@ -40,6 +40,19 @@ Plan: `planning/EXECUTION_PLAN_11.md`
 ## Task Reports
 
 <!-- Append concise worker reports below. -->
+
+## 11.1.1
+
+- Status: done; worker verification and orchestrator wave gates passed.
+- Files changed: `Cargo.toml` (bundled `duckdb = "=1.20000.2"` dev-dependency), `Cargo.lock` (DuckDB subtree added; existing versions unchanged), `tests/duckdb_pipeline_contract.rs` (single in-memory scalar smoke test).
+- Implementation commit: `29087fb` (`test(duckdb): add pinned dev dependency and engine smoke test`). Planning/state edits and the two Plan 10 task drafts are excluded.
+- Targeted command: `CARGO_NET_OFFLINE=true cargo test --offline --test duckdb_pipeline_contract` -> 1 passed, 0 failed.
+- Build check: `cargo build --offline` -> succeeded; `cargo tree -e normal` and `ldd target/debug/sda-rs` contain no DuckDB, so the dev-dependency stays out of normal builds.
+- `git diff --check` passed. No `src/`, existing tests/fixtures, runtime, CI, or ADR changes.
+- Deviations: used `features = ["bundled"]` as approved; feature-less pin would attempt a network download and fail offline.
+- Limitations: engine/API smoke only; no T-SQL translation, value mapping, SDA serialization, IIF/CTAS handling, performance, or production claims.
+- Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation. Token/cost telemetry unavailable.
+- Orchestrator gates: targeted DuckDB test passed (1); `cargo fmt --check` and `git diff --check` passed; default and configured-SpatiaLite `cargo test` each passed (75 unit + 31 integration, 0 failures).
 
 ## Worker Usage
 
