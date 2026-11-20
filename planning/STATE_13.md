@@ -43,3 +43,10 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 ## Task Reports
 
 <!-- Append concise reports under task IDs. -->
+
+### 13.1.1 — Reconcile Plan 7 completion records
+- Status: complete; authoritative source `spatial-readiness` commit `60584ed`.
+- Reconciled Plan 7 wave/task statuses from recorded reports; G31 commit `257202a`, G8/G9 commit `e93eed0`; target test evidence is in `STATE_7.md`.
+- Marked the Plan 7 final gate complete because its record contains fmt/diff, default and configured-SpatiaLite full suites, and `make test-soildb` results.
+- Moved G31/G8/G9 completion provenance into `GOALS.md`; goal outcomes and plan-level gate remain explicitly distinct.
+- Validation: `git diff --check` passed. No source/tests modified.
