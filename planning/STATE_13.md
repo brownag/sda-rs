@@ -59,3 +59,14 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 - Preserved the four non-spatial workload aggregation, 10% individual-regression reporting criterion, and separate spatial reporting.
 - Kept security qualification and approval of numeric resource limits distinct; no other ADR commitments changed.
 - Validation: worker `git diff --check`; orchestrator `cargo fmt --check`, `git diff --check`, default and configured-SpatiaLite `cargo test` (75 unit + 30 integration each), offline DuckDB target (12 passed), and `--all-features` DuckDB target (12 passed). No implementation tests specific to the ADR change.
+
+### 13.2.1 — Research G37 geography transformations and contract
+
+- Status: complete (research/report only; no probes run, per approved probe-blocker decision).
+- Deliverable: `planning/reports/G37-geography-transformations.md`; micro-plan `planning/tasks/13.2.1.todo.md`; deliverable commit `44d7901`.
+- Verdicts: `STContains`, `STWithin`, `STIntersection`, `STBuffer` explicit no-go; `STArea` and `STAsText` conditional bounded-domain candidates with per-value guards, unproven pending pin evidence.
+- Documented DuckDB `ST_Contains` boundary inclusivity, CRS-mismatch errors, planar buffer/overlay, ellipsoidal `ST_Area_Spheroid`, S2 spherical semantics, and SQL Server left-hand-rule/orientation requirements with primary citations.
+- Probe blocker: Plan 8 scratch artifact absent; no `*.duckdb_extension` under `/tmp/opencode`; no download/install performed. Blocks extension-backed tests in waves 13.3.1–13.5.1 until an authorized local artifact is supplied.
+- Validation: exact `git diff --check` passed; no source, tests, manifests, contracts, or dependencies changed.
+- Deviation: two focused local planning commits (deliverable and this bookkeeping report) instead of one; no remote actions.
+- Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation used.
