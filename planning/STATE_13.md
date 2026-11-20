@@ -44,6 +44,16 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 
 <!-- Append concise reports under task IDs. -->
 
+### 13.5.1 — Apply evidence-backed Area/AsText behavior and close G37
+- Status: implementation changes made; task blocked at formatting check, so G37 wave is not reported complete.
+- Both `.STArea()` and `.STAsText()` remain explicit rejections: axis/reference/guard gates for area and semantic/dimension/NULL/per-value guard gates for WKT are unestablished.
+- Files changed: `src/transpiler/spatial.rs`, `docs/spatial-sql-contract.md`, `tests/spatial_methods_contract.rs`, `tests/duckdb_geography_contract.rs`; task TODO updated.
+- Six-method matrix records all six as unsupported with no established domain; no planar/approximate compatibility or byte-format parity claim.
+- `cargo test --offline --test spatial_methods_contract`: passed, 1 test.
+- Configured offline DuckDB geography target: passed, 7 tests; pinned artifact SHA-256 verified.
+- `cargo fmt --check`: failed twice on identical formatting differences; stopped per repeated-failure rule. `git diff --check` not run.
+- Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation. No dependency, network/download/install, or remote actions.
+
 ### 13.1.1 — Reconcile Plan 7 completion records
 - Status: complete; authoritative source `spatial-readiness` commit `60584ed`.
 - Reconciled Plan 7 wave/task statuses from recorded reports; G31 commit `257202a`, G8/G9 commit `e93eed0`; target test evidence is in `STATE_7.md`.
