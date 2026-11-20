@@ -19,5 +19,10 @@ tracing-subscriber = { version = "0.3", default-features = false, features = ["f
 [features]
 duckdb = ["dep:duckdb"]
 
+[[test]]
+name = "duckdb_pipeline_contract"
+path = "tests/duckdb_pipeline_contract.rs"
+required-features = ["duckdb"]
+
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
