@@ -31,8 +31,8 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 |---|---|---|---|
 | 1 | 13.1.1, 13.1.2 | done | Integrated commits `76e9034`, `aeb5966`, `9f256c6`, `d0a0ca5`; serial boundary checks passed. |
 | 2 | 13.2.1 | done | Report committed; pinned official Spatial artifact downloaded to scratch after user authorization and SHA-256 verified. |
-| 3 | 13.3.1 | pending | Contains/Within. |
-| 4 | 13.4.1 | pending | Intersection/Buffer. |
+| 3 | 13.3.1 | done | Contains/Within; commits `e5d3da5`, `099f85e`; pinned extension observations and rejection contract passed. |
+| 4 | 13.4.1 | done | Intersection/Buffer; commits `8b3f337`, `5a34354`; pinned extension observations and rejection contract passed. |
 | 5 | 13.5.1 | pending | Area/AsText; close G37. |
 | 6 | 13.6.1 | pending | G38 lifecycle. |
 | 7 | 13.7.1 | pending | G39 controls. |
