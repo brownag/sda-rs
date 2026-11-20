@@ -83,6 +83,19 @@ Plan: `planning/EXECUTION_PLAN_11.md`
 - Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation. Token/cost telemetry unavailable.
 - Orchestrator gates: targeted DuckDB test passed (9); `cargo fmt --check` and `git diff --check` passed; default and configured-SpatiaLite `cargo test` each passed (75 unit + 35 integration, 0 failures).
 
+## 11.4.1
+
+- Status: done (worker verification complete); awaiting orchestrator wave gates.
+- Files changed: `tests/duckdb_pipeline_contract.rs` (test-only IIF lowering, statement/batch collection, CTAS count suppression, temporal rejection test; 9 existing tests preserved); created `planning/reports/duckdb-test-only-spike.md`; updated this TODO and state.
+- Implementation commit: `0a98da1` (`test(duckdb): adapt IIF and batch gaps in test pipeline`). TODO/report/state kept out of that commit; planning artifacts committed separately.
+- Targeted command: `CARGO_NET_OFFLINE=true cargo test --offline --test duckdb_pipeline_contract` -> 12 passed, 0 failed.
+- `rustfmt --check tests/duckdb_pipeline_contract.rs` and `git diff --check` passed. No `Cargo.toml`/`Cargo.lock`, `src/`, fixture, runtime, CI, ADR, or Plan 10 artifact changes.
+- Behavior: raw IIF output remains unresolved and fails on DuckDB prepare (`iif does not exist`); test-only lowering to `CASE WHEN ... THEN ... ELSE ... END` matches SQLite JSON exactly. Raw batch yields `{"Table":[["2"]],"Table1":[["2"],["3"]]}`; test-only CTAS filter adapts it to `{"Table":[["2"],["3"]]}`, matching SQLite.
+- Rejection: executed temporal value (`Date32`) is rejected by the adapter with `unsupported/lossy`; no silent stringification.
+- Deviations: the raw-IIF failure is asserted at `prepare`, where DuckDB reports the missing function (execution is never reached). No scope change.
+- Limitations: IIF lowering and CTAS suppression are test-only, probe-scoped workarounds; no production transpiler/executor/serializer change, typed-value contract, spatial support, performance, or security claim.
+- Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation. Token/cost telemetry unavailable.
+
 ## Worker Usage
 
 - Record worker model, escalation, and token/cost telemetry availability after task completion.
