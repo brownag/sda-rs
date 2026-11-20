@@ -72,4 +72,17 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 - Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation used.
 - Verification retry: clarified that `ST_Area_Spheroid` axis order remains unresolved and removed the unverified OGC boundary rule as SQL Server behavior; no probes/downloads. Questions were resolved in `planning/tasks/13.2.1.todo.md`.
 - Post-task artifact update: after user authorization, downloaded official DuckDB v2.0.0 `linux_amd64` Spatial artifact from `https://extensions.duckdb.org/v2.0.0/linux_amd64/spatial.duckdb_extension.gz` to `/tmp/opencode/sda-rs-plan13-geography/`; uncompressed SHA-256 matches `8ec99d875355200316c743ede176e2cb50d2b712d2fa192ccbf19cc245a8d0bc`. Artifact availability is resolved; runtime identity/load and behavior remain unverified.
+
+### 13.3.1 — Apply evidence-backed Contains/Within behavior
+
+- Status: complete; G37 no-go preserved for `STContains`/`STWithin`; no accepted domain; no planar/S2 substitution.
+- Files: `src/transpiler/spatial.rs` (predicate-specific reason appended after unchanged prefix), `docs/spatial-sql-contract.md`, `tests/spatial_methods_contract.rs`, `tests/duckdb_geography_contract.rs` (new), `Cargo.toml` (one `required-features = ["duckdb"]` target).
+- Implementation commit `e5d3da5`; planning bookkeeping commit follows with `docs(planning): record task 13.3.1 results`.
+- `cargo test --offline --test spatial_methods_contract`: 1 passed (no-env skip path).
+- `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test --offline --test spatial_methods_contract`: 1 passed.
+- `SDA_DUCKDB_SPATIAL_EXTENSION=/tmp/opencode/sda-rs-plan13-geography/spatial.duckdb_extension CARGO_NET_OFFLINE=true cargo test --offline --features duckdb --test duckdb_geography_contract`: 5 passed; artifact hash verified, metadata `(spatial, a3dbcd1781)`.
+- `cargo fmt --check` and `git diff --check`: passed.
+- Observed deviation: pinned `ST_Contains` returned false for an edge point and a vertex, contradicting the fetched DuckDB 2.0 page's boundary-inclusive statement; tests assert the observed boundary-exclusive behavior and the contract records the divergence.
+- Spheroid observation: `ST_Distance_Spheroid`/`ST_DWithin_Spheroid` are point-pair measurement/proximity only; `geometry_always_xy=false` selected for documented `[latitude, longitude]`; descriptive, not containment, unresolved as any substitute.
+- Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation. No network install, request-time load, or remote Git actions.
 - User follow-up: community `geography` predicates are S2/spherical; Spatial spheroid distance/dwithin are documented for `POINT_2D` pairs, not point-in-polygon. A local projection may be researched, but only a rigorous error bound plus runtime guards proving exact results on a bounded domain can meet the existing compatibility bar; approximation alone remains rejected. Details are appended to the G37 report; no probe was run.
