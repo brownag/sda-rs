@@ -16,4 +16,5 @@ tower-http = { version = "0.6", features = ["cors", "limit", "trace"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter"] }
 
 [dev-dependencies]
+duckdb = { version = "=1.20000.2", features = ["bundled"] }
 tower = { version = "0.5", features = ["util"] }
