@@ -17,11 +17,11 @@ gates in Sections 6.5, 6.6, and 8 are met; the other four methods are explicit n
 
 | Method | SQL Server `geography` contract (documented) | Strongest candidate considered | Verdict | Why |
 |---|---|---|---|---|
-| `STContains(other)` | `bit`/`SqlBoolean`; 1/0; `NULL` when SRIDs differ. | Planar `ST_Contains`, S2 `s2_contains`, margin-bounded planar emulation. | **No-go** | DuckDB documents `ST_Contains` as returning true for a boundary point, while OGC containment excludes boundary-only points (SQL Server's boundary rule is not directly documented). Planar and S2 edges are not ellipsoidal geodesics. Margin emulation has no soundness proof and no oracle. |
+| `STContains(other)` | `bit`/`SqlBoolean`; 1/0; `NULL` when SRIDs differ. | Planar `ST_Contains`, S2 `s2_contains`, margin-bounded planar emulation. | **No-go** | DuckDB documents `ST_Contains` as returning true for a boundary point; the SQL Server method page does not define the boundary-point rule, so no evidence establishes that the two agree. Planar and S2 edges are not ellipsoidal geodesics. Margin emulation has no soundness proof and no oracle. |
 | `STWithin(other)` | `bit`/`SqlBoolean`; 1/0; always `NULL` when SRIDs differ. | `ST_Within`; reversed `s2_contains`; `s2_within`. | **No-go** | Same boundary/edge problem as `STContains`. Reversed `s2_contains` returned false for an interior point in the recorded probe; `s2_within` is documented but was absent from the pinned binary. |
 | `STIntersection(other)` | `geography`; always `NULL` when SRIDs differ; may return `FullGlobe`, >hemisphere, or curve results. | Planar `ST_Intersection`, S2 `s2_intersection`. | **No-go** | Exact ellipsoidal-geodesic overlay is unavailable; planar and spherical overlays are different operations. Result type/domain includes cases neither candidate represents. |
 | `STBuffer(distance)` | `geography`; distance in meters; tolerance-based approximation (`tolerance = abs(distance) * .001`, relative=false); negative buffers; FullGlobe cases; maximum-distance bound. | Planar `ST_Buffer`, S2 `s2_dwithin` (predicate only). | **No-go** | No S2 buffer exists; planar distance is in coordinate units. Reproducing SQL Server's documented tolerance algorithm is not possible with the available evidence, and a geodesic approximation is not the same operation. |
-| `STArea()` | `float`/`SqlDouble`; squared units of the SRID (square meters for 4326); 0 for empty or 0-/1-D instances. | `ST_Area_Spheroid` (GeographicLib, WGS84). | **Conditional candidate** | The documented quantity is ellipsoidal surface area. A narrow per-value-guarded 4326 polygon domain (Section 6.5) can make the mathematical semantics unambiguous; numeric agreement with SQL Server still requires an explicit acceptance criterion and tests. |
+| `STArea()` | `float`/`SqlDouble`; squared units of the SRID (square meters for 4326); 0 for empty or 0-/1-D instances. | `ST_Area_Spheroid` (GeographicLib, WGS84). | **Conditional candidate** | The documented quantity is ellipsoidal surface area. A narrow per-value-guarded 4326 polygon domain (Section 6.5) can make the mathematical semantics unambiguous only after the pin's axis order is established; numeric agreement with SQL Server still requires an explicit acceptance criterion and tests. |
 | `STAsText()` | `nvarchar(max)`/`SqlChars`; OGC WKT; omits Z and M; supports FullGlobe and >hemisphere. | `ST_AsText(ST_Force2D(g))`. | **Conditional candidate** | Documented semantics are "OGC WKT without Z/M"; a guarded 2D linear-geometry domain can satisfy that. Byte-for-byte formatting parity with SQL Server is not established and must not be claimed. |
 
 The four no-gos are not a regression from G12/Plan 9; they are the same conclusion after
@@ -99,9 +99,11 @@ textual parity may be claimed without the evidence gate named in the relevant se
 
 ### 4.3 What the primary pages do *not* establish
 
-- The exact treatment of boundary points in `STContains`/`STWithin` is not spelled out
-  on the method pages; the OGC Simple Features "Contains" definition (boundary-only
-  points are not contained) is reference reasoning, not a SQL Server runtime observation.
+- The exact treatment of boundary points in `STContains`/`STWithin` is not stated on the
+  method pages. The OGC Simple Features "Contains" definition (boundary-only points are
+  not contained) is a different specification; citing it does not establish SQL Server
+  behavior, and no inspected SQL Server page adopts or documents that rule for these
+  methods.
 - No general invalid-geometry error policy for these methods.
 - No numeric algorithm, formatting precision, or canonical WKT text.
 - No statement that `STBuffer` output can be reproduced by a particular geodesic
@@ -133,14 +135,14 @@ Engine v2.0.0, client `duckdb = "=1.20000.2"`, Spatial extension identifier
 
 | Observation | Recorded result | Relevance |
 |---|---|---|
-| `ST_Contains` interior/boundary | interior `true`; the probe did not test an ordinary `ST_Contains` boundary point, but DuckDB's page documents boundary-inclusive containment | Direct lowering cannot match SQL Server/OGC containment. |
+| `ST_Contains` interior/boundary | interior `true`; the probe did not test an ordinary `ST_Contains` boundary point, but DuckDB's page documents boundary-inclusive containment | Direct lowering cannot be shown to match: DuckDB is boundary-inclusive and SQL Server's boundary rule is undocumented in the inspected pages. |
 | `ST_Within` | interior `true`; `NULL` → `NULL` | Planar only. |
 | `ST_Intersection` | polygon/line `LINESTRING (0 0.5, 1 0.5)`; disjoint points `POINT EMPTY`; `NULL` → `NULL`; mismatched CRS → bind-time CRS error | Planar overlay; CRS mismatch is an error, not SQL Server's `NULL`. |
 | `ST_Buffer` | distance 1 around `(0,0)` returned a polygon with coordinates to ±1; `NULL` → `NULL` | Planar coordinate units; documented as ignoring earth curvature. |
 | `ST_Area` | 1° square = `1.0`; empty polygon `0.0`; `NULL` → `NULL` | Coordinate-units area. |
-| `ST_Area_Spheroid` | north-of-equator 1° polygon = `12305128751.042904` with `geometry_always_xy=true` | Ellipsoidal WGS84 area via GeographicLib; a distinct operation, not ordinary `ST_Area`. |
+| `ST_Area_Spheroid` | north-of-equator polygon = `12305128751.042904` with `geometry_always_xy=true` | Ellipsoidal WGS84 area via GeographicLib; a distinct operation, not ordinary `ST_Area`; the fixture does not establish axis order. |
 | `ST_AsText` | WKT; `POINT Z`/`POINT M` retained Z/M | Differs from SQL Server's documented omission for 3D/4D input. |
-| S2 community `geography` | `s2_contains` true for interior and a vertex, false for one edge point; reversed `s2_contains` false for interior; `s2_within` missing from the installed binary; `s2_intersection` spherical; `s2_area` perfect-sphere square meters (`12364036567.076418` for the 1° square); no buffer function | Spherical, not ellipsoidal; boundary and function-availability differences. |
+| S2 community `geography` | `s2_contains` true for interior and a vertex, false for one edge point; reversed `s2_contains` false for interior; `s2_within` missing from the installed binary; `s2_intersection` spherical; `s2_area` perfect-sphere square meters (`12364036567.076418` for the 1° square); no buffer function | Spherical, not ellipsoidal; function availability differs; SQL Server's boundary rule is undocumented. |
 | CRS/SRID interfaces | `ST_CRS`/`ST_SetCRS` are documented in DuckDB 2.0; `ST_SRID` and `spatial_version()` were unavailable in the pinned probe; CRS mismatch raises an error | Guards must use the interfaces actually present on the pin; this is unverified. |
 
 The three area figures (`12304814950.073112` SpatiaLite, `12305128751.042904` DuckDB
@@ -154,25 +156,27 @@ None is evidence of SQL Server numeric parity.
 Candidates considered:
 
 1. **Direct `ST_Contains`.** Rejected. DuckDB documents that its `ST_Contains` returns
-   true when the second geometry lies on the boundary of the first; SQL Server/OGC
-   containment excludes a boundary-only point. This is a documented semantic
-   difference, not a probe artifact.
+   true when the second geometry lies on the boundary of the first. The SQL Server
+   `STContains` page defines "spatially contains" but does not state whether a
+   boundary-only point is contained; no inspected page establishes that the two agree.
+   The risk is a semantic mismatch, not a probe artifact.
 2. **S2 `s2_contains`.** Rejected. Spherical great-circle edges differ from SQL Server's
-   ellipsoidal geodesic edges; the recorded probe returned true for a polygon vertex
-   where OGC-style containment excludes a boundary-only point (SQL Server's boundary rule
-   is not directly documented, which is itself a gap). SRID-mismatch NULL is also
-   unavailable as a native behavior.
+   ellipsoidal geodesic edges; the recorded probe returned true for a polygon vertex.
+   OGC-style containment would exclude a boundary-only point, but SQL Server's exact rule
+   is not documented, so the vertex result cannot be accepted as SQL Server behavior.
+   SRID-mismatch NULL is also unavailable as a native behavior.
 3. **Margin-bounded planar emulation** (accept a result only when the argument is farther
    from the receiver's boundary than the maximum planar-vs-geodesic edge deviation).
    Rejected for this plan: it needs a rigorous, latitude/extent-dependent deviation bound,
-   a conservative per-value distance-to-boundary guard, and a documented boundary rule
-   for SQL Server; none is established, and a wrong margin silently changes the answer.
+   a conservative per-value distance-to-boundary guard, and a documented SQL Server
+   boundary rule; none is established, and a wrong margin silently changes the answer.
 
 No bounded exact domain is established. Retain explicit rejection.
 
 ### 6.2 `STWithin` — no-go
 
-1. **Direct `ST_Within`.** Rejected for the same boundary and planar-edge reasons.
+1. **Direct `ST_Within`.** Rejected for the same unestablished boundary rule and
+   planar-edge reasons.
 2. **Reversed `s2_contains`.** Rejected: the recorded probe returned false for a point
    that was interior to the polygon, and the semantics of reversing arguments are not
    established.
@@ -220,16 +224,31 @@ ST_GeometryType(g) = 'POLYGON'
 ST_HasZ(g) = false AND ST_HasM(g) = false
 ST_IsEmpty(g) = false AND ST_IsValid(g) = true
 ST_NInteriorRings(g) = 0
-ST_CRS(g) is the verified WGS84 longitude/latitude identifier (4326/CRS84)
+ST_CRS(g) is the WGS84 geographic CRS fixed for the pin
 ST_XMin(g) >= -170 AND ST_XMax(g) <= 170
 ST_YMin(g) >= -80 AND ST_YMax(g) <= 80
 ST_XMax(g) - ST_XMin(g) <= 10 and ST_YMax(g) - ST_YMin(g) <= 10
 shell orientation is counter-clockwise (positive shoelace sum in lon/lat)
 ```
 
-Then transform to `ST_Area_Spheroid(g)`. The executor must set and verify
-`geometry_always_xy = true` (DuckDB 2.0 requires it for lon/lat axis order) before the
-query.
+Then transform to `ST_Area_Spheroid(g)`. The bbox guards and the shoelace test are written
+in the service's X=longitude, Y=latitude convention, so they are valid only if the
+transform is proven to consume that same order.
+
+**Axis order is an unresolved precondition, not an established setting.** The DuckDB 2.0
+`ST_Area_Spheroid` page states that input is assumed to be EPSG:4326 with
+`[latitude, longitude]` axis order. The G33-2 probe instead set
+`geometry_always_xy = true` (the DuckDB 2.0 geometry page's example sets it to assume
+`[longitude, latitude]` axis order) and returned `12305128751.042904` for a synthetic
+north-of-equator polygon. The recorded fixture is not detailed enough to distinguish the
+two interpretations, and a polygon of that size at low latitude is nearly symmetric in
+longitude/latitude, so the observation does **not** establish which order the function
+consumed. This report asserts
+no axis setting. A non-symmetric fixture must establish the pin's behavior before
+implementation; if the function consumes `[latitude, longitude]`, the rewrite would need a
+verified coordinate swap or session setting, which is itself unverified. Until then the
+candidate is blocked. Note also that EPSG:4326 and OGC:CRS84 are not interchangeable here:
+their axis orders differ.
 
 **Why each guard exists:**
 
@@ -240,7 +259,7 @@ query.
 - *Valid, non-empty:* the method pages do not define invalid-input behavior; rejection is
   explicit.
 - *WGS84 CRS:* SQL Server 4326 is WGS84; DuckDB's spheroid routine is documented for
-  EPSG:4326 and returns square meters.
+  EPSG:4326 and returns square meters, subject to the axis-order precondition above.
 - *Bounding box away from poles and the antimeridian, extent ≤10°:* keeps the polygon
   well inside a hemisphere, keeps equirectangular orientation (shoelace sign) aligned
   with the geodesic interior, and avoids the curvilinear degeneracies at the poles and
@@ -258,15 +277,17 @@ Empty/0-/1-D values are outside the proposed domain; SQL Server returns 0 for th
 future extension could admit them only after verifying the pinned build's behavior.
 
 **Why this is not yet proven.** `ST_Area_Spheroid` is documented as an ellipsoidal
-GeographicLib computation, but (a) the pinned binary's exact behavior and the
-`geometry_always_xy` interaction were only observed on one synthetic polygon;
-(b) `ST_CRS`/orientation guards have not been exercised on the pin; (c) SQL Server's own
-implementation is tolerance-based, so "same number" needs an explicit acceptance
-criterion. The area *quantity* is mathematically defined, which is why this is a
-candidate rather than an automatic no-go. Wave 13.5.1 may implement it only if it can
-show, with recorded independent reference values (e.g. GeographicLib geodesic polygon
-area) and adversarial guard tests, that the admitted domain yields the documented
-quantity within a stated criterion; otherwise it must retain rejection.
+GeographicLib computation, but (a) the pin's axis order is unresolved: the documentation
+says `[latitude, longitude]`, the probe set `geometry_always_xy=true`, and the recorded
+fixture cannot disambiguate them; (b) the pinned binary's exact behavior was observed on
+only one synthetic polygon; (c) `ST_CRS`/orientation guards have not been exercised on the
+pin; (d) SQL Server's own implementation is tolerance-based, so "same number" needs an
+explicit acceptance criterion. The area *quantity* is mathematically defined, which is why
+this is a candidate rather than an automatic no-go. Wave 13.5.1 may implement it only if
+it can show, with recorded independent reference values (e.g. GeographicLib geodesic
+polygon area), an asymmetric axis-order fixture, and adversarial guard tests, that the
+admitted domain yields the documented quantity within a stated criterion; otherwise it
+must retain rejection.
 
 ### 6.6 `STAsText` — conditional bounded candidate (semantic WKT only)
 
@@ -353,9 +374,12 @@ crossing; poles; >hemisphere; FullGlobe; curve inputs; very large vertex counts.
 ### 8.2 `STArea` candidate (wave 13.5.1)
 
 Accepted fixtures (synthetic, 4326): small CCW polygon near the equator; small CCW
-polygon at mid-latitude; triangle; polygon with many vertices but no holes. For each,
-record the independent ellipsoidal reference value and its provenance, and assert the
-transformed result within the approved criterion.
+polygon at mid-latitude; triangle; polygon with many vertices but no holes. Before any
+accepted fixture is used, run a non-symmetric axis-order fixture (for example a
+20°-longitude by 2°-latitude rectangle at 60°N) whose area differs materially under
+swapped axes, and record which interpretation the pin uses. For each fixture, record the
+independent ellipsoidal reference value and its provenance, and assert the transformed
+result within a stated criterion.
 
 Rejected fixtures: clockwise shell; polygon with an interior ring; multipolygon;
 geometry collection; point/line/empty; Z or M value; invalid (self-crossing) polygon;
@@ -406,12 +430,16 @@ mkdir -p /tmp/opencode/sda-rs-plan13-geography
 # copy the verified artifact into that directory; record source/version/SHA-256
 sha256sum /tmp/opencode/sda-rs-plan13-geography/spatial.duckdb_extension
 # offline scratch manifest pinned to duckdb = "=1.20000.2"; load by absolute path,
-# disable autoload/autoinstall, set geometry_always_xy=true, then run synthetic WKT only
+# disable autoload/autoinstall; run synthetic WKT only and record the observed axis
+# behavior with an asymmetric fixture before assuming or setting geometry_always_xy
 ```
 
 The probes that would be required are: version/extension metadata before lockdown;
-`ST_Area_Spheroid` on the accepted fixtures with independent reference values; axis-order
-confirmation (`geometry_always_xy` on/off); `ST_CRS` and CRS-mismatch behavior;
+`ST_Area_Spheroid` on the accepted fixtures with independent reference values; a
+non-symmetric axis-order fixture that distinguishes `[latitude, longitude]` from
+`[longitude, latitude]` (a `geometry_always_xy` on/off comparison alone does not, because
+the recorded low-latitude fixture is nearly symmetric in lon/lat); `ST_CRS` and
+CRS-mismatch behavior;
 `ST_HasZ`/`ST_HasM`/`ST_IsValid`/`ST_GeometryType`/`ST_NInteriorRings` guard expressions;
 `ST_AsText(ST_Force2D(...))` for all types; and the availability/shape of an error-raising
 function for guard rejection. Until then, the candidates remain hypotheses and the
@@ -442,9 +470,12 @@ add a crate must stop and request explicit user approval before use.
    parity. SQL Server's documented tolerances may make "equal" undefined.
 2. **Docs vs pin.** Current DuckDB 2.0 docs list functions (`s2_within`, possibly
    `ST_CRS`/`error()`) that may be absent from the pinned binary. Verify on the exact pin.
-3. **Axis order.** DuckDB 2.0 requires `geometry_always_xy=true` for lon/lat; the
-   `ST_Area_Spheroid` documentation's axis-order wording is easy to misread. A transposed
-   fixture would silently produce a plausible but wrong area.
+3. **Axis order.** The DuckDB 2.0 `ST_Area_Spheroid` page says `[latitude, longitude]`,
+   while the G33-2 probe set `geometry_always_xy=true` (the geometry page's example uses
+   it to assume `[longitude, latitude]` axis order); the recorded low-latitude fixture
+   cannot distinguish them. A
+   transposed input would silently produce a plausible but wrong area; the pin must be
+   tested with an asymmetric fixture before the candidate is accepted.
 4. **Orientation.** SQL Server's left-hand rule makes CW vs CCW a different surface.
    The shoelace guard is only valid within the bounded, non-polar, non-antimeridian
    domain and needs verification.

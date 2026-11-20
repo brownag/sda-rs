@@ -70,3 +70,4 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 - Validation: exact `git diff --check` passed; no source, tests, manifests, contracts, or dependencies changed.
 - Deviation: two focused local planning commits (deliverable and this bookkeeping report) instead of one; no remote actions.
 - Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation used.
+- Verification retry: corrected the `STArea` axis-order claim (DuckDB documents `[latitude, longitude]`; the probe set `geometry_always_xy=true` but its fixture cannot disambiguate the order) and removed the unverified OGC boundary rule as SQL Server behavior. Report/STATE updated in a follow-up `docs(planning):` commit; no probes or downloads.
