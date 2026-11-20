@@ -60,6 +60,40 @@ fn duck_value(value: DuckValue) -> Result<Value, String> {
     })
 }
 
+fn duckdb_statement_sets(
+    connection: &DuckConnection,
+    statements: &[String],
+) -> Vec<(String, ResultSet)> {
+    statements
+        .iter()
+        .map(|sql| {
+            let mut statement = connection.prepare(sql).expect("prepare DuckDB SQL");
+            let mut rows = statement.query([]).expect("execute DuckDB SQL");
+            // DuckDB column metadata is only available once the statement has run.
+            let columns = rows
+                .as_ref()
+                .expect("DuckDB produced a statement")
+                .column_names();
+            let mut result_rows = Vec::new();
+            while let Some(row) = rows.next().expect("read DuckDB row") {
+                let mut values = Vec::new();
+                for index in 0..columns.len() {
+                    let value = row.get::<_, DuckValue>(index).expect("read DuckDB value");
+                    values.push(duck_value(value).expect("supported DuckDB value"));
+                }
+                result_rows.push(values);
+            }
+            (
+                sql.clone(),
+                ResultSet {
+                    columns,
+                    rows: result_rows,
+                },
+            )
+        })
+        .collect()
+}
+
 fn duckdb_sets(connection: &DuckConnection, input: &str) -> Vec<ResultSet> {
     let statements = duckdb_sql(input);
     assert_eq!(
@@ -67,28 +101,127 @@ fn duckdb_sets(connection: &DuckConnection, input: &str) -> Vec<ResultSet> {
         1,
         "expected one translated statement: {statements:?}"
     );
-    let mut statement = connection
-        .prepare(&statements[0])
-        .expect("prepare DuckDB SQL");
-    let mut rows = statement.query([]).expect("execute DuckDB SQL");
-    // DuckDB column metadata is only available once the statement has run.
-    let columns = rows
-        .as_ref()
-        .expect("DuckDB produced a statement")
-        .column_names();
-    let mut result_rows = Vec::new();
-    while let Some(row) = rows.next().expect("read DuckDB row") {
-        let mut values = Vec::new();
-        for index in 0..columns.len() {
-            let value = row.get::<_, DuckValue>(index).expect("read DuckDB value");
-            values.push(duck_value(value).expect("supported DuckDB value"));
-        }
-        result_rows.push(values);
+    let mut sets = duckdb_statement_sets(connection, &statements);
+    assert_eq!(sets.len(), 1, "expected one DuckDB result set");
+    vec![sets.remove(0).1]
+}
+
+// Test-only adapter for the observed raw dialect gap: polyglot-sql leaves IIF
+// untouched and DuckDB has no IIF function, so rewrite IIF(cond, a, b) to
+// CASE WHEN cond THEN a ELSE b END for these probe-authored inputs. This is not
+// a production transpiler fix and does not cover identifiers or general SQL.
+fn lower_iif(sql: &str) -> String {
+    let mut output = String::with_capacity(sql.len());
+    let mut rest = sql;
+    while let Some(start) = find_iif(rest) {
+        output.push_str(&rest[..start]);
+        let Some(close) = matching_paren(rest, start + 4) else {
+            output.push_str(&rest[start..]);
+            return output;
+        };
+        let arguments = split_arguments(&rest[start + 4..close]);
+        assert_eq!(
+            arguments.len(),
+            3,
+            "IIF requires three arguments: {}",
+            &rest[start..=close]
+        );
+        output.push_str("CASE WHEN ");
+        output.push_str(&lower_iif(arguments[0]));
+        output.push_str(" THEN ");
+        output.push_str(&lower_iif(arguments[1]));
+        output.push_str(" ELSE ");
+        output.push_str(&lower_iif(arguments[2]));
+        output.push_str(" END");
+        rest = &rest[close + 1..];
     }
-    vec![ResultSet {
-        columns,
-        rows: result_rows,
-    }]
+    output.push_str(rest);
+    output
+}
+
+fn find_iif(sql: &str) -> Option<usize> {
+    let bytes = sql.as_bytes();
+    let mut in_string = false;
+    let mut index = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'\'' if in_string && bytes.get(index + 1) == Some(&b'\'') => index += 1,
+            b'\'' => in_string = !in_string,
+            _ if !in_string
+                && index + 3 < bytes.len()
+                && bytes[index].eq_ignore_ascii_case(&b'I')
+                && bytes[index + 1].eq_ignore_ascii_case(&b'I')
+                && bytes[index + 2].eq_ignore_ascii_case(&b'F')
+                && bytes[index + 3] == b'(' =>
+            {
+                return Some(index);
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    None
+}
+
+fn matching_paren(sql: &str, content_start: usize) -> Option<usize> {
+    let bytes = sql.as_bytes();
+    let mut depth = 1usize;
+    let mut in_string = false;
+    let mut index = content_start;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'\'' if in_string && bytes.get(index + 1) == Some(&b'\'') => index += 1,
+            b'\'' => in_string = !in_string,
+            b'(' if !in_string => depth += 1,
+            b')' if !in_string => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    None
+}
+
+fn split_arguments(content: &str) -> Vec<&str> {
+    let bytes = content.as_bytes();
+    let mut arguments = Vec::new();
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut start = 0;
+    let mut index = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'\'' if in_string && bytes.get(index + 1) == Some(&b'\'') => index += 1,
+            b'\'' => in_string = !in_string,
+            b'(' if !in_string => depth += 1,
+            b')' if !in_string => depth = depth.saturating_sub(1),
+            b',' if !in_string && depth == 0 => {
+                arguments.push(content[start..index].trim());
+                start = index + 1;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    arguments.push(content[start..].trim());
+    arguments
+}
+
+// Test-only response shaping: the DuckDB adapter collects the count row that
+// `CREATE TABLE ... AS` returns, while SQLite's executor skips non-row-producing
+// statements. Suppress only those DDL sets here; the shared serializer is
+// unchanged and this does not claim a production batch contract.
+fn is_non_row_producing_ctas(sql: &str) -> bool {
+    let statement = sql.trim_start().to_ascii_uppercase();
+    statement.starts_with("CREATE TEMPORARY TABLE") || statement.starts_with("CREATE TABLE")
+}
+
+fn duckdb_batch_sets(connection: &DuckConnection, input: &str) -> Vec<(String, ResultSet)> {
+    duckdb_statement_sets(connection, &duckdb_sql(input))
 }
 
 fn sqlite_sets(input: &str) -> Vec<ResultSet> {
@@ -232,4 +365,117 @@ fn executes_bracketed_identifiers_and_preserves_nulls() {
         &["row id", "maybe text"],
         r#"{"Table":[["1",null],["2","present"],["3",null]]}"#,
     );
+}
+
+#[test]
+fn lowers_iif_and_matches_sqlite() {
+    let input = "SELECT TOP (2) [id], ISNULL([optional], 'missing') AS [value], IIF([id] > 1, 'yes', 'no') AS [flag] FROM [sample data] ORDER BY [id]";
+    let raw = duckdb_sql(input);
+    assert_eq!(raw.len(), 1);
+    assert!(raw[0].contains("IIF("), "{}", raw[0]);
+    assert!(!raw[0].contains("CASE"), "{}", raw[0]);
+
+    let connection = DuckConnection::open_in_memory().expect("open in-memory DuckDB");
+    connection
+        .execute_batch(DUCKDB_SCHEMA)
+        .expect("seed DuckDB schema");
+    let raw_error = match connection.prepare(&raw[0]) {
+        Ok(_) => panic!("raw DuckDB IIF SQL must fail"),
+        Err(error) => error,
+    };
+    assert!(
+        raw_error.to_string().to_ascii_lowercase().contains("iif"),
+        "{raw_error}"
+    );
+
+    let lowered = lower_iif(&raw[0]);
+    assert_eq!(
+        lowered,
+        "SELECT \"id\", COALESCE(\"optional\", 'missing') AS \"value\", CASE WHEN \"id\" > 1 THEN 'yes' ELSE 'no' END AS \"flag\" FROM \"sample data\" ORDER BY \"id\" NULLS FIRST LIMIT 2"
+    );
+    let duckdb_sets = duckdb_statement_sets(&connection, std::slice::from_ref(&lowered));
+    assert_eq!(duckdb_sets.len(), 1);
+    let duckdb_set = &duckdb_sets[0].1;
+    assert_eq!(duckdb_set.columns, ["id", "value", "flag"]);
+
+    let sqlite_sets = sqlite_sets(input);
+    assert_eq!(sqlite_sets.len(), 1);
+    assert_eq!(duckdb_set.columns, sqlite_sets[0].columns);
+    let expected = r#"{"Table":[["1","missing","no"],["2","present","yes"]]}"#;
+    assert_eq!(
+        serialize(std::slice::from_ref(duckdb_set), Format::Json)
+            .expect("serialize lowered DuckDB results"),
+        expected
+    );
+    assert_eq!(
+        serialize(&sqlite_sets, Format::Json).expect("serialize SQLite results"),
+        expected
+    );
+}
+
+#[test]
+fn suppresses_ctas_count_and_matches_sqlite_batch() {
+    let input = "SELECT [id] INTO #picked FROM [sample data] WHERE [id] > 1; SELECT [id] FROM #picked ORDER BY [id]";
+    let connection = DuckConnection::open_in_memory().expect("open in-memory DuckDB");
+    connection
+        .execute_batch(DUCKDB_SCHEMA)
+        .expect("seed DuckDB schema");
+
+    let batch = duckdb_batch_sets(&connection, input);
+    assert_eq!(batch.len(), 2);
+    assert_eq!(
+        batch[0].0,
+        "CREATE TEMPORARY TABLE picked AS SELECT \"id\" FROM \"sample data\" WHERE \"id\" > 1"
+    );
+    assert_eq!(
+        batch[1].0,
+        "SELECT \"id\" FROM picked ORDER BY \"id\" NULLS FIRST"
+    );
+    assert!(is_non_row_producing_ctas(&batch[0].0));
+    assert!(!is_non_row_producing_ctas(&batch[1].0));
+
+    let raw_sets: Vec<ResultSet> = batch
+        .iter()
+        .filter(|(_, set)| !set.rows.is_empty())
+        .map(|(_, set)| set.clone())
+        .collect();
+    assert_eq!(
+        serialize(&raw_sets, Format::Json).expect("serialize raw DuckDB batch"),
+        r#"{"Table":[["2"]],"Table1":[["2"],["3"]]}"#
+    );
+
+    let adapted: Vec<ResultSet> = batch
+        .iter()
+        .filter(|(sql, _)| !is_non_row_producing_ctas(sql))
+        .map(|(_, set)| set.clone())
+        .collect();
+    assert_eq!(adapted.len(), 1);
+    assert_eq!(adapted[0].columns, ["id"]);
+    let expected = r#"{"Table":[["2"],["3"]]}"#;
+    assert_eq!(
+        serialize(&adapted, Format::Json).expect("serialize adapted DuckDB batch"),
+        expected
+    );
+
+    let sqlite_sets = sqlite_sets(input);
+    assert_eq!(sqlite_sets.len(), 1);
+    assert_eq!(adapted[0].columns, sqlite_sets[0].columns);
+    assert_eq!(
+        serialize(&sqlite_sets, Format::Json).expect("serialize SQLite batch"),
+        expected
+    );
+}
+
+#[test]
+fn rejects_unsupported_temporal_value() {
+    let connection = DuckConnection::open_in_memory().expect("open in-memory DuckDB");
+    let value: DuckValue = connection
+        .query_row("SELECT DATE '2024-01-02' AS date_value", [], |row| {
+            row.get(0)
+        })
+        .expect("read DuckDB date value");
+    let error = duck_value(value).expect_err("temporal values must be rejected");
+
+    assert!(error.contains("unsupported/lossy"), "{error}");
+    assert!(error.contains("Date32"), "{error}");
 }
