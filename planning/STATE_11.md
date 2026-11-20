@@ -34,7 +34,7 @@ Plan: `planning/EXECUTION_PLAN_11.md`
 |---|---|---|---|
 | 1 | 11.1.1 | done | Pinned dev-dependency and in-memory DuckDB engine smoke test; all serial wave gates passed. |
 | 2 | 11.2.1 | done | Raw T-SQL-to-DuckDB translation assertions, including the IIF gap; all serial wave gates passed. |
-| 3 | 11.3.1 | pending | Supported DuckDB query execution, value mapping, SDA JSON, and SQLite comparison. |
+| 3 | 11.3.1 | done | Supported DuckDB query execution, value mapping, SDA JSON, and SQLite comparison; all serial wave gates passed. |
 | 4 | 11.4.1 | pending | Test-only IIF/batch adaptations, unsupported type assertion, and spike report. |
 
 ## Task Reports
@@ -67,6 +67,21 @@ Plan: `planning/EXECUTION_PLAN_11.md`
 - Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation. Token/cost telemetry unavailable.
 - Orchestrator gates: targeted DuckDB test passed (5); `cargo fmt --check` and `git diff --check` passed; default and configured-SpatiaLite `cargo test` each passed (75 unit + 31 integration, 0 failures).
 - Micro-plan deviation: supported translations were split into focused tests rather than one table-driven test; assertions and task scope are unchanged.
+
+## 11.3.1
+
+- Status: done; worker verification and orchestrator wave gates passed.
+- Files changed: `tests/duckdb_pipeline_contract.rs` only (test-only synthetic DuckDB/SQLite schemas, DuckDB value adapter, DuckDB and SQLite execution helpers, 4 execution/comparison tests; 5 existing tests preserved).
+- Implementation commit: `486e568` (`test(duckdb): execute supported queries and compare SDA JSON`). TODO and state edits excluded; Plan 10 artifacts untouched.
+- Targeted command: `CARGO_NET_OFFLINE=true cargo test --offline --test duckdb_pipeline_contract` -> 9 passed, 0 failed.
+- `rustfmt --check tests/duckdb_pipeline_contract.rs` and `git diff --check` passed. No `Cargo.toml`/`Cargo.lock`, `src/`, fixture, runtime, CI, or ADR changes.
+- Behavior: TOP/brackets/ISNULL, captured muaggatt join, STRING_AGG, and a NULL-preserving bracket case serialize byte-identically on DuckDB and the existing SQLite transpiler/executor/serializer path; column names/order and NULL vs text are asserted.
+- Mapping: NULL/booleans/signed and small unsigned integers/floats/doubles/text/blobs map to existing `ResultSet` values; UBigInt/Decimal map to text; all other DuckDB types are explicitly rejected (test-only adapter).
+- SQLite comparison uses the real `sda_rs::transpiler::transpile` + `sda_rs::executor::execute` on a seeded shared-memory database (deviation from the Plan 10 hand-rolled loop; task-required).
+- Deviations: none beyond that documented SQLite-path choice.
+- Limitations: no IIF lowering/execution, no temp-table/CTAS handling, no additional typed values, no performance/security claims; the adapter is not a production mapping contract.
+- Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation. Token/cost telemetry unavailable.
+- Orchestrator gates: targeted DuckDB test passed (9); `cargo fmt --check` and `git diff --check` passed; default and configured-SpatiaLite `cargo test` each passed (75 unit + 35 integration, 0 failures).
 
 ## Worker Usage
 
