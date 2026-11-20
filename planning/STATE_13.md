@@ -86,3 +86,15 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 - Spheroid observation: `ST_Distance_Spheroid`/`ST_DWithin_Spheroid` are point-pair measurement/proximity only; `geometry_always_xy=false` selected for documented `[latitude, longitude]`; descriptive, not containment, unresolved as any substitute.
 - Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation. No network install, request-time load, or remote Git actions.
 - User follow-up: community `geography` predicates are S2/spherical; Spatial spheroid distance/dwithin are documented for `POINT_2D` pairs, not point-in-polygon. A local projection may be researched, but only a rigorous error bound plus runtime guards proving exact results on a bounded domain can meet the existing compatibility bar; approximation alone remains rejected. Details are appended to the G37 report; no probe was run.
+
+### 13.4.1 — Apply evidence-backed Intersection/Buffer behavior
+
+- Status: complete; G37 no-go preserved for `STIntersection`/`STBuffer`; no accepted domain or geography-compatible planar/approximate transformation.
+- Files: `src/transpiler/spatial.rs`, `docs/spatial-sql-contract.md`, `tests/spatial_methods_contract.rs`, `tests/duckdb_geography_contract.rs`; task TODO at `planning/tasks/13.4.1.todo.md`.
+- Implementation commit: `8b3f337`; planning bookkeeping committed separately.
+- `cargo fmt --check`: passed.
+- `cargo test --offline --test spatial_methods_contract`: 1 passed.
+- `SDA_DUCKDB_SPATIAL_EXTENSION=/tmp/opencode/sda-rs-plan13-geography/spatial.duckdb_extension CARGO_NET_OFFLINE=true cargo test --offline --features duckdb --test duckdb_geography_contract`: 6 passed; pinned artifact required by fail-closed test harness.
+- `git diff --check`: passed. No manifest, dependency, runtime, or remote changes.
+- DuckDB observations are limited to the pinned planar backend: geometry output, disjoint-empty/NULL behavior, buffer coordinate units, and CRS error. They do not establish SQL Server geography parity.
+- Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation.
