@@ -1030,8 +1030,11 @@ fn rewrite_node(
 ) -> Result<Expression, polyglot_sql::Error> {
     Ok(match node {
         Expression::MethodCall(call) if unsupported_geography_method(&call.method.name) => {
+            let detail = contains_within_no_go_reason(&call.method.name)
+                .map(|reason| format!(": {reason}"))
+                .unwrap_or_default();
             return Err(polyglot_sql::Error::InvalidInput(format!(
-                ".{} is unsupported for SQL Server geography compatibility",
+                ".{} is unsupported for SQL Server geography compatibility{detail}",
                 call.method.name
             )));
         }
@@ -1132,6 +1135,25 @@ fn unsupported_geography_method(name: &str) -> bool {
     ]
     .iter()
     .any(|method| name.eq_ignore_ascii_case(method))
+}
+
+/// Predicate-specific reason appended to the rejection of the methods for
+/// which the G37 assessment established no exact transformation from the
+/// available evidence (report Sections 6.1-6.2): DuckDB's contains/within
+/// predicates are planar, their boundary handling on the pinned build diverges
+/// from its published documentation, and SQL Server's boundary-point rule is
+/// not established, so no accepted domain can be proven. The reason
+/// deliberately avoids the lowered DuckDB function names.
+fn contains_within_no_go_reason(name: &str) -> Option<&'static str> {
+    if name.eq_ignore_ascii_case("STContains") || name.eq_ignore_ascii_case("STWithin") {
+        Some(
+            "no exact transformation established from available evidence; planar \
+             contains/within boundary behavior diverges from its published documentation and \
+             SQL Server's boundary rule is not established",
+        )
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]

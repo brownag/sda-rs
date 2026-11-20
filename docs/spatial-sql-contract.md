@@ -69,15 +69,32 @@ matrix. Unsupported arities, correlated/nonliteral scalar arguments,
 qualified/method-call syntax, unsupported AST contexts, and column alias lists
 are rejected rather than silently treated as valid results.
 
-The CLR instance methods `.STContains(...)`, `.STWithin(...)`, and
-`.STIntersection(...)` are explicitly rejected as unsupported for SQL Server
-`geography` compatibility. They are not lowered to SpatiaLite's GEOS planar
-`ST_Contains`, `ST_Within`, or `ST_Intersection`: the configured feasibility
-probe showed mismatched-SRID predicate behavior that differs from SQL Server,
-and the planar operations do not establish geodetic predicate or overlay
-semantics. The rejection applies regardless of apparent arity; no partial
-geometry implementation is implied. Free-function spellings are not method
-rewrites. See the
+The CLR instance methods `.STContains(...)` and `.STWithin(...)` are explicitly
+rejected as unsupported for SQL Server `geography` compatibility. No exact
+transformation is established from the available evidence: DuckDB's
+contains/within predicates are planar and their boundary behavior on the pinned
+build diverges from the published documentation, S2 alternatives are spherical
+or absent from the pinned build, and a margin-bounded planar emulation has no
+soundness proof or reference oracle. Because SQL Server's boundary-point rule
+is also not established, no runtime-enforced input domain can be shown
+equivalent, so the rejection is unconditional across receivers, arities, and
+case. The methods are never lowered to a backend
+operation; consequently a lowered call can never produce SQL Server's `bit`
+result, NULL propagation, or mismatched-SRID `NULL`, and empty or invalid inputs
+never reach a backend through this seam. No planar or approximate result is
+presented as geography-compatible. See the
+[`G37 geography transformations report`](../planning/reports/G37-geography-transformations.md)
+Sections 6.1-6.2 for the no-go assessment and
+`tests/duckdb_geography_contract.rs` for the recorded predicate observations and
+rejection contract.
+
+The CLR instance method `.STIntersection(...)` is explicitly rejected as
+unsupported for SQL Server `geography` compatibility. It is not lowered to
+SpatiaLite's GEOS planar `ST_Intersection`: the configured feasibility probe
+showed mismatched-SRID predicate behavior that differs from SQL Server, and the
+planar operation does not establish geodetic overlay semantics. The rejection
+applies regardless of apparent arity; no partial geometry implementation is
+implied. Free-function spellings are not method rewrites. See the
 [`G12 geography feasibility report`](../planning/reports/G12-geography-method-feasibility.md)
 for the evidence matrix and probe results.
 
@@ -142,8 +159,14 @@ Implementation and test anchors:
   no-SpatiaLite structured error.
 - `tests/spatial_methods_contract.rs`: configured execution of the existing
   `.STIntersects` operation and explicit rejection of the unsupported
-  geography instance methods, including `.STBuffer`, `.STArea()`, and
-  `.STAsText()`; `.STIntersects` results are not geography-parity evidence.
+  geography instance methods across receivers and arities, including
+  `.STContains`/`.STWithin`, `.STBuffer`, `.STArea()`, and `.STAsText()`;
+  `.STIntersects` results are not geography-parity evidence.
+- `tests/duckdb_geography_contract.rs` (feature `duckdb`): pinned Spatial
+  artifact identity, observed planar contains/within behavior (including a
+  documented-vs-observed boundary divergence), and the spheroid point-pair
+  measurement/proximity primitives, recorded as observations only; rejected
+  inputs never reach DuckDB for `.STContains` or `.STWithin`.
 - `tests/mukey_contract.rs`: configured SpatiaLite mukey TVF result and
   supported query contexts.
 - `src/transpiler/spatial.rs` unit tests: constructor/method rewrites,

@@ -92,7 +92,44 @@ async fn configured_spatial_methods_execute_supported_predicate_and_reject_unsup
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body, "{}");
 
-    for method in ["STContains", "STWithin", "STIntersection"] {
+    // G37 Sections 6.1-6.2: no exact transformation is established from the
+    // available evidence for these predicates, so every receiver/arity shape
+    // must be rejected before any backend execution. This asserts the
+    // rejection contract only; it is not a SQL Server runtime-parity claim.
+    for method in ["STContains", "stcontains", "STWithin", "StWithin"] {
+        for receiver in ["shape", "geometry::STGeomFromText('POINT(0 0)', 4326)"] {
+            for arguments in [
+                "()",
+                "(geometry::STGeomFromText('POINT(0 0)', 4326))",
+                "(geometry::STGeomFromText('POINT(0 0)', 4326), 1)",
+            ] {
+                let sql = format!("SELECT {receiver}.{method}{arguments} FROM features");
+                let (status, body) = query(app.clone(), &sql).await;
+                assert_eq!(status, StatusCode::BAD_REQUEST, "{sql}: {body}");
+                let lowered = body.to_ascii_lowercase();
+                assert!(
+                    lowered.contains(&format!(
+                        ".{} is unsupported for sql server geography compatibility",
+                        method.to_ascii_lowercase()
+                    )),
+                    "{sql}: {body}"
+                );
+                assert!(
+                    body.contains("no exact transformation established from available evidence"),
+                    "{sql}: {body}"
+                );
+                assert!(
+                    body.contains("SQL Server's boundary rule is not established"),
+                    "{sql}: {body}"
+                );
+                assert!(!lowered.contains("st_contains"), "{sql}: {body}");
+                assert!(!lowered.contains("st_within"), "{sql}: {body}");
+                assert!(!lowered.contains("no such function"), "{sql}: {body}");
+            }
+        }
+    }
+
+    for method in ["STIntersection"] {
         let sql = format!(
             "SELECT shape.{method}(geometry::STGeomFromText('POINT(0 0)', 4326)) FROM features"
         );
