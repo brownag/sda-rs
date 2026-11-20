@@ -35,7 +35,7 @@ Plan: `planning/EXECUTION_PLAN_11.md`
 | 1 | 11.1.1 | done | Pinned dev-dependency and in-memory DuckDB engine smoke test; all serial wave gates passed. |
 | 2 | 11.2.1 | done | Raw T-SQL-to-DuckDB translation assertions, including the IIF gap; all serial wave gates passed. |
 | 3 | 11.3.1 | done | Supported DuckDB query execution, value mapping, SDA JSON, and SQLite comparison; all serial wave gates passed. |
-| 4 | 11.4.1 | pending | Test-only IIF/batch adaptations, unsupported type assertion, and spike report. |
+| 4 | 11.4.1 | done | Test-only IIF/batch adaptations, unsupported type assertion, and spike report; all serial wave gates passed. |
 
 ## Task Reports
 
@@ -85,7 +85,7 @@ Plan: `planning/EXECUTION_PLAN_11.md`
 
 ## 11.4.1
 
-- Status: done (worker verification complete); awaiting orchestrator wave gates.
+- Status: done; worker verification and orchestrator wave gates passed.
 - Files changed: `tests/duckdb_pipeline_contract.rs` (test-only IIF lowering, statement/batch collection, CTAS count suppression, temporal rejection test; 9 existing tests preserved); created `planning/reports/duckdb-test-only-spike.md`; updated this TODO and state.
 - Implementation commit: `0a98da1` (`test(duckdb): adapt IIF and batch gaps in test pipeline`). TODO/report/state kept out of that commit; planning artifacts committed separately.
 - Targeted command: `CARGO_NET_OFFLINE=true cargo test --offline --test duckdb_pipeline_contract` -> 12 passed, 0 failed.
@@ -95,7 +95,8 @@ Plan: `planning/EXECUTION_PLAN_11.md`
 - Deviations: the raw-IIF failure is asserted at `prepare`, where DuckDB reports the missing function (execution is never reached). No scope change.
 - Limitations: IIF lowering and CTAS suppression are test-only, probe-scoped workarounds; no production transpiler/executor/serializer change, typed-value contract, spatial support, performance, or security claim.
 - Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation. Token/cost telemetry unavailable.
+- Orchestrator gates: targeted DuckDB test passed (12); `cargo fmt --check` and `git diff --check` passed; default and configured-SpatiaLite `cargo test` each passed (75 unit + 38 integration, 0 failures).
 
 ## Worker Usage
 
-- Record worker model, escalation, and token/cost telemetry availability after task completion.
+- Tasks 11.1.1–11.4.1 used `opencode-go/deepseek-v4.1-flash`; no escalation. Token/cost telemetry unavailable.
