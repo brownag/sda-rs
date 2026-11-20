@@ -29,7 +29,7 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 
 | Wave | Task(s) | Status | Notes |
 |---|---|---|---|
-| 1 | 13.1.1, 13.1.2 | pending | Plan 7 state reconciliation; ADR 0007 performance clarification. |
+| 1 | 13.1.1, 13.1.2 | done | Integrated commits `76e9034`, `aeb5966`, `9f256c6`, `d0a0ca5`; serial boundary checks passed. |
 | 2 | 13.2.1 | pending | G37 contract and transformation evidence. |
 | 3 | 13.3.1 | pending | Contains/Within. |
 | 4 | 13.4.1 | pending | Intersection/Buffer. |
@@ -49,11 +49,13 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 - Reconciled Plan 7 wave/task statuses from recorded reports; G31 commit `257202a`, G8/G9 commit `e93eed0`; target test evidence is in `STATE_7.md`.
 - Marked the Plan 7 final gate complete because its record contains fmt/diff, default and configured-SpatiaLite full suites, and `make test-soildb` results.
 - Moved G31/G8/G9 completion provenance into `GOALS.md`; goal outcomes and plan-level gate remain explicitly distinct.
+- Integrated commits: `76e9034` (reconciliation) and `aeb5966` (separate planning report).
 - Validation: `git diff --check` passed. No source/tests modified.
 
 ### 13.1.2 — Clarify ADR 0007 performance objective
 
+- Status: complete; ADR implementation commit `9f256c6`; separate planning commit `d0a0ca5`.
 - Clarified that the approved 20% geometric-mean median-latency target is an objective, not a qualification or release blocker when missed alone.
 - Preserved the four non-spatial workload aggregation, 10% individual-regression reporting criterion, and separate spatial reporting.
 - Kept security qualification and approval of numeric resource limits distinct; no other ADR commitments changed.
-- Validation: `git diff --check` passed. No implementation tests run (documentation-only task).
+- Validation: worker `git diff --check`; orchestrator `cargo fmt --check`, `git diff --check`, default and configured-SpatiaLite `cargo test` (75 unit + 30 integration each), offline DuckDB target (12 passed), and `--all-features` DuckDB target (12 passed). No implementation tests specific to the ADR change.
