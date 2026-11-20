@@ -141,7 +141,9 @@ async fn configured_spatial_methods_execute_supported_predicate_and_reject_unsup
         ("STBuffer", ["(1)", "(1, 2)"]),
         ("stbuffer", ["()", "(1, 2)"]),
         ("STArea", ["()", "(1)"]),
+        ("starea", ["()", "(1)"]),
         ("STAsText", ["()", "(1)"]),
+        ("stastext", ["()", "(1)"]),
     ] {
         for receiver in ["shape", "geometry::STGeomFromText('POINT(0 0)', 4326)"] {
             for args in arguments {
@@ -154,7 +156,19 @@ async fn configured_spatial_methods_execute_supported_predicate_and_reject_unsup
                     )),
                     "{sql}: {body}"
                 );
-                if method.to_ascii_lowercase().contains("intersection") {
+                if method.to_ascii_lowercase().contains("area") {
+                    assert!(
+                        body.contains("no exact geography area transformation established"),
+                        "{sql}: {body}"
+                    );
+                    assert!(!body.contains("ST_Area"), "{sql}: {body}");
+                } else if method.to_ascii_lowercase().contains("astext") {
+                    assert!(
+                        body.contains("no guarded semantic WKT transformation established"),
+                        "{sql}: {body}"
+                    );
+                    assert!(!body.contains("ST_AsText"), "{sql}: {body}");
+                } else if method.to_ascii_lowercase().contains("intersection") {
                     assert!(
                         body.contains("no exact ellipsoidal overlay established"),
                         "{sql}: {body}"

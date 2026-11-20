@@ -339,6 +339,10 @@ fn transpiler_rejects_geography_methods_before_any_duckdb_execution() {
         "stintersection",
         "STBuffer",
         "stbuffer",
+        "STArea",
+        "starea",
+        "STAsText",
+        "stastext",
     ] {
         for receiver in ["shape", "geometry::STGeomFromText('POINT(0 0)', 4326)"] {
             for arguments in [
@@ -358,19 +362,23 @@ fn transpiler_rejects_geography_methods_before_any_duckdb_execution() {
                     )),
                     "{sql}: {message}"
                 );
-                if method.to_ascii_lowercase().contains("intersection") {
+                if method.to_ascii_lowercase().contains("area") {
                     assert!(
-                        message.contains("no exact ellipsoidal overlay established"),
+                        message.contains("no exact geography area transformation established"),
                         "{sql}: {message}"
                     );
-                    assert!(!lowered.contains("st_intersection"), "{sql}: {message}");
-                } else if method.to_ascii_lowercase().contains("buffer") {
+                    assert!(!lowered.contains("st_area"), "{sql}: {message}");
+                } else if method.to_ascii_lowercase().contains("astext") {
                     assert!(
-                        message.contains("no exact geography buffer established"),
+                        message.contains(
+                            "no guarded semantic WKT transformation established"
+                        ),
                         "{sql}: {message}"
                     );
-                    assert!(!lowered.contains("st_buffer"), "{sql}: {message}");
-                } else {
+                    assert!(!lowered.contains("st_astext"), "{sql}: {message}");
+                } else if method.to_ascii_lowercase().contains("contains")
+                    || method.to_ascii_lowercase().contains("within")
+                {
                     assert!(
                         message.contains(
                             "no exact transformation established from available evidence"
@@ -383,8 +391,84 @@ fn transpiler_rejects_geography_methods_before_any_duckdb_execution() {
                     );
                     assert!(!lowered.contains("st_contains"), "{sql}: {message}");
                     assert!(!lowered.contains("st_within"), "{sql}: {message}");
+                } else if method.to_ascii_lowercase().contains("intersection") {
+                    assert!(
+                        message.contains("no exact ellipsoidal overlay established"),
+                        "{sql}: {message}"
+                    );
+                    assert!(!lowered.contains("st_intersection"), "{sql}: {message}");
+                } else if method.to_ascii_lowercase().contains("buffer") {
+                    assert!(
+                        message.contains("no exact geography buffer established"),
+                        "{sql}: {message}"
+                    );
+                    assert!(!lowered.contains("st_buffer"), "{sql}: {message}");
                 }
             }
         }
     }
+}
+
+#[test]
+fn duckdb_planar_area_and_wkt_are_observations_not_geography_compatibility() {
+    let Some(connection) = connect() else {
+        return;
+    };
+
+    // These characterize only the pinned planar backend. They do not establish
+    // SQL Server geography area or text semantics and cannot bypass the
+    // transpiler's explicit rejections.
+    let area = value(
+        &connection,
+        "SELECT ST_Area(ST_GeomFromText('POLYGON((0 0, 2 0, 2 2, 0 2, 0 0))'))",
+    );
+    match area {
+        DuckValue::Double(area) => assert_eq!(area, 4.0),
+        other => panic!("expected planar DOUBLE area observation, got {other:?}"),
+    }
+    assert!(matches!(
+        value(
+            &connection,
+            "SELECT ST_Area(ST_GeomFromText('POLYGON EMPTY'))"
+        ),
+        DuckValue::Double(0.0)
+    ));
+    assert!(matches!(
+        value(
+            &connection,
+            "SELECT ST_Area(ST_SetCRS(ST_GeomFromText('POLYGON((0 0, 2 0, 2 2, 0 2, 0 0))'), 'EPSG:4326'))"
+        ),
+        DuckValue::Double(4.0)
+    ));
+
+    for (input, expected) in [
+        ("POINT Z (1 2 3)", "POINT (1 2)"),
+        ("POINT M (1 2 3)", "POINT (1 2)"),
+        ("POINT (1 2)", "POINT (1 2)"),
+    ] {
+        let sql = format!("SELECT ST_AsText(ST_Force2D(ST_GeomFromText('{input}')))");
+        let actual = match value(&connection, &sql) {
+            DuckValue::Text(text) => text,
+            other => panic!("{sql}: expected VARCHAR observation, got {other:?}"),
+        };
+        assert_eq!(actual, expected, "{sql}");
+    }
+    assert!(matches!(
+        value(
+            &connection,
+            "SELECT ST_AsText(ST_Force2D(ST_GeomFromText('POINT (1 2)')))"
+        ),
+        DuckValue::Text(_)
+    ));
+    assert!(matches!(
+        value(
+            &connection,
+            "SELECT ST_AsText(ST_Force2D(ST_GeomFromText('POINT EMPTY')))"
+        ),
+        DuckValue::Text(text) if text == "POINT EMPTY"
+    ));
+    assert!(matches!(
+        value(&connection, "SELECT ST_AsText(NULL)"),
+        DuckValue::Null
+    ));
 }

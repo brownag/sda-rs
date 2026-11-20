@@ -114,23 +114,36 @@ a buffer backend through this seam. See the
 Section 6.4. No planar or approximate operation is claimed as geography
 compatible.
 
-The CLR instance method `.STArea()` is also explicitly rejected. Bare `ST_Area`
-is planar coordinate area (not SRID-dependent geography area). The optional
-ellipsoidal SpatiaLite area operation has not been established as SQL Server
-compatible across supported inputs.
+The CLR instance methods `.STArea()` and `.STAsText()` are explicitly rejected
+as unsupported for SQL Server `geography` compatibility. For `.STArea()`, the
+proposed ellipsoidal operation is not admitted: the pinned axis order has not
+been established with a distinguishing asymmetric fixture, independent
+reference agreement and its tolerance criterion have not been established, and
+the required per-value guards are unverified. Planar coordinate area is not a
+substitute. For `.STAsText()`, pinned fixtures have not established semantic
+2D WKT equivalence, Z/M dropping, and NULL behavior together with enforceable
+per-value CRS, emptiness, type, and curve guards. No byte-for-byte text
+formatting claim is made. Both methods are rejected before backend lowering;
+the conditional candidates in the
+[`G37 geography transformations report`](../planning/reports/G37-geography-transformations.md)
+remain unproven and are not supported domains.
 
-`.STAsText()` is explicitly rejected in this release as well. The feasibility
-assessment finds text conversion conditionally feasible for bounded ordinary
-2D values, but the transpiler cannot enforce that condition for all supported
-receivers: geometry metadata does not validate each stored value's actual
-dimensions or content, and constructor expressions may contain arbitrary WKT,
-SRIDs, NULLs, or empty values. In particular, AST shape alone cannot exclude
-Z/M, FullGlobe, or greater-than-hemisphere inputs, and SpatiaLite's demonstrated
-Z/M serialization differs from SQL Server geography output. It is therefore
-not safe to lower the method to `AsText`/`ST_AsText` or claim even a conditional
-contract from the current rewrite seam. The feasibility report remains an
-assessment of theoretical conditional feasibility; qualifying that report
-requires a separately scoped planning update.
+### Six-method geography support/rejection matrix
+
+| SQL Server geography method | Contract outcome | Established domain |
+|---|---|---|
+| `.STContains(other)` | Explicitly rejected; no exact transformation established. | None. |
+| `.STWithin(other)` | Explicitly rejected; no exact transformation established. | None. |
+| `.STIntersection(other)` | Explicitly rejected; no exact ellipsoidal overlay established. | None. |
+| `.STBuffer(distance)` | Explicitly rejected; no exact geography buffer established. | None. |
+| `.STArea()` | Explicitly rejected; pinned axis order, independent reference tolerance, and runtime guards are unverified. | None. |
+| `.STAsText()` | Explicitly rejected; pinned semantic-WKT and per-value guard requirements are unverified. No byte-for-byte formatting claim. | None. |
+
+These instance methods are never lowered to backend operations, so backend
+observations do not establish SQL Server geography parity. See the
+[`G37 geography transformations report`](../planning/reports/G37-geography-transformations.md)
+and `tests/spatial_methods_contract.rs` /
+`tests/duckdb_geography_contract.rs` for the rejection contract and observations.
 
 ## Coordinate reference systems and units
 
@@ -178,7 +191,7 @@ Implementation and test anchors:
 - `tests/duckdb_geography_contract.rs` (feature `duckdb`): pinned Spatial
   artifact identity, observed planar predicate, intersection, and buffer
   behavior plus spheroid point-pair primitives, recorded as observations only;
-  rejected inputs never reach DuckDB for the tested geography methods.
+  rejected inputs never reach DuckDB for all six tested geography methods.
 - `tests/mukey_contract.rs`: configured SpatiaLite mukey TVF result and
   supported query contexts.
 - `src/transpiler/spatial.rs` unit tests: constructor/method rewrites,

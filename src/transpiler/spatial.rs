@@ -1032,6 +1032,7 @@ fn rewrite_node(
         Expression::MethodCall(call) if unsupported_geography_method(&call.method.name) => {
             let detail = contains_within_no_go_reason(&call.method.name)
                 .or_else(|| overlay_buffer_no_go_reason(&call.method.name))
+                .or_else(|| area_astext_no_go_reason(&call.method.name))
                 .map(|reason| format!(": {reason}"))
                 .unwrap_or_default();
             return Err(polyglot_sql::Error::InvalidInput(format!(
@@ -1148,6 +1149,22 @@ fn overlay_buffer_no_go_reason(name: &str) -> Option<&'static str> {
         Some(
             "no exact geography buffer established; available operations do not reproduce \
              meter units, tolerance, negative-buffer, FullGlobe, and maximum-distance behavior",
+        )
+    } else {
+        None
+    }
+}
+
+fn area_astext_no_go_reason(name: &str) -> Option<&'static str> {
+    if name.eq_ignore_ascii_case("STArea") {
+        Some(
+            "no exact geography area transformation established: pinned axis order, \
+             independent reference tolerance, and runtime guards are unverified",
+        )
+    } else if name.eq_ignore_ascii_case("STAsText") {
+        Some(
+            "no guarded semantic WKT transformation established: pinned semantic, \
+             dimension, NULL, and per-value domain behavior are unverified",
         )
     } else {
         None
