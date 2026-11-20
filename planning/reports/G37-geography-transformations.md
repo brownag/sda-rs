@@ -544,3 +544,36 @@ v2.0.0 Linux x86_64 Spatial artifact. It was downloaded from
 `8ec99d875355200316c743ede176e2cb50d2b712d2fa192ccbf19cc245a8d0bc`, matching the
 Plan 8 record. This resolves the artifact-availability blocker only; extension identity,
 load behavior, and all candidate semantics remain to be verified by the scoped tests.
+
+## Post-report follow-up: spheroidal primitives and local projections
+
+At the user's direction, the available geography and spheroidal operations were
+checked as candidates for `STContains`/`STWithin`:
+
+- The community [`geography` extension function reference](https://github.com/paleolimbot/duckdb-geography/blob/main/docs/function-reference.md)
+  describes S2 predicates (`s2_contains`, `s2_within`, `s2_intersects`, and related
+  functions). The [official community catalog entry](https://duckdb.org/community_extensions/extensions/geography)
+  characterizes the extension as global processing **on the sphere**. Its `s2_area`
+  documentation explicitly uses a perfect sphere; S2 containment is therefore not an
+  ellipsoidal SQL Server predicate.
+- DuckDB Spatial's [2.0 function reference](https://duckdb.org/docs/2.0/core_extensions/spatial/functions.html)
+  documents `ST_Area_Spheroid`, `ST_Length_Spheroid`, `ST_Perimeter_Spheroid`,
+  `ST_Distance_Spheroid(POINT_2D, POINT_2D)`, and
+  `ST_DWithin_Spheroid(POINT_2D, POINT_2D, DOUBLE)`. The distance/dwithin signatures
+  are point-to-point; the documentation does not describe a spheroidal point-to-line or
+  point-in-polygon predicate. These measurement/proximity primitives do not by themselves
+  establish `STContains` or `STWithin`.
+- A local projection remains a **research candidate**, not an approved approximation.
+  Projecting a bounded neighborhood may reduce distortion, but straight projected
+  segments do not automatically reproduce SQL Server's ellipsoidal edges. To satisfy the
+  unchanged exact-compatibility bar, a future candidate would need a specified bounded
+  domain, a rigorous projected/geodesic boundary error bound, a runtime guard that rejects
+  classifications within that error margin, and adversarial evidence that every admitted
+  result matches the documented SQL Server contract. `ST_DWithin_Spheroid` is point-only;
+  using it on sampled vertices is not a nearest-distance proof for an entire boundary.
+  If only an approximate answer can be supported, keep the CLR methods rejected; do not
+  label the result geography-compatible.
+
+This follow-up does not change any verdict. No projection or spheroidal-predicate probe
+was run; the extension-backed task test must first confirm which documented primitives
+are present on the pinned binary.
