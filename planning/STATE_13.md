@@ -30,7 +30,7 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 | Wave | Task(s) | Status | Notes |
 |---|---|---|---|
 | 1 | 13.1.1, 13.1.2 | done | Integrated commits `76e9034`, `aeb5966`, `9f256c6`, `d0a0ca5`; serial boundary checks passed. |
-| 2 | 13.2.1 | pending | G37 contract and transformation evidence. |
+| 2 | 13.2.1 | done | Research report committed; missing local Spatial artifact blocks extension-backed checks in Waves 3–5. |
 | 3 | 13.3.1 | pending | Contains/Within. |
 | 4 | 13.4.1 | pending | Intersection/Buffer. |
 | 5 | 13.5.1 | pending | Area/AsText; close G37. |
@@ -63,11 +63,11 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 ### 13.2.1 — Research G37 geography transformations and contract
 
 - Status: complete (research/report only; no probes run, per approved probe-blocker decision).
-- Deliverable: `planning/reports/G37-geography-transformations.md`; micro-plan `planning/tasks/13.2.1.todo.md`; deliverable commit `44d7901`.
+- Deliverable: `planning/reports/G37-geography-transformations.md`; micro-plan `planning/tasks/13.2.1.todo.md`; commits `44d7901` (report/TODO), `6915263` (task report), `ac6e7fa` (review correction).
 - Verdicts: `STContains`, `STWithin`, `STIntersection`, `STBuffer` explicit no-go; `STArea` and `STAsText` conditional bounded-domain candidates with per-value guards, unproven pending pin evidence.
-- Documented DuckDB `ST_Contains` boundary inclusivity, CRS-mismatch errors, planar buffer/overlay, ellipsoidal `ST_Area_Spheroid`, S2 spherical semantics, and SQL Server left-hand-rule/orientation requirements with primary citations.
+- Primary-source documentation spot-check confirmed DuckDB `ST_Contains` boundary inclusivity and `ST_Area_Spheroid` axis-order wording; SQL Server boundary-point behavior is left explicitly undocumented.
 - Probe blocker: Plan 8 scratch artifact absent; no `*.duckdb_extension` under `/tmp/opencode`; no download/install performed. Blocks extension-backed tests in waves 13.3.1–13.5.1 until an authorized local artifact is supplied.
-- Validation: exact `git diff --check` passed; no source, tests, manifests, contracts, or dependencies changed.
-- Deviation: two focused local planning commits (deliverable and this bookkeeping report) instead of one; no remote actions.
+- Validation: `git diff --check`, `cargo fmt --check`; default and configured-SpatiaLite `cargo test` (75 unit + 30 integration each); offline DuckDB target and `--all-features` target (12 passed each).
+- Deviation: worker used separate deliverable and bookkeeping commits, followed by a focused review-correction commit; no remote actions.
 - Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation used.
-- Verification retry: corrected the `STArea` axis-order claim (DuckDB documents `[latitude, longitude]`; the probe set `geometry_always_xy=true` but its fixture cannot disambiguate the order) and removed the unverified OGC boundary rule as SQL Server behavior. Report/STATE updated in a follow-up `docs(planning):` commit; no probes or downloads.
+- Verification retry: clarified that `ST_Area_Spheroid` axis order remains unresolved and removed the unverified OGC boundary rule as SQL Server behavior; no probes/downloads. Questions were resolved in `planning/tasks/13.2.1.todo.md`.
