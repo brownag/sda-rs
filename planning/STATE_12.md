@@ -34,3 +34,18 @@ Plan: `planning/EXECUTION_PLAN_12.md`
 ## Task Reports
 
 <!-- Append concise worker reports below. -->
+
+## 12.1.1
+
+- **Status:** Done; optional bundled DuckDB cargo feature established. Full suite intentionally not run (Task 12.2.1 gates the test target).
+- **Files changed:** `Cargo.toml` only; `Cargo.lock` unchanged. DuckDB moved to optional `[dependencies]` with `[features] duckdb = ["dep:duckdb"]`.
+- **Implementation commit:** `1e0aba2` (`build(duckdb): add optional duckdb cargo feature`).
+- `cargo fmt --check` -> passed.
+- `cargo build --locked` -> passed in 1.82s; no DuckDB build.
+- `cargo tree --locked -e normal` -> no `duckdb`/`libduckdb-sys` entries.
+- `cargo build --locked --features duckdb` -> passed in 3.03s (reused cached bundled artifacts).
+- `cargo tree --locked -e features --features duckdb` -> shows `duckdb` and `bundled`.
+- `git diff --check` -> passed; diff contains only `Cargo.toml`.
+- **Deviations:** none.
+- **Limitations:** Linux x86_64 only; compile-time inclusion does not select or enable a runtime backend or authorize production use.
+- **Worker model:** `opencode-go/deepseek-v4.1-flash`; no escalation. Token/cost telemetry unavailable.
