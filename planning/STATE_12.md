@@ -29,7 +29,7 @@ Plan: `planning/EXECUTION_PLAN_12.md`
 | Wave | Task | Status | Notes |
 |---|---|---|---|
 | 1 | 12.1.1 | done | Verified and committed as `1e0aba2`; targeted build and dependency-graph checks passed. |
-| 2 | 12.2.1 | done | Verified and committed as `d567c3b`; test target gated behind `duckdb`; orchestrator final suites pending. |
+| 2 | 12.2.1 | done | Verified and committed as `d567c3b`; test target gated behind `duckdb`; final suites passed. |
 
 ## Task Reports
 
@@ -49,6 +49,14 @@ Plan: `planning/EXECUTION_PLAN_12.md`
 - **Deviations:** none.
 - **Limitations:** Linux x86_64 only; compile-time inclusion does not select or enable a runtime backend or authorize production use.
 - **Worker model:** `opencode-go/deepseek-v4.1-flash`; no escalation. Token/cost telemetry unavailable.
+
+## Final Acceptance
+
+- `cargo test` -> passed: 75 unit + 30 integration; 0 failures. DuckDB target excluded.
+- `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` -> passed: 75 unit + 30 integration; 0 failures.
+- `cargo fmt --check` -> passed.
+- `git diff --check` -> passed; working tree clean before this state update.
+- Linux x86_64 verification only. SQLite remains the default; this feature does not select a runtime backend or resolve DuckDB production qualification blockers.
 
 ## 12.2.1
 
