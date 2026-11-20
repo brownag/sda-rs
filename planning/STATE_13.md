@@ -50,3 +50,10 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 - Marked the Plan 7 final gate complete because its record contains fmt/diff, default and configured-SpatiaLite full suites, and `make test-soildb` results.
 - Moved G31/G8/G9 completion provenance into `GOALS.md`; goal outcomes and plan-level gate remain explicitly distinct.
 - Validation: `git diff --check` passed. No source/tests modified.
+
+### 13.1.2 — Clarify ADR 0007 performance objective
+
+- Clarified that the approved 20% geometric-mean median-latency target is an objective, not a qualification or release blocker when missed alone.
+- Preserved the four non-spatial workload aggregation, 10% individual-regression reporting criterion, and separate spatial reporting.
+- Kept security qualification and approval of numeric resource limits distinct; no other ADR commitments changed.
+- Validation: `git diff --check` passed. No implementation tests run (documentation-only task).
