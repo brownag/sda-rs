@@ -75,7 +75,7 @@ async fn unsupported_values_fail_instead_of_being_coerced() {
 }
 
 #[tokio::test]
-async fn gpkg_metadata_can_be_read_but_geometry_payloads_are_rejected() {
+async fn gpkg_metadata_is_readable_but_blob_payloads_are_rejected() {
     let sets = execute(
         vec![
             "CREATE TEMP TABLE gpkg_geometry_columns AS SELECT 4326 AS srs_id".to_owned(),
@@ -87,4 +87,15 @@ async fn gpkg_metadata_can_be_read_but_geometry_payloads_are_rejected() {
     .unwrap();
     assert_eq!(sets[1].columns, ["srs_id"]);
     assert_eq!(sets[1].rows, [vec![Value::Integer(4326)]]);
+
+    let error = execute(
+        vec!["SELECT encode(8::VARCHAR) AS geom".to_owned()],
+        Duration::from_secs(5),
+    )
+    .await
+    .unwrap_err();
+    assert!(
+        matches!(error, ExecutorError::UnsupportedValue(ref kind) if kind == "BLOB/GeoPackageBinary payloads are not validated"),
+        "{error}"
+    );
 }

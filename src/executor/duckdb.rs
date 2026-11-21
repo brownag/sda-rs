@@ -269,3 +269,18 @@ fn map_value(value: DuckValue) -> Result<Value, ExecutorError> {
         other => return Err(ExecutorError::UnsupportedValue(format!("{other:?}"))),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn geometry_values_are_rejected_without_geo_package_validation() {
+        let error = map_value(DuckValue::Geometry(vec![1, 2, 3])).unwrap_err();
+        assert!(matches!(
+            error,
+            ExecutorError::UnsupportedValue(ref kind)
+                if kind == "GEOMETRY payloads are not validated"
+        ));
+    }
+}
