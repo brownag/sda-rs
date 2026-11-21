@@ -146,3 +146,14 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 - Retry checks: `CARGO_NET_OFFLINE=true cargo test --offline --features duckdb --test duckdb_result_contract` passed (3 tests); `CARGO_NET_OFFLINE=true cargo test --offline --features duckdb geometry_values_are_rejected_without_geo_package_validation` passed (1 unit test); `cargo fmt --check` and `git diff --check` passed.
 - Wave boundary: formatting/diff checks passed; default and configured-SpatiaLite full suites passed (75 unit + 30 integration each); `duckdb_result_contract` (3), `duckdb_execution_contract` (4), `duckdb_security_contract` (4), and `duckdb_pipeline_contract` (12) passed. This does not resolve the GeoPackage qualification blocker above, so Wave 8 remains blocked.
 - User decision: proceed with a deployment-controlled, allowlisted, read-only GeoPackage path, never request- or SQL-selected. Plan 13 is revised so G41 provisioning (Wave 9) precedes the G40 path completion (Wave 10); G42 moves to Wave 11 and depends on both. No production path is enabled by this planning change.
+
+### 13.9.1 — Provision pinned DuckDB Spatial reproducibly (G41)
+- Status: complete; reproducible offline provisioning contract documented and implemented. This does not load Spatial in the executor, enable GeoPackage execution, or claim production readiness.
+- Files: `docs/duckdb-deployment.md`, `scripts/provision-duckdb-spatial.sh`, `tests/provision_duckdb_spatial.sh`, task TODO.
+- Pin: DuckDB Rust `=1.20000.2`, bundled engine v2.0.0; official Spatial v2.0.0 `linux_amd64`; observed metadata extension identifier `a3dbcd1781`; SHA-256 `8ec99d875355200316c743ede176e2cb50d2b712d2fa192ccbf19cc245a8d0bc`.
+- `bash -n scripts/provision-duckdb-spatial.sh`: passed.
+- `bash -n tests/provision_duckdb_spatial.sh && bash tests/provision_duckdb_spatial.sh`: passed; synthetic local fixture success; mismatch and absent source rejected. No network/download in script or test.
+- `scripts/provision-duckdb-spatial.sh /tmp/opencode/sda-rs-plan13-geography/spatial.duckdb_extension "$destination"` (fresh temporary directory): passed; installed artifact SHA-256 matched the pin. Artifact was already authorized; not downloaded.
+- `git diff --check`: passed. No executor/runtime, Cargo, route, CI, SQLite deployment, or external user-data changes.
+- G39 string-based classifier and incomplete security denial coverage remain blockers. No remote actions.
+- Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation.
