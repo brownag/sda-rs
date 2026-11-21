@@ -36,9 +36,10 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 | 5 | 13.5.1 | done | Area/AsText rejected pending evidence/guards; commits `61af77b`, `7c5bd13`, formatting follow-up `6abc15b`; G37 closed. |
 | 6 | 13.6.1 | done | G38 lifecycle; commits `03040a7`, `7bc00b4`, formatting follow-up `2d7e85f`; boundary suites passed. |
 | 7 | 13.7.1 | done | G39 controls; commits `135fd99`, `e3f4c9a`; boundary suites passed; parser-backed policy remains a blocker. |
-| 8 | 13.8.1 | blocked | Scalar/result mapping is verified and geometry payloads fail closed, but full GeoPackage metadata/CRS/header/WKB/dimension qualification remains unimplemented; requires a scoped decision on secure input validation. |
-| 9 | 13.9.1 | pending | G41 provisioning. |
-| 10 | 13.10.1 | pending | G42 benchmarking/recommendations. |
+| 8 | 13.8.1 | partial | Scalar/result mapping verified; GeoPackage path work deferred until pinned G41 provisioning. |
+| 9 | 13.9.1 | pending | G41 pinned provisioning; unblocked by G38/G39. |
+| 10 | 13.10.1 | pending | Complete G40 with restricted read-only GeoPackage input; depends on 13.8.1 and 13.9.1. |
+| 11 | 13.11.1 | pending | G42 benchmarking/recommendations; depends on completed G40 and G41. |
 
 ## Task Reports
 
@@ -144,3 +145,4 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 - Verification correction commit: `3638668` (`test(duckdb): verify geometry payload rejection`); added executor-path BLOB rejection assertion using `encode()` and in-module `DuckValue::Geometry` rejection test. GeoPackage metadata/header/SRID/WKB/dimensional validation remains unverified and blocked.
 - Retry checks: `CARGO_NET_OFFLINE=true cargo test --offline --features duckdb --test duckdb_result_contract` passed (3 tests); `CARGO_NET_OFFLINE=true cargo test --offline --features duckdb geometry_values_are_rejected_without_geo_package_validation` passed (1 unit test); `cargo fmt --check` and `git diff --check` passed.
 - Wave boundary: formatting/diff checks passed; default and configured-SpatiaLite full suites passed (75 unit + 30 integration each); `duckdb_result_contract` (3), `duckdb_execution_contract` (4), `duckdb_security_contract` (4), and `duckdb_pipeline_contract` (12) passed. This does not resolve the GeoPackage qualification blocker above, so Wave 8 remains blocked.
+- User decision: proceed with a deployment-controlled, allowlisted, read-only GeoPackage path, never request- or SQL-selected. Plan 13 is revised so G41 provisioning (Wave 9) precedes the G40 path completion (Wave 10); G42 moves to Wave 11 and depends on both. No production path is enabled by this planning change.

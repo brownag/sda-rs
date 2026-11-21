@@ -47,6 +47,7 @@ Qualify the already-authorized optional DuckDB path through query semantics, exe
 - **2026-11-20 — Performance:** Clarify ADR 0007: the approved 20% latency target is an objective and reporting criterion, not a hard pass/fail qualification or release gate. Missing it alone does not block further work.
 - **2026-11-20 — Geography:** Investigate transformations for all six G12 methods. A bounded exact subset is acceptable only with enforceable runtime guards and tests supporting SQL Server `geography` semantics; otherwise retain explicit rejection. Never claim planar or approximate results are compatible.
 - **2026-11-20 — Geography follow-up:** Evaluate spheroidal primitives and local-projection strategies as internal candidates. A local planar computation is acceptable only if a rigorous bound plus runtime guards proves the exact SQL Server result throughout the admitted domain; a caveated approximation alone does not relax the compatibility bar. DuckDB `geography` community functions use S2's sphere, while Spatial's spheroidal distance/dwithin functions are point-to-point primitives; do not infer a polygon predicate from them without evidence.
+- **2026-11-20 — G40 input path:** User selected a deployment-controlled, allowlisted, read-only GeoPackage path, never selected by a request or SQL. Reorder qualification so G41's pinned provisioning precedes implementation/testing of that path; G42 depends on both.
 - **2026-11-20 — Dependencies:** Workers may research candidate dependencies but must stop and request separate user approval before adding one.
 - **2026-11-20 — Resource limits:** G42 may measure and recommend candidate DuckDB limits. Do not finalize numeric values or enable runtime selection without later explicit approval.
 - **2026-11-20 — Backend boundary:** Build/test qualification components without making DuckDB selectable by HTTP requests. Preserve ADRs 0001–0007 except the explicit ADR 0007 performance clarification.
@@ -80,11 +81,12 @@ Qualify the already-authorized optional DuckDB path through query semantics, exe
 | 5 | 13.5.1 | Apply evidence-backed measurement/text transformations/rejections (`STArea`, `STAsText`) and close G37. |
 | 6 | 13.6.1 | Implement/test the internal DuckDB execution lifecycle (G38), without route selection. |
 | 7 | 13.7.1 | Implement/test DuckDB security-control mechanisms (G39); leave numeric caps for G42. |
-| 8 | 13.8.1 | Implement/test GeoPackage and result compatibility (G40). |
+| 8 | 13.8.1 | Verify scalar/result mapping; GeoPackage input qualification remains partial pending the restricted path. |
 | 9 | 13.9.1 | Implement/test reproducible, pinned Linux x86_64 Spatial provisioning (G41). |
-| 10 | 13.10.1 | Benchmark and report performance/resource behavior and candidate limits (G42). |
+| 10 | 13.10.1 | Complete G40 with a deployment-controlled, allowlisted, read-only GeoPackage input path and result validation. |
+| 11 | 13.11.1 | Benchmark and report performance/resource behavior and candidate limits (G42). |
 
-Waves are sequential by dependency and phase. Wave 1 tasks have disjoint files and may run in parallel in isolated worktrees. Waves 3–5 share the spatial transpiler/contract paths and are sequential. G38–G40 share executor/value boundaries and are sequential. At most two workers run concurrently; no shared Cargo suite runs concurrently. If G37 needs a new dependency, stop for separate user approval before proceeding with that dependency.
+Waves are sequential by dependency and phase. Wave 1 tasks have disjoint files and may run in parallel in isolated worktrees. Waves 3–5 share the spatial transpiler/contract paths and are sequential. G38–G40 share executor/value boundaries and are sequential; G41 provisioning precedes the G40 restricted GeoPackage path. At most two workers run concurrently; no shared Cargo suite runs concurrently. If G37 needs a new dependency, stop for separate user approval before proceeding with that dependency.
 
 ## Global Hazards and Rules
 
@@ -213,7 +215,7 @@ Waves are sequential by dependency and phase. Wave 1 tasks have disjoint files a
 
 - **ID:** 13.9.1
 - **Repo:** `/home/andrew/workspace/sda-rs`
-- **Depends on:** 13.6.1, 13.7.1, 13.8.1.
+- **Depends on:** 13.6.1, 13.7.1.
 - **Files in scope — must edit:** `docs/duckdb-deployment.md`.
 - **Can create:** `scripts/provision-duckdb-spatial.sh`, focused script tests/fixtures under `tests/` if needed.
 - **Do not touch:** CI (G44), runtime route/selection (G43), request-time networking, existing SQLite deployment, or external user data.
@@ -221,11 +223,22 @@ Waves are sequential by dependency and phase. Wave 1 tasks have disjoint files a
 - **Grep anchors:** D10 in `planning/GOALS.md`; ADR 0007; DuckDB Spatial evidence in `planning/reports/G33-2-duckdb-spatial-followup.md`; executor initialization in `src/executor/duckdb.rs`.
 - **Acceptance:** `bash -n scripts/provision-duckdb-spatial.sh`; local/offline provisioning verification checks expected artifact identity, hash mismatch rejection, and absent-artifact behavior; deployment doc gives exact reproducible steps and no request-time network path; `git diff --check`.
 
-### Task 13.10.1 — Measure DuckDB performance/resources and recommend limits (G42)
+### Task 13.10.1 — Complete G40 with a restricted read-only GeoPackage input path
 
 - **ID:** 13.10.1
 - **Repo:** `/home/andrew/workspace/sda-rs`
-- **Depends on:** 13.6.1, 13.7.1, 13.8.1, 13.9.1.
+- **Depends on:** 13.8.1 (scalar/result contract), 13.9.1 (pinned provisioning).
+- **Files in scope — must edit:** `src/executor/duckdb.rs`, `docs/security/duckdb-execution-policy.md`, `tests/duckdb_result_contract.rs`.
+- **Do not touch:** routes/config or any request selector, SQLite/default backend, serializer public behavior, G41 provisioning artifacts, OS sandbox, resource defaults, or unrelated executor behavior.
+- **Spec:** Using only the G41-provisioned/pinned Spatial artifact, add an internal-only way to open a deployment-controlled, allowlisted GeoPackage in read-only mode. The path must come from trusted internal startup/provisioning code; SQL and requests cannot choose or alter it. Constrain DuckDB access to the canonical approved file/path, preserve external-access denial and extension controls, and reject writes. Validate synthetic GeoPackage metadata, SRID/CRS agreement, GeoPackageBinary headers/WKB, NULL/empty/dimensional cases and exact SDA result serialization. Do not use user/Iowa data. If a required control or output contract cannot be demonstrated, fail closed and report the precise blocker; do not silently return unvalidated geometry.
+- **Grep anchors:** current `src/executor/duckdb.rs` connection/config setup and `map_value`; `gpkg_geometry` decoder; G39 policy/tests; `tests/duckdb_result_contract.rs`; G41 pinned artifact record.
+- **Acceptance:** targeted pinned-artifact `duckdb_result_contract` verifies read-only access only to synthetic allowlisted fixture, rejects an outside path and writes, checks metadata/SRID/header/WKB/NULL/empty/dimensional cases, and asserts exact SDA serialization; retain `duckdb_execution_contract` and `duckdb_security_contract`; offline commands, `cargo fmt --check`, `git diff --check`. No route integration or production-readiness claim.
+
+### Task 13.11.1 — Measure DuckDB performance/resources and recommend limits (G42)
+
+- **ID:** 13.11.1
+- **Repo:** `/home/andrew/workspace/sda-rs`
+- **Depends on:** 13.6.1, 13.7.1, 13.8.1, 13.9.1, 13.10.1.
 - **Files in scope — must edit:** `planning/reports/duckdb-qualification-benchmark.md`.
 - **Can create:** benchmark source and manifest only under `/tmp/opencode/sda-rs-plan13-benchmark/`.
 - **Do not touch:** production defaults/limits, routes/selection, user data, network, repository dependency manifests, or benchmark baseline report.
