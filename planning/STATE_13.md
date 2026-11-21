@@ -35,7 +35,7 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 | 4 | 13.4.1 | done | Intersection/Buffer; commits `8b3f337`, `5a34354`; pinned extension observations and rejection contract passed. |
 | 5 | 13.5.1 | done | Area/AsText rejected pending evidence/guards; commits `61af77b`, `7c5bd13`, formatting follow-up `6abc15b`; G37 closed. |
 | 6 | 13.6.1 | done | G38 lifecycle; commits `03040a7`, `7bc00b4`, formatting follow-up `2d7e85f`; boundary suites passed. |
-| 7 | 13.7.1 | pending | G39 controls. |
+| 7 | 13.7.1 | done | G39 controls; commits `135fd99`, `e3f4c9a`; boundary suites passed; parser-backed policy remains a blocker. |
 | 8 | 13.8.1 | pending | G40 compatibility. |
 | 9 | 13.9.1 | pending | G41 provisioning. |
 | 10 | 13.10.1 | pending | G42 benchmarking/recommendations. |
@@ -119,3 +119,12 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 - `git diff --check`: passed. No dependencies, network, extension, routes/config, SQLite behavior, security policy, or deployment changes.
 - Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation or remote actions.
 - Wave boundary: `cargo fmt --check` and `git diff --check` passed after formatting-only commit `2d7e85f`; default `cargo test` and configured-SpatiaLite `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` each passed (75 unit + 30 integration); offline `duckdb_execution_contract` passed (4), pinned-artifact `duckdb_geography_contract` passed (7), and `duckdb_pipeline_contract` passed (12).
+
+### 13.7.1 — Implement/test DuckDB security mechanisms (G39)
+- Status: complete as an internal qualification step; DuckDB remains unreachable from HTTP and no production-readiness claim is made.
+- Commits: `135fd99` implementation; `e3f4c9a` planning report.
+- Tests: `duckdb_security_contract` 4 passed; `duckdb_execution_contract` 4 passed; `duckdb_geography_contract` 7 passed with pinned artifact; `duckdb_pipeline_contract` 12 passed.
+- Wave boundary: `cargo fmt --check`, `git diff --check`, default `cargo test`, and configured-SpatiaLite `SDA_TEST_SPATIALITE=/usr/lib/x86_64-linux-gnu/mod_spatialite.so cargo test` passed; each full suite had 75 unit + 30 integration tests.
+- Verified controls include in-memory connection, external access disabled, known-extension autoload/autoinstall disabled, restrictive SQL gate, tested persistent-write/file/network/extension denials, temp workflow, and cleanup.
+- Blocker: gate is string-based, not parser-backed; bypass resistance and exhaustive file/network/extension-path denial remain unestablished. No numeric resource defaults or dependencies added.
+- No route/config/SQLite policy/OS sandbox/remote changes. Worker model `opencode-go/deepseek-v4.1-flash`; no escalation.
