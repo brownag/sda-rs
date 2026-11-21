@@ -244,12 +244,28 @@ fn map_value(value: DuckValue) -> Result<Value, ExecutorError> {
         DuckValue::UTinyInt(value) => Value::Integer(i64::from(value)),
         DuckValue::USmallInt(value) => Value::Integer(i64::from(value)),
         DuckValue::UInt(value) => Value::Integer(i64::from(value)),
+        // rusqlite::Value has no unsigned integer variant; decimal text avoids
+        // overflow and preserves the integer value exactly in SDA output.
         DuckValue::UBigInt(value) => Value::Text(value.to_string()),
         DuckValue::Float(value) => Value::Real(f64::from(value)),
         DuckValue::Double(value) => Value::Real(value),
+        // Decimal has no equivalent in rusqlite::Value. Preserve its exact
+        // decimal rendering as text rather than narrowing it to binary float.
         DuckValue::Decimal(value) => Value::Text(value.to_string()),
         DuckValue::Text(value) => Value::Text(value),
-        DuckValue::Blob(value) => Value::Blob(value),
+        // A BLOB may contain GeoPackageBinary. Without validating its header,
+        // SRID, metadata row, and WKB dimensions, passing it to the shared
+        // serializer would silently expose an unverified geometry payload.
+        DuckValue::Blob(_) => {
+            return Err(ExecutorError::UnsupportedValue(
+                "BLOB/GeoPackageBinary payloads are not validated".to_owned(),
+            ))
+        }
+        DuckValue::Geometry(_) => {
+            return Err(ExecutorError::UnsupportedValue(
+                "GEOMETRY payloads are not validated".to_owned(),
+            ))
+        }
         other => return Err(ExecutorError::UnsupportedValue(format!("{other:?}"))),
     })
 }
