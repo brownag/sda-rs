@@ -141,3 +141,5 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 - `CARGO_NET_OFFLINE=true cargo test --offline --features duckdb --test duckdb_execution_contract`: passed, 4 tests.
 - `cargo fmt --check` and `git diff --check`: passed.
 - Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation, dependencies, downloads, or remote actions.
+- Verification correction commit: `3638668` (`test(duckdb): verify geometry payload rejection`); added executor-path BLOB rejection assertion using `encode()` and in-module `DuckValue::Geometry` rejection test. GeoPackage metadata/header/SRID/WKB/dimensional validation remains unverified and blocked.
+- Retry checks: `CARGO_NET_OFFLINE=true cargo test --offline --features duckdb --test duckdb_result_contract` passed (3 tests); `CARGO_NET_OFFLINE=true cargo test --offline --features duckdb geometry_values_are_rejected_without_geo_package_validation` passed (1 unit test); `cargo fmt --check` and `git diff --check` passed.
