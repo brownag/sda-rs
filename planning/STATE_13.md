@@ -37,7 +37,7 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 | 6 | 13.6.1 | done | G38 lifecycle; commits `03040a7`, `7bc00b4`, formatting follow-up `2d7e85f`; boundary suites passed. |
 | 7 | 13.7.1 | done | G39 controls; commits `135fd99`, `e3f4c9a`; boundary suites passed; parser-backed policy remains a blocker. |
 | 8 | 13.8.1 | partial | Scalar/result mapping verified; GeoPackage path work deferred until pinned G41 provisioning. |
-| 9 | 13.9.1 | pending | G41 pinned provisioning; unblocked by G38/G39. |
+| 9 | 13.9.1 | done | G41 offline, hash-pinned provisioning; commits `d9911c9`, `b55a440`; boundary suites passed. |
 | 10 | 13.10.1 | pending | Complete G40 with restricted read-only GeoPackage input; depends on 13.8.1 and 13.9.1. |
 | 11 | 13.11.1 | pending | G42 benchmarking/recommendations; depends on completed G40 and G41. |
 
@@ -157,3 +157,4 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 - `git diff --check`: passed. No executor/runtime, Cargo, route, CI, SQLite deployment, or external user-data changes.
 - G39 string-based classifier and incomplete security denial coverage remain blockers. No remote actions.
 - Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation.
+- Wave boundary: `cargo fmt --check`, `git diff --check`, shell syntax and offline provision-script checks passed; default and configured-SpatiaLite full suites passed (75 unit + 30 integration each); offline `duckdb_execution_contract` (4), `duckdb_security_contract` (4), `duckdb_result_contract` (3), `duckdb_pipeline_contract` (12), and pinned-artifact `duckdb_geography_contract` (7) passed.
