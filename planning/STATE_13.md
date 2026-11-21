@@ -128,3 +128,16 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 - Verified controls include in-memory connection, external access disabled, known-extension autoload/autoinstall disabled, restrictive SQL gate, tested persistent-write/file/network/extension denials, temp workflow, and cleanup.
 - Blocker: gate is string-based, not parser-backed; bypass resistance and exhaustive file/network/extension-path denial remain unestablished. No numeric resource defaults or dependencies added.
 - No route/config/SQLite policy/OS sandbox/remote changes. Worker model `opencode-go/deepseek-v4.1-flash`; no escalation.
+
+### 13.8.1 — Validate DuckDB GeoPackage and result compatibility
+- Status: scalar/result serialization compatibility implemented; GeoPackage payload/metadata qualification blocked and explicitly fail-closed.
+- Implementation commit: `c912732` (`feat(duckdb): reject unvalidated geometry results`); planning bookkeeping committed separately.
+- Files: `src/executor/duckdb.rs`, `tests/duckdb_result_contract.rs`, `Cargo.toml`; micro-plan `planning/tasks/13.8.1.todo.md`.
+- Supported values: NULL; booleans and signed/unsigned integers through UINT map to SQLite-compatible integers; UBIGINT and DECIMAL preserve exact decimal text; FLOAT/DOUBLE map to REAL; TEXT to TEXT.
+- Unsupported: nested/list/struct and other unmapped variants; BLOB and GEOMETRY explicitly rejected to avoid unvalidated GeoPackage payload serialization.
+- Synthetic `gpkg_geometry_columns` scalar metadata is queryable, but CRS/SRID cross-validation, GeoPackageBinary header/WKB, NULL/empty/dimensional geometry cases are not qualified: executor is in-memory and SQL security disallows GeoPackage import/access.
+- No geography methods supported or claimed; serializer behavior unchanged. SQLite remains default.
+- `CARGO_NET_OFFLINE=true cargo test --offline --features duckdb --test duckdb_result_contract`: passed, 3 tests.
+- `CARGO_NET_OFFLINE=true cargo test --offline --features duckdb --test duckdb_execution_contract`: passed, 4 tests.
+- `cargo fmt --check` and `git diff --check`: passed.
+- Worker model: `opencode-go/deepseek-v4.1-flash`; no escalation, dependencies, downloads, or remote actions.
