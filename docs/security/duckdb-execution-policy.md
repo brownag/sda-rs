@@ -1,26 +1,29 @@
-# DuckDB execution policy (Plan 10)
+# DuckDB execution policy (Plan 13 G39)
 
-This policy specifies the security boundary for the opt-in DuckDB backend. It
-does not claim that DuckDB provides a SQLite-equivalent authorizer. Controls
-whose enforcement API has not been established are marked **BLOCKER** and must
-be resolved before production execution is enabled. Persistent database writes
-are outside the accepted query surface. Request-local state, including
-temporary-table workflows, is retained as required by ADR 0007.
+This policy describes tested mechanisms in the internal, feature-gated DuckDB
+executor. DuckDB remains unreachable from HTTP requests. It does not claim
+production readiness or SQLite-authorizer parity. Controls not demonstrated
+below remain **BLOCKER**. Persistent writes are outside the accepted SQL
+surface; request-local temporary-table workflows are retained.
 
 ## Threat controls and adversarial acceptance cases
 
 | Threat / behavior | Required control | Adversarial acceptance case |
 | --- | --- | --- |
-| Persistent writes or schema changes | Reject user SQL that writes persistent tables or changes persistent schema. Permit only specifically supported request-local temporary-table operations. The exact DuckDB enforcement seam is **BLOCKER** until an API is verified; do not assume SQLite authorizer parity. | Persistent `INSERT`, `UPDATE`, `DELETE`, `CREATE TABLE`, and schema-changing statements are denied. A supported temporary-table create/insert/read/drop sequence succeeds within one request; a second request cannot observe its state. |
-| Arbitrary file reads/writes | Disable DuckDB external access and use the narrowest verified path controls for any explicitly required source. The G33-2 probe observed `enable_external_access=false` and rejection of an attempt to set it back to true; exact production path policy and all file-capable SQL surfaces still require adversarial verification. | Queries attempting to read or write an unapproved local path fail. If a deployment explicitly permits a data path, access outside that path fails. |
-| Network access | Disable external access before processing user SQL. No request-time extension installation or other network acquisition is allowed. Validate all supported network-capable functions and extension paths; the setting alone is not treated as proof until tested on the pinned production build. | A query attempting network access fails, and the failure does not trigger installation, download, or fallback. |
-| Extension autoload/autoinstall or user-selected extension | Disable `autoload_known_extensions` and `autoinstall_known_extensions` before user SQL. Load only the deployment-provisioned official Spatial artifact by its verified path, before external access is disabled if the pinned build requires that order. User SQL cannot load, install, or select another extension. | With a clean extension cache and networking unavailable, startup loads only the provisioned artifact; SQL attempting `INSTALL`/`LOAD` or changing extension settings fails. Repeat with Spatial absent: non-spatial SQL remains available and spatial SQL fails explicitly. |
-| Cross-request state or partial batch effects | Use request-local execution state and preserve all-or-nothing failure semantics in multi-statement requests, per ADR 0007. The production lifecycle and transaction behavior require implementation tests. | A temporary table created in one request is absent in another. A failing multi-statement batch leaves no partial persistent or request-local effects visible after request completion. |
+| Persistent writes or schema changes | A conservative SQL gate admits SELECT and a narrow temp-table workflow only. No SQLite-equivalent authorizer is available in the pinned client. | Tested persistent CREATE/INSERT/UPDATE/DELETE/schema changes are rejected. TEMP create-as-select, insert to a tracked temp table, select, and drop pass; untracked targets fail. |
+| Arbitrary file reads/writes | Connection is opened in-memory with `enable_external_access=false`; policy gate rejects non-read/temp SQL. | Tested `read_csv` and `COPY TO` attempts fail. All DuckDB file-capable surfaces and paths are not exhaustively proven. |
+| Network access | External access is disabled before statements, and non-SELECT/temp statements are rejected. | Tested remote `read_parquet` SQL fails. This finite contract test is not proof against every extension/function network path. |
+| Extension autoload/autoinstall or user-selected extension | `Config::enable_autoload_extension(false)` disables known-extension autoload and autoinstall; SQL gate rejects INSTALL/LOAD and setting changes. No user-selected extension load path exists. | Tested INSTALL, LOAD, and attempts to change autoload, autoinstall, and external-access settings fail. Spatial is not loaded in this executor. |
+| Cross-request state or partial batch effects | Fresh in-memory connection per execution, executor-owned transaction and rollback. | Tested temp state is unavailable in a subsequent execution; lifecycle contract separately tests failed-batch cleanup. |
 | Resource exhaustion | Apply separately verified limits for execution duration/cancellation, memory, threads, concurrent work, temporary storage, input size, rows, value size, and serialized response. Required values and enforcement are described below; unresolved limits block production enablement. | For each enforceable limit, exercise below-limit success and above-limit rejection/cancellation, including cleanup and connection reuse/closure behavior. |
 
-The transpiler's SQL validation remains required defense in depth. It must reject
-unsupported and transaction-control SQL before execution; it is not a substitute
-for the DuckDB runtime controls above.
+The transpiler's SQL validation remains required defense in depth. The executor
+gate is a deliberately restrictive interim classifier, not a general SQL
+parser/authorizer: comments, quoted identifiers, compound statements, and SQL
+outside the accepted forms are rejected. Its current implementation is
+string-based; **BLOCKER:** establish parser-backed complete statement
+classification and adversarially verify bypass resistance before production
+execution. Do not broaden the accepted grammar without corresponding tests.
 
 ## Trusted Spatial artifact and initialization
 
@@ -46,10 +49,11 @@ be fixed and tested for the production pin. Do not treat the scratch hash above
 as the production pin without explicit version selection and deployment
 verification.
 
-**BLOCKER:** Verify on the exact production pin that settings cannot be
-re-enabled or bypassed by user SQL, that extension loading is restricted to the
-provisioned artifact, and that external access is disabled before untrusted SQL
-can run. If this cannot be enforced, do not enable the DuckDB backend.
+**BLOCKER:** The above settings and denials are verified only on the pinned
+DuckDB Rust client `1.20000.2` through focused contract tests. They do not
+establish a production artifact pin, trusted Spatial loading path, complete
+external-I/O denial, or resistance to every SQL classifier bypass. Resolve
+these blockers before any request-path enablement.
 
 ## Resource limits and calibration
 
@@ -68,7 +72,7 @@ production caps. Keep these categories distinct.
 
 | Resource | DuckDB policy / evidence status |
 | --- | --- |
-| Execution deadline and cancellation | **BLOCKER:** establish a DuckDB/client cancellation mechanism that reliably interrupts running work and bounds cleanup. The Plan 8 process timeout and SQLite progress handler do not establish in-process DuckDB cancellation. |
+| Execution deadline and cancellation | Existing G38 executor has an interrupt mechanism, but future-drop cancellation and bounded cleanup remain **BLOCKER**. |
 | Memory | DuckDB's `memory_limit` was set to `1GB` in Plan 8 probes only. **BLOCKER:** calibrate a production value and verify its scope, enforcement, and behavior under allocation failure; the SQLite benchmark did not measure memory. |
 | Threads | `threads=2` was a Plan 8 probe setting only. **BLOCKER:** select and verify a production per-instance/per-query thread policy and its interaction with concurrent requests. |
 | Concurrency | **BLOCKER:** establish a bounded admission/concurrency mechanism and production target. Task 10.1.1 was serial and measured no concurrent throughput. |

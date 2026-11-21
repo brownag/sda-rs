@@ -34,5 +34,10 @@ name = "duckdb_execution_contract"
 path = "tests/duckdb_execution_contract.rs"
 required-features = ["duckdb"]
 
+[[test]]
+name = "duckdb_security_contract"
+path = "tests/duckdb_security_contract.rs"
+required-features = ["duckdb"]
+
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

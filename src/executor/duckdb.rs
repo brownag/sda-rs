@@ -9,7 +9,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use duckdb::{types::Value as DuckValue, Connection};
+use duckdb::{types::Value as DuckValue, Config, Connection};
 use rusqlite::types::Value;
 
 use crate::result::ResultSet;
@@ -72,7 +72,10 @@ fn execute_blocking(
     statements: &[String],
     deadline: Duration,
 ) -> Result<Vec<ResultSet>, ExecutorError> {
-    let connection = Connection::open_in_memory()?;
+    let config = Config::default()
+        .enable_autoload_extension(false)?
+        .enable_external_access(false)?;
+    let connection = Connection::open_in_memory_with_flags(config)?;
     let interrupt = connection.interrupt_handle();
     let done = Arc::new(AtomicBool::new(false));
     let watchdog_done = Arc::clone(&done);
@@ -110,10 +113,12 @@ fn execute_batch(
     connection.execute_batch("BEGIN TRANSACTION")?;
     let execution = (|| {
         let mut results = Vec::new();
+        let mut temp_tables = std::collections::HashSet::new();
         for sql in statements {
             if started.elapsed() >= deadline {
                 return Err(ExecutorError::DeadlineExceeded);
             }
+            validate_statement(sql, &mut temp_tables)?;
             let mut statement = connection.prepare(sql)?;
             let column_count = statement.column_count();
             if column_count == 0 {
@@ -160,6 +165,72 @@ fn execute_batch(
             }),
         },
     }
+}
+
+// DuckDB does not expose a SQLite-style authorizer in this pinned Rust API.
+// Until a parser-backed policy seam exists, accept only read-only SELECT and a
+// deliberately small temp-table grammar. Reject comments, quoted identifiers,
+// and compound statements rather than trying to classify ambiguous SQL.
+fn validate_statement(
+    sql: &str,
+    temp_tables: &mut std::collections::HashSet<String>,
+) -> Result<(), ExecutorError> {
+    let normalized = sql.trim().trim_end_matches(';').trim();
+    let upper = normalized.to_ascii_uppercase();
+    let simple = !normalized.contains(';')
+        && !normalized.contains("--")
+        && !normalized.contains("/*")
+        && !normalized.contains('\'')
+        && !normalized.contains('"')
+        && !normalized.contains('`');
+    if !simple {
+        return Err(ExecutorError::DuckDb(duckdb::Error::InvalidQuery));
+    }
+    if upper.starts_with("SELECT ") || upper == "SELECT" {
+        return Ok(());
+    }
+    let create_prefix = if upper.starts_with("CREATE TEMP TABLE ") {
+        "CREATE TEMP TABLE "
+    } else if upper.starts_with("CREATE TEMPORARY TABLE ") {
+        "CREATE TEMPORARY TABLE "
+    } else {
+        ""
+    };
+    if !create_prefix.is_empty() {
+        let tail = normalized[create_prefix.len()..].trim();
+        let name = tail.split_whitespace().next().unwrap_or_default();
+        let definition = tail[name.len()..].trim();
+        let definition_upper = definition.to_ascii_uppercase();
+        if identifier(name)
+            && (definition_upper.starts_with("AS SELECT ")
+                || definition_upper.starts_with("AS SELECT(")
+                || definition.starts_with('('))
+        {
+            temp_tables.insert(name.to_ascii_lowercase());
+            return Ok(());
+        }
+    }
+    for (prefix, verb) in [("INSERT INTO ", "INSERT"), ("DROP TABLE ", "DROP")] {
+        if upper.starts_with(prefix) {
+            let tail = normalized[prefix.len()..].trim();
+            let name = tail.split_whitespace().next().unwrap_or_default();
+            let key = name.to_ascii_lowercase();
+            if identifier(name) && temp_tables.contains(&key) {
+                if verb == "DROP" {
+                    temp_tables.remove(&key);
+                }
+                return Ok(());
+            }
+        }
+    }
+    Err(ExecutorError::DuckDb(duckdb::Error::InvalidQuery))
+}
+
+fn identifier(value: &str) -> bool {
+    !value.is_empty()
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
 }
 
 fn map_value(value: DuckValue) -> Result<Value, ExecutorError> {
