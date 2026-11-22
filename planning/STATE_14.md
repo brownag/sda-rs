@@ -30,7 +30,7 @@ Plan: `planning/EXECUTION_PLAN_14.md`
 | 2 | 14.2.1, 14.2.2 | done | Direct security probes and loader revalidation complete; targeted offline suites passed (2026-11-22). |
 | 3 | 14.3.1, 14.3.2 | done | Security-source synthesis and geography contract refresh committed; serial boundary suites passed (2026-11-22). |
 | 4 | 14.4.1, 14.4.2 | done | Geography and security follow-up evidence committed; serial boundary suites passed (2026-11-22). |
-| 5 | 14.5.1 | pending | Correctness-checked performance/resource measurement. |
+| 5 | 14.5.1 | done | Correctness-checked synthetic benchmark committed; serial boundary suites passed (2026-11-22). |
 | 6 | 14.6.1 | pending | Overall secure integration assessment. |
 
 ## Task Reports
@@ -38,6 +38,14 @@ Plan: `planning/EXECUTION_PLAN_14.md`
 - **14.1.1 — complete.** Added `planning/reports/duckdb-pin-and-upgrade-assessment.md`; researched official release calendar, DuckDB 2.0.0/2.0.1 releases, security fixes, Rust client metadata, and Spatial provenance. Verdict: evaluate 2.0.1 promptly; do not change the pin here. Engine-level security applicability is source-supported; exact candidate crate/engine/Spatial tuple, runtime loader/result behavior, geography parity, and exploitability remain unverified. No alternate build, downloads, or tests run; no scope deviation. `git diff --check` — passed (no output). Worker model: GPT-6 Luna.
 
 <!-- Append concise reports under task IDs. -->
+
+### 14.5.1 — Measure DuckDB workload and resource behavior
+- **Status:** Complete; synthetic serial/concurrent benchmark outputs asserted; no caps selected.
+- **Files:** `planning/reports/duckdb-qualification-benchmark.md`; `planning/tasks/14.5.1.todo.md`; `planning/STATE_14.md`.
+- **Commands:** Offline release serial and bounded-concurrent scratch runs passed; process RSS run exited 0 with 65,772 KiB max RSS. Wave-boundary `cargo fmt --check`, `git diff --check`, `cargo test`, SpatiaLite suite, and all DuckDB contracts passed.
+- **Evidence verdict:** Small synthetic timings/throughput and process RSS are reported with non-comparable boundaries; resource matrix lists uncertainty and nonbinding controls. 20% / >10% criteria remain non-gating.
+- **Limits/deviations:** No representative production load, scaling curve, peak-resource attribution, or DuckDB caps established. No repo implementation/manifests/baseline changes.
+- **Worker model:** GPT-6 Luna.
 
 ### 14.4.2 — Test G39 follow-up controls and characterize residual bypasses
 - **Status:** Complete; bounded offline follow-up probes and regression passed.
