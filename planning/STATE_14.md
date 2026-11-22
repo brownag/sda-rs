@@ -35,4 +35,15 @@ Plan: `planning/EXECUTION_PLAN_14.md`
 
 ## Task Reports
 
+- **14.1.1 — complete.** Added `planning/reports/duckdb-pin-and-upgrade-assessment.md`; researched official release calendar, DuckDB 2.0.0/2.0.1 releases, security fixes, Rust client metadata, and Spatial provenance. Verdict: evaluate 2.0.1 promptly; do not change the pin here. Engine-level security applicability is source-supported; exact candidate crate/engine/Spatial tuple, runtime loader/result behavior, geography parity, and exploitability remain unverified. No alternate build, downloads, or tests run; no scope deviation. `git diff --check` — passed (no output). Worker model: GPT-6 Luna.
+
 <!-- Append concise reports under task IDs. -->
+
+### 14.1.2 — Inventory current DuckDB security and GeoPackage claims
+- **Status:** Complete; baseline evidence inventory only.
+- **Files:** `planning/reports/duckdb-security-and-loader-evidence.md`; `planning/STATE_14.md`.
+- **Commands:** Source/policy/test anchors inspected; `git diff --check` (see task completion).
+- **Evidence verdict:** Matrix maps classifier, engine/config, loader, tested observations, and unverified claims; records prior `allowed_paths`/`ST_Read` failure and named contract tests.
+- **Limits:** No runtime probes or tests; finite executor contracts do not prove direct-engine bypass resistance or exhaustive loader validity.
+- **Deviations:** None. No implementation, policy, or other report changed; `planning/GOALS.md` preserved.
+- **Worker model:** GPT-6 Luna.
