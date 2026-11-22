@@ -99,3 +99,19 @@ async fn gpkg_metadata_is_readable_but_blob_payloads_are_rejected() {
         "{error}"
     );
 }
+
+#[tokio::test]
+async fn result_contract_remains_request_path_independent() {
+    let sets = execute(
+        vec!["SELECT 4326 AS srs_id, 1 AS status".to_owned()],
+        Duration::from_secs(5),
+    )
+    .await
+    .unwrap();
+    assert_eq!(sets[0].columns, ["srs_id", "status"]);
+    assert_eq!(sets[0].rows, [[Value::Integer(4326), Value::Integer(1)]]);
+    assert_eq!(
+        serialize(&sets, Format::JsonColumnNameMetadata).unwrap(),
+        r#"{"Table":[["srs_id","status"],["ColumnOrdinal=0,DataTypeName=int,ProviderType=8","ColumnOrdinal=1,DataTypeName=int,ProviderType=8"],["4326","1"]]}"#
+    );
+}

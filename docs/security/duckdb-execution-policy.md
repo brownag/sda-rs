@@ -55,6 +55,24 @@ establish a production artifact pin, trusted Spatial loading path, complete
 external-I/O denial, or resistance to every SQL classifier bypass. Resolve
 these blockers before any request-path enablement.
 
+## Internal GeoPackage value import
+
+The qualification executor includes a private Rust-side GeoPackage loader.
+It accepts an internally constructed canonical-path capability, opens the
+GeoPackage with SQLite read-only flags, validates the required geometry
+metadata, CRS/SRID agreement, GeoPackageBinary header, and supported WKB
+structure/dimensions, then copies validated values into a fresh in-memory
+DuckDB connection using bound values. The file path is never placed in DuckDB
+SQL; this path does not call `ST_Read`, load Spatial, or enable file-reading
+extensions. SQL and HTTP requests cannot supply or select the path. This is
+internal qualification code only; no route/configuration integration or
+production-readiness claim is made.
+
+This import boundary does not resolve G39's string-based SQL classifier and
+its bypass-resistance blocker. It is not a general GeoPackage importer:
+unsupported metadata, geometry types, malformed WKB, or dimensional
+disagreement fail closed. SQLite remains the default backend.
+
 ## Resource limits and calibration
 
 Task 10.1.1 measured five deterministic SQLite workloads serially on one host,
