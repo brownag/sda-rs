@@ -31,13 +31,22 @@ Plan: `planning/EXECUTION_PLAN_14.md`
 | 3 | 14.3.1, 14.3.2 | done | Security-source synthesis and geography contract refresh committed; serial boundary suites passed (2026-11-22). |
 | 4 | 14.4.1, 14.4.2 | done | Geography and security follow-up evidence committed; serial boundary suites passed (2026-11-22). |
 | 5 | 14.5.1 | done | Correctness-checked synthetic benchmark committed; serial boundary suites passed (2026-11-22). |
-| 6 | 14.6.1 | pending | Overall secure integration assessment. |
+| 6 | 14.6.1 | done | Evidence-linked integration assessment committed; serial boundary suites passed (2026-11-22). |
 
 ## Task Reports
 
 - **14.1.1 — complete.** Added `planning/reports/duckdb-pin-and-upgrade-assessment.md`; researched official release calendar, DuckDB 2.0.0/2.0.1 releases, security fixes, Rust client metadata, and Spatial provenance. Verdict: evaluate 2.0.1 promptly; do not change the pin here. Engine-level security applicability is source-supported; exact candidate crate/engine/Spatial tuple, runtime loader/result behavior, geography parity, and exploitability remain unverified. No alternate build, downloads, or tests run; no scope deviation. `git diff --check` — passed (no output). Worker model: GPT-6 Luna.
 
 <!-- Append concise reports under task IDs. -->
+
+### 14.6.1 — Synthesize secure integration architecture and decision gates
+- **Status:** Complete; synthesis recommends no request exposure of the current in-process executor.
+- **Files:** `planning/reports/duckdb-secure-integration-assessment.md`; `planning/tasks/14.6.1.todo.md`; `planning/STATE_14.md`.
+- **Evidence verdict:** Links security, lifecycle, loader, version, geography, and benchmark evidence; separates observed safeguards from recommendations, residual risks, assumptions, and later gates.
+- **Decision:** Keep SQLite default and DuckDB qualification-only. Current executor is no-go for request-controlled SQL; no production-readiness, sandbox-necessity, or implementation approval claim.
+- **Commands:** `git diff --check`; final wave boundary `cargo fmt --check`, `cargo test`, SpatiaLite suite, and six DuckDB suites all passed.
+- **Limits/deviations:** No code, policy, ADR, route, config, deployment, dependency, or runtime changes. Explicit decisions remain for future integration.
+- **Worker model:** GPT-6 Luna.
 
 ### 14.5.1 — Measure DuckDB workload and resource behavior
 - **Status:** Complete; synthetic serial/concurrent benchmark outputs asserted; no caps selected.
