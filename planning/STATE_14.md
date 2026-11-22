@@ -26,8 +26,8 @@ Plan: `planning/EXECUTION_PLAN_14.md`
 
 | Wave | Task(s) | Status | Notes |
 |---|---|---|---|
-| 1 | 14.1.1, 14.1.2 | pending | Current pin/release context and evidence inventory. |
-| 2 | 14.2.1, 14.2.2 | pending | Direct security probes and loader revalidation. |
+| 1 | 14.1.1, 14.1.2 | done | Pin/upgrade assessment and security/loader baseline committed; boundary suites passed (2026-11-22). |
+| 2 | 14.2.1, 14.2.2 | done | Direct security probes and loader revalidation complete; targeted offline suites passed (2026-11-22). |
 | 3 | 14.3.1, 14.3.2 | pending | Security-source synthesis and geography contract refresh. |
 | 4 | 14.4.1, 14.4.2 | pending | Pinned geography probes and G39 follow-up cases. |
 | 5 | 14.5.1 | pending | Correctness-checked performance/resource measurement. |
@@ -38,6 +38,22 @@ Plan: `planning/EXECUTION_PLAN_14.md`
 - **14.1.1 — complete.** Added `planning/reports/duckdb-pin-and-upgrade-assessment.md`; researched official release calendar, DuckDB 2.0.0/2.0.1 releases, security fixes, Rust client metadata, and Spatial provenance. Verdict: evaluate 2.0.1 promptly; do not change the pin here. Engine-level security applicability is source-supported; exact candidate crate/engine/Spatial tuple, runtime loader/result behavior, geography parity, and exploitability remain unverified. No alternate build, downloads, or tests run; no scope deviation. `git diff --check` — passed (no output). Worker model: GPT-6 Luna.
 
 <!-- Append concise reports under task IDs. -->
+
+### 14.2.1 — Probe G39 controls directly on the pinned engine
+- **Status:** Complete; bounded offline direct-connection matrix and regression passed.
+- **Files:** `planning/tasks/14.2.1.todo.md`; `planning/reports/duckdb-security-probe-results.md`; `planning/STATE_14.md`.
+- **Commands/results:** `CARGO_NET_OFFLINE=true CARGO_TARGET_DIR=/tmp/opencode/sda-rs-plan14-security/target cargo run --offline --manifest-path /tmp/opencode/sda-rs-plan14-security/Cargo.toml -- security-matrix` — scratch runner compiled and completed; output recorded in report. Direct config denied local file access, COPY/IMPORT filesystem access, extension loading/install filesystem access; `SET autoload_known_extensions`, in-memory ATTACH, persistent in-memory DDL, compound SQL, comments, and quoted forms succeeded. `CREATE SECRET` failed on secrets-directory filesystem access. Remote parquet URL was inconclusive because parquet extension was absent; no endpoint contacted. Temp workflow succeeded as one same-connection batch. `CARGO_NET_OFFLINE=true cargo test --offline --features duckdb --test duckdb_security_contract` — 4 passed, 0 failed, 0.25s. `git diff --check` — passed, no output.
+- **Evidence verdict:** The executor path rejects tested non-SELECT/comment/quoted cases while direct DuckDB accepts several of them; classifier enforcement is material. Engine/config denied selected filesystem and extension operations, but the bounded cases do not establish exhaustive protection or remote-URL behavior.
+- **Limits/deviations:** No network endpoints, user data, implementation, manifest, test, dependency, or deployment changes. Remote access was not reached; `CREATE SECRET` was blocked at configured filesystem access, not shown as a universal engine denial. No commit.
+- **Worker model:** GPT-6 Luna.
+
+### 14.2.2 — Revalidate private GeoPackage loader evidence
+- **Status:** Complete; scoped loader audit and targeted tests passed.
+- **Files:** `planning/reports/duckdb-loader-audit.md`; `planning/STATE_14.md`.
+- **Commands:** Serially ran `CARGO_NET_OFFLINE=true cargo test --offline --features duckdb executor::duckdb::tests` (4 passed, 0 failed) and `CARGO_NET_OFFLINE=true cargo test --offline --features duckdb --test duckdb_result_contract` (4 passed, 0 failed); `git diff --check` passed.
+- **Evidence verdict:** Existing tests substantiate selected synthetic read-only loading, SRID/dimensional/truncation checks, NULL/empty behavior, one-row value copying/JSON serialization, scalar serialization, and rejection of generic unvalidated blobs. The report maps untested adversarial metadata and payload cases to proposed synthetic follow-ups.
+- **Limits/deviations:** Private loader has no deployment/request-path trust-provisioning or resource-bound evidence; structural WKB validation is not topology validation. No source, tests, fixtures, dependencies, or deployment changed. `planning/GOALS.md` preserved.
+- **Worker model:** GPT-6 Luna.
 
 ### 14.1.2 — Inventory current DuckDB security and GeoPackage claims
 - **Status:** Complete; baseline evidence inventory only.
