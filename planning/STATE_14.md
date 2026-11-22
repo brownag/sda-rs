@@ -29,7 +29,7 @@ Plan: `planning/EXECUTION_PLAN_14.md`
 | 1 | 14.1.1, 14.1.2 | done | Pin/upgrade assessment and security/loader baseline committed; boundary suites passed (2026-11-22). |
 | 2 | 14.2.1, 14.2.2 | done | Direct security probes and loader revalidation complete; targeted offline suites passed (2026-11-22). |
 | 3 | 14.3.1, 14.3.2 | done | Security-source synthesis and geography contract refresh committed; serial boundary suites passed (2026-11-22). |
-| 4 | 14.4.1, 14.4.2 | pending | Pinned geography probes and G39 follow-up cases. |
+| 4 | 14.4.1, 14.4.2 | done | Geography and security follow-up evidence committed; serial boundary suites passed (2026-11-22). |
 | 5 | 14.5.1 | pending | Correctness-checked performance/resource measurement. |
 | 6 | 14.6.1 | pending | Overall secure integration assessment. |
 
@@ -38,6 +38,22 @@ Plan: `planning/EXECUTION_PLAN_14.md`
 - **14.1.1 — complete.** Added `planning/reports/duckdb-pin-and-upgrade-assessment.md`; researched official release calendar, DuckDB 2.0.0/2.0.1 releases, security fixes, Rust client metadata, and Spatial provenance. Verdict: evaluate 2.0.1 promptly; do not change the pin here. Engine-level security applicability is source-supported; exact candidate crate/engine/Spatial tuple, runtime loader/result behavior, geography parity, and exploitability remain unverified. No alternate build, downloads, or tests run; no scope deviation. `git diff --check` — passed (no output). Worker model: GPT-6 Luna.
 
 <!-- Append concise reports under task IDs. -->
+
+### 14.4.2 — Test G39 follow-up controls and characterize residual bypasses
+- **Status:** Complete; bounded offline follow-up probes and regression passed.
+- **Files:** `planning/reports/duckdb-security-probe-results.md`; `planning/tasks/14.4.2.todo.md`; `planning/STATE_14.md`.
+- **Commands:** Scratch `security-followup` command recorded in report; `CARGO_NET_OFFLINE=true cargo test --offline --features duckdb --test duckdb_security_contract` — 4 passed, 0 failed; `git diff --check` passed.
+- **Evidence verdict:** Direct settings/reset variants succeeded where executor path rejected them; external-access re-enable failed in tested SET/PRAGMA forms. Secret attempts hit configured secrets-directory denial; alternate `IN memory` syntax errored. No remote endpoint or path traversal tested.
+- **Limits/deviations:** Bounded DuckDB 2.0.0 observations; no proof of resulting extension/I/O access, universal secret denial, or 2.0.1 runtime behavior. No code/policy/manifests/network/data changes.
+- **Worker model:** GPT-6 Luna.
+
+### 14.4.1 — Run pinned synthetic geography probes and resolve bounded verdicts
+- **Status:** Complete with bounded inconclusive candidate findings; six-method matrix recorded without claiming untested coverage.
+- **Files:** `planning/reports/G37-geography-transformations.md`; `planning/STATE_14.md`.
+- **Commands/results:** Artifact SHA-256 verified as `8ec99d875355200316c743ede176e2cb50d2b712d2fa192ccbf19cc245a8d0bc`; metadata `(spatial, a3dbcd1781)`. Exact prescribed test command first hit `/tmp` space exhaustion; rerun with existing repo target cache (`CARGO_TARGET_DIR=/home/andrew/workspace/sda-rs/target`) passed 7/7. Offline scratch runner command and per-case observations are recorded in G37.
+- **Evidence verdict:** Four binary methods remain no-go; asymmetric spheroidal area probes distinguish coordinate order but lack an independent reference/tolerance, so candidate remains inconclusive. Sampled `ST_AsText(ST_Force2D(...))` outputs preserve tested types/coordinates and drop ZM, but full parse-back/oracle coverage is absent; semantic candidate only, not parity. All six remain rejected.
+- **Limits/deviations:** No SQL Server oracle or local independent GeographicLib reference. Scratch target build exhausted `/tmp`; removed only task-created target contents and reused existing repository build cache. No code/manifests/tests/network/data changes. `git diff --check` passed.
+- **Worker model:** GPT-6 Luna.
 
 ### 14.3.1 — Research security-control semantics and mitigation options
 - **Status:** Complete; official DuckDB 2.0 documentation and 2.0.1 release notes reconciled with bounded 2.0.0 probe observations.
