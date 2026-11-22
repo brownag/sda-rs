@@ -655,3 +655,76 @@ checked as candidates for `STContains`/`STWithin`:
 This follow-up does not change any verdict. No projection or spheroidal-predicate probe
 was run; the extension-backed task test must first confirm which documented primitives
 are present on the pinned binary.
+
+## 15. Pinned synthetic probes (2026-11-22; Task 14.4.1)
+
+### 15.1 Setup and commands
+
+The local artifact was verified before probing:
+
+```text
+$ sha256sum /tmp/opencode/sda-rs-plan13-geography/spatial.duckdb_extension
+8ec99d875355200316c743ede176e2cb50d2b712d2fa192ccbf19cc245a8d0bc  .../spatial.duckdb_extension
+```
+
+This matches the deployment pin. The artifact loaded with autoload/autoinstall
+disabled; `duckdb_extensions()` reported `(spatial, a3dbcd1781)`. The repository's
+locked client is `duckdb = "=1.20000.2"` (bundled engine v2.0.0). The contract test
+also verifies the extension hash itself.
+
+The exact prescribed command was attempted with a task-local target directory, but
+the `/tmp` filesystem filled while compiling bundled DuckDB (`ar: ... No space left
+on device`). It was rerun serially using the existing repository build cache:
+
+```sh
+SDA_DUCKDB_SPATIAL_EXTENSION=/tmp/opencode/sda-rs-plan13-geography/spatial.duckdb_extension CARGO_NET_OFFLINE=true CARGO_TARGET_DIR=/home/andrew/workspace/sda-rs/target cargo test --offline --features duckdb --test duckdb_geography_contract -- --nocapture
+```
+
+Result: 7 passed, 0 failed. The test observes boundary-exclusive planar
+`ST_Contains` for one edge point and one vertex, interior/exterior planar
+predicates, SQL NULL propagation, CRS mismatch bind errors, one planar
+intersection/buffer, spheroidal point-pair distance, planar area, and limited WKT.
+It also asserts that all six transpiler method spellings remain rejected. It does
+**not** by itself establish the candidate-specific area guards, independent area
+accuracy, or full WKT matrix.
+
+To extend observations without editing repository code/tests or manifests, a
+temporary standalone runner was created under
+`/tmp/opencode/sda-rs-plan14-geography/` and run offline against the same artifact.
+Its manifest pins the same Rust crate. Reproducer:
+
+```sh
+SDA_DUCKDB_SPATIAL_EXTENSION=/tmp/opencode/sda-rs-plan13-geography/spatial.duckdb_extension CARGO_NET_OFFLINE=true CARGO_TARGET_DIR=/home/andrew/workspace/sda-rs/target cargo run --offline --manifest-path /tmp/opencode/sda-rs-plan14-geography/Cargo.toml
+```
+
+The runner loads the artifact by absolute path with autoload/autoinstall disabled,
+sets `geometry_always_xy=false`, and prints each query result or error. It exercised
+asymmetric 20°×2° polygons near 60°N in both coordinate orders, a mid-latitude
+rectangle, triangle, reversed ring, hole, invalid self-crossing polygon, Z/M
+polygons, NULL/empty, `ST_CRS`, guard-function availability, and WKT serialization
+for seven linear geometry classes plus ZM, collection, empty, and NULL. No SQL Server
+oracle or independent GeographicLib executable/library was available locally;
+therefore no numeric tolerance or area-accuracy claim is made.
+
+### 15.2 Results and method verdicts
+
+| Method | Pinned synthetic observation | Evidence verdict |
+|---|---|---|
+| `STContains` | Existing contract test: planar interior `true`, exterior `false`, tested edge and vertex `false`; NULL propagation; CRS mismatch errors at bind time. | **No-go.** These are planar observations, not SQL Server geography semantics; SQL Server's boundary rule remains undocumented in reviewed sources and mismatch behavior differs. |
+| `STWithin` | Existing contract test: planar interior `true`, exterior `false`; NULL propagation; CRS mismatch errors at bind time. No synthetic boundary classification for this method was directly recorded. | **No-go.** Planar operation and CRS mismatch error do not establish SQL Server geography parity. Boundary/invalid/empty semantics remain unqualified. |
+| `STIntersection` | Existing test: crossing polygon/line returns `LINESTRING`; disjoint points return `POINT EMPTY`; NULL propagates; CRS mismatch errors. | **No-go.** These characterize planar overlay only; no ellipsoidal, FullGlobe, >hemisphere, or arc behavior established. |
+| `STBuffer` | Existing test: planar point buffer at distance 1 returns polygon reaching coordinate scale ±1; NULL propagates. | **No-go.** Coordinate-unit planar buffer does not implement documented geography meters/tolerance/negative-buffer semantics. |
+| `STArea()` | `ST_Area_Spheroid` returned `489981499011.9553` for the explicit `POLYGON((-10 59,10 59,10 61,-10 61,-10 59))` with EPSG:4326 and `geometry_always_xy=false`; transposed coordinates returned `245493000698.74805`. A 10°×2° polygon near 40° returned `245902379922.79245`; triangle `12307884643.353682`; reversed ring returned the same as original; hole polygon `184564470319.76242`; invalid self-crossing polygon returned a number (`931211.9734077454`); Z and M polygons returned numbers; empty returned `0.0`; NULL returned NULL; `ST_CRS` returned `EPSG:4326`. `ST_HasZ`, `ST_HasM`, `ST_IsValid`, `ST_GeometryType`, and `ST_NInteriorRings` resolved in a guard expression; `error('guard')` raised `Invalid Input Error: guard`. | **Bounded inconclusive; candidate not established.** The asymmetric fixture distinguishes coordinate order numerically, and documented setting was exercised, but no independent reference was available to determine correctness/tolerance. Observed invalid, Z/M, hole and reversed-orientation values show why guards are needed, not that a valid guard expression is complete or SQL Server-equivalent. Keep method rejected. |
+| `STAsText()` | `ST_AsText(ST_Force2D(...))` returned parse-shaped WKT with matching type/coordinates for POINT, LINESTRING, POLYGON, MULTIPOINT, MULTILINESTRING, MULTIPOLYGON, and GEOMETRYCOLLECTION; observed POINT ZM dropped to `POINT (1 2)`; empty yielded `POINT EMPTY`; NULL yielded NULL. | **Bounded semantic candidate only; not parity.** The sampled serialized output is consistent with 2D WKT and coordinate preservation, but the runner did not parse every output back independently; no SQL Server textual oracle exists, formatting parity is explicitly not claimed, and CRS/error guards plus all dimensional combinations per geometry class were not exhausted. |
+
+The scratch runner additionally observed NULL from planar `ST_Intersection(NULL, …)`
+and `ST_Buffer(NULL, …)`. These do not add geography support. The required six-method
+coverage is therefore a matrix of observed candidate operations and specific gaps,
+not a claim that every proposed adversarial case passed. In particular, no synthetic
+runtime operation can resolve undocumented SQL Server predicate boundaries, and the
+area output has no independent reference/tolerance. The two conditional candidates
+remain unapproved; all six methods remain rejected by the transpiler.
+
+The first scratch build attempt exhausted `/tmp` space; after removing only that
+task-created target directory, the offline runner reused the repository's existing
+DuckDB build cache. No repository source, manifest, lockfile, or test was changed.
