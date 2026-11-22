@@ -534,6 +534,84 @@ Project evidence:
 - [x] Probe availability blocker recorded with exact commands and artifact identities;
       no probe result is presented as SQL Server parity, and no new runtime claim is made.
 
+## 14. Refreshed source-contract review (2026-11-22; Task 14.3.2)
+
+This section records a source review against the current Microsoft Learn SQL Server
+17 documentation and versioned DuckDB 2.0 Spatial documentation, accessed 2026-11-22.
+“Documented” below means the cited page states the behavior; it does not imply an
+independent runtime oracle. “Prior observation” refers only to the pinned G33-2
+record in Section 5.2; no runtime probe was run for this refresh. “Unknown” means
+the reviewed primary pages do not define the behavior or that behavior remains
+unverified on the pinned artifact.
+
+### 14.1 Method-by-method source contract and evidence plan
+
+| Method | Microsoft Learn documented contract | DuckDB 2.0 documented operation / mismatch | Unknowns and evidence plan |
+|---|---|---|---|
+| `STContains(other)` | Returns `bit` / CLR `SqlBoolean`: 1 if the calling geography spatially contains the other, else 0; `NULL` for different SRIDs. The method page does not state boundary-point treatment, invalid-input behavior, or dimensional rules. | `ST_Contains(GEOMETRY, GEOMETRY)` returns Boolean; its page explicitly says a geometry on the boundary is contained. This is a documented boundary-inclusive behavior of the planar operation, not SQL Server geography evidence. | Boundary rule/oracle, geodesic edge semantics, SRID mismatch, SQL NULL, empty/invalid and Z/M behavior remain unknown or non-equivalent. Probe interior, exterior, boundary point/edge, vertex, reversed operands, mismatched CRS, NULL, empty, invalid, and dimensional inputs; require explicit rejection unless exact documented-domain equivalence is established. |
+| `STWithin(other)` | Returns `bit` / CLR `SqlBoolean`: 1 if the receiver is spatially within the argument, else 0; always `NULL` for differing SRIDs. Boundary, invalid-input, and dimensional rules are not stated on this method page. | `ST_Within(GEOMETRY, GEOMETRY)` returns Boolean in DuckDB Spatial 2.0; it is a geometry operation, not documented geography/ellipsoidal processing. | Boundary and edge rules and NULL/empty/invalid behavior are not established as SQL Server parity. Probe inside/outside/boundary/vertex, argument reversal, CRS match/mismatch, SQL NULL, empty/invalid and Z/M; do not infer parity from an interior-only result. |
+| `STIntersection(other)` | Returns `geography` / CLR `SqlGeography`; returns `NULL` for differing SRIDs. Supports larger-than-hemisphere instances and `FullGlobe`; result may contain circular arcs only when inputs do. | `ST_Intersection(GEOMETRY, GEOMETRY)` returns geometry. DuckDB Spatial 2.0 documentation describes a geometry operation; it does not claim SQL Server ellipsoidal geography overlay. | Exact boundary, empty/disjoint output typing, invalid-input errors, arcs, FullGlobe, >hemisphere, dimensional preservation, and SRID NULL remain unestablished for any candidate. Probe crossing/touching/disjoint inputs, CRS mismatch, NULL, empty, invalid, Z/M, and representability limits; acceptance requires result-domain and SRID semantics, not merely similar WKT. |
+| `STBuffer(distance)` | Returns `geography` / CLR `SqlGeography`; distance is a floating-point distance. Same construction as `BufferWithTolerance` with tolerance `abs(distance)*.001`, relative=false. Negative distance removes points near the boundary; some cases return FullGlobe. The page documents the maximum-distance restriction and `ArgumentException` condition, plus error bound `max(tolerance, extents*1e-7)`. | `ST_Buffer(GEOMETRY, distance)` is planar, uses input-coordinate units, and ignores Earth curvature. It is not a geography-meter buffer. | SQL NULL, empty/invalid, exact zero/negative output, and representation of FullGlobe remain unverified by the reviewed method page. Probe positive/zero/negative distances, near and beyond the documented maximum, polar/large extents, NULL/empty/invalid; an approximate-looking polygon is not acceptance evidence. |
+| `STArea()` | Returns `float` / CLR `SqlDouble`, total surface area in squared units for the instance SRID (4326 uses square meters); returns 0 for empty or instances containing only zero- and one-dimensional figures. | `ST_Area` is planar and uses CRS coordinate units. `ST_Area_Spheroid` returns square meters using an ellipsoidal model and GeographicLib; DuckDB 2.0 docs explicitly assume EPSG:4326 with `[latitude, longitude]` axis order and return 0 for non-polygonal inputs. | SQL Server numeric tolerance/algorithm and invalid-input behavior are not specified by the method page. Prior observation (Section 5.2) set `geometry_always_xy=true` on a near-symmetric low-latitude fixture; it does not settle axis order or parity. Probe an asymmetric polygon (e.g. 20° longitude × 2° latitude near 60°N), compare coordinate interpretations, and record independent ellipsoidal reference values/provenance. Before acceptance, state a justified numeric tolerance and test empty/0D/1D, NULL, invalid, orientation, CRS, and guards; no tolerance can be claimed from documentation alone. |
+| `STAsText()` | Returns OGC WKT as `nvarchar(max)` / CLR `SqlChars`; output omits Z and M. Supports FullGlobe and instances larger than a hemisphere. The page does not specify formatting precision/canonicalization or invalid-input behavior. | `ST_AsText(GEOMETRY)` returns `VARCHAR` WKT. `ST_Force2D` drops both Z and M. DuckDB docs do not establish SQL Server formatting parity or representation of geography-only values such as FullGlobe. | Probe POINT, LINESTRING, POLYGON, multi-types and collection in 2D, Z, M, ZM; empty and NULL; parse output back and verify type and 2D coordinate sequence with Z/M absent. Record text differences without treating formatting as parity. Test CRS/curve/FullGlobe capability and guard behavior; nonrepresentable values must remain rejected. |
+
+Across all six methods, SQL NULL propagation and error behavior outside the explicitly
+documented cases are not comprehensively specified by these method pages. Invalid
+geography handling must not be invented from OGC or DuckDB behavior. “Boundary” is
+especially material for predicates: Microsoft’s method pages define the result in
+terms of spatial containment but do not state the boundary-only rule. Do not use an
+OGC predicate definition or DuckDB’s geometry contract as a substitute for a
+SQL Server geography statement.
+
+### 14.2 Area axis, reference, and tolerance requirements
+
+The DuckDB 2.0 `ST_Area_Spheroid` page states `[latitude, longitude]` input order.
+That is the documentation contract for that function; it does not establish what the
+existing pinned binary did under the prior probe's `geometry_always_xy=true` setting.
+Keep those facts separate. The earlier fixture/result in Section 5.2 is an observed
+DuckDB value only and cannot discriminate axis order or establish SQL Server equality.
+
+Any future area evidence must include (1) an asymmetric fixture whose area differs
+materially when axes are swapped, such as a 20°-by-2° rectangle near 60°N; (2) both
+interpretations and explicit coordinates; (3) an independent ellipsoidal reference
+with named algorithm/library, version, ellipsoid, input order, and reproducible
+method; and (4) a stated acceptance tolerance with rationale. Microsoft documents
+the result quantity and units but gives no numeric tolerance for `STArea`; therefore
+the tolerance is an explicit project decision, not a fact inferred from the pages.
+Also assess orientation and bounded-domain guards, CRS identity, SQL NULL, empty,
+zero-/one-dimensional, invalid geometry, and whether each guard is available on the
+exact pin. Until those checks pass, retain unconditional rejection.
+
+### 14.3 Text cases and claim limits
+
+For `.STAsText()`, the documented semantic requirements are OGC WKT and omission of
+Z/M; Microsoft documents FullGlobe and >hemisphere support. It does not promise a
+canonical spelling, whitespace, decimal precision, or byte-for-byte output. DuckDB
+documents `ST_AsText` as WKT serialization and `ST_Force2D` as dropping Z/M, but
+those pages do not prove the composition's runtime behavior on the locked artifact.
+The evidence plan therefore checks 2D, Z, M, and ZM for each supported geometry
+type; empty and SQL NULL separately; parseability, geometry type, 2D coordinate
+sequence, and absence of Z/M. Record lexical differences as observations only.
+FullGlobe, curves, empty-text spelling, CRS enforcement, and exact output typing
+remain unknown for the proposed lowering and must be excluded or explicitly tested
+before any domain can be admitted.
+
+### 14.4 Source references and provenance
+
+Microsoft Learn, SQL Server 17 view, accessed 2026-11-22:
+
+- [STContains (geography)](https://learn.microsoft.com/en-us/sql/t-sql/spatial-geography/stcontains-geography-data-type?view=sql-server-ver17)
+- [STWithin (geography)](https://learn.microsoft.com/en-us/sql/t-sql/spatial-geography/stwithin-geography-data-type?view=sql-server-ver17)
+- [STIntersection (geography)](https://learn.microsoft.com/en-us/sql/t-sql/spatial-geography/stintersection-geography-data-type?view=sql-server-ver17) — page metadata reports update 2026-08-24.
+- [STBuffer (geography)](https://learn.microsoft.com/en-us/sql/t-sql/spatial-geography/stbuffer-geography-data-type?view=sql-server-ver17) — page metadata reports update 2026-08-24.
+- [STArea (geography)](https://learn.microsoft.com/en-us/sql/t-sql/spatial-geography/starea-geography-data-type?view=sql-server-ver17) — page metadata reports update 2026-08-24.
+- [STAsText (geography)](https://learn.microsoft.com/en-us/sql/t-sql/spatial-geography/stastext-geography-data-type?view=sql-server-ver17) — page metadata reports update 2026-08-24.
+
+Version-matched DuckDB documentation, accessed 2026-11-22:
+
+- [DuckDB 2.0 Spatial functions](https://duckdb.org/docs/2.0/core_extensions/spatial/functions.html) — `ST_Area`, `ST_Area_Spheroid`, `ST_AsText`, `ST_Buffer`, `ST_Contains`, `ST_Intersection`, `ST_Within`, `ST_Force2D`, and geometry guard functions.
+- Prior pinned runtime observations remain those explicitly recorded in Section 5.2 / G33-2; this source refresh ran no tests or probes and does not upgrade any observation to a runtime fact.
+
 ## Post-report artifact update
 
 After this research task completed, the user authorized retrieving the official DuckDB
