@@ -83,3 +83,32 @@ Evidence supports only selected configuration-level denials on the pinned 2.0.0 
 - DuckDB 2.0, “Securing DuckDB”: <https://duckdb.org/docs/2.0/operations_manual/securing_duckdb/overview.html>
 - DuckDB 2.0, “Securing Extensions”: <https://duckdb.org/docs/2.0/operations_manual/securing_duckdb/securing_extensions.html>
 - DuckDB team, “Announcing DuckDB 2.0.1 LTS,” security fixes: <https://duckdb.org/2026/11/20/announcing-duckdb-201.html#security-fixes>
+
+## Task 14.4.2 — G39 follow-up controls and residual bypasses
+
+**Setup and reproduction:** On 2026-11-22, used the existing disposable runner under `/tmp/opencode/sda-rs-plan14-security/`, adding a `security-followup` mode there only. It uses crate `duckdb` 1.20000.2, bundled engine v2.0.0, a fresh in-memory direct connection for each case, and `enable_autoload_extension(false)` plus `enable_external_access(false)`. For each SQL input it also calls the executor path (`sda_rs::executor::duckdb::execute`); that path includes validation/transpilation and is not an isolated classifier function call. No network endpoint or real data was used.
+
+```sh
+CARGO_NET_OFFLINE=true CARGO_TARGET_DIR=/tmp/opencode/sda-rs-plan14-security/target cargo run --offline --manifest-path /tmp/opencode/sda-rs-plan14-security/Cargo.toml -- security-followup
+CARGO_NET_OFFLINE=true cargo test --offline --features duckdb --test duckdb_security_contract
+git diff --check
+```
+
+**Follow-up observations (raw SQL and direct outcome):**
+
+| Case | Direct configured connection | Executor/classifier path | Interpretation |
+|---|---|---|---|
+| `CREATE SECRET plan14_followup (TYPE memory, PROVIDER config)` | `Permission Error: Cannot access directory "/home/andrew/.duckdb/stored_secrets" - file system operations are disabled by configuration` | Rejected: `Query is not read-only` | This attempt did not reach successful secret creation; it again establishes only a filesystem denial for the default secret-storage path, not a universal engine denial. |
+| `CREATE TEMPORARY SECRET plan14_followup_temp (TYPE memory, PROVIDER config)` | Same secrets-directory permission error | Rejected: `Query is not read-only` | `TEMPORARY` did not avoid this configured storage access in this attempt. No secret was created. |
+| `CREATE SECRET plan14_followup_storage (TYPE memory, PROVIDER config) IN memory` | Parser error at `IN` | Rejected: `Query is not read-only` | The syntax was not accepted; this does not test an alternate storage location or prove denial. |
+| `SET autoload_known_extensions = true` | `OK` | Rejected: `Query is not read-only` | Direct setting mutation remains possible; this did not load an extension or test later autoload effects. |
+| `SET autoload_known_extensions = false; SET autoload_known_extensions = true` | `OK` | Rejected: `Query is not read-only` | Direct compound setting changes are accepted on this connection. |
+| `RESET autoload_known_extensions` | `OK` | Rejected: `Query is not read-only` | Direct reset syntax also changes settings without classifier-path acceptance. |
+| `SET autoinstall_known_extensions = true` | `OK` | Rejected: `Query is not read-only` | Direct autoinstall setting mutation succeeds; no installation was attempted. |
+| `SET threads = 1` | `OK` | Rejected: `Query is not read-only` | At least this non-security setting is directly mutable; no resource-abuse behavior was tested. |
+| `SET enable_external_access = true` | `Invalid Input Error: Cannot enable external access while database is running` | Rejected: `Query is not read-only` | The configured running database rejected the attempted re-enable. |
+| `PRAGMA enable_external_access=true` | Same running-database error | Rejected: `Query is not read-only` | This PRAGMA spelling did not bypass that engine restriction. |
+
+The exact scratch command completed successfully and printed the cases above. Regression command `CARGO_NET_OFFLINE=true cargo test --offline --features duckdb --test duckdb_security_contract`: **4 passed, 0 failed, 0 ignored**, 0.27s. `git diff --check`: passed with no output.
+
+**Verdict and limits:** These are bounded v2.0.0 observations, not an exhaustive SQL/API audit. The executor path rejected every tested statement with `Query is not read-only`; direct DuckDB accepted multiple setting and reset forms that it rejected. The settings demonstrate a residual bypass of the executor classifier for a caller able to use the underlying connection directly, but this probe does not demonstrate extension loading, installation, file access, or network access as a consequence. External access re-enablement failed in both tested spellings. Both secret creation forms encountered the configured default secrets-directory filesystem denial; the explicit `IN memory` variant was a syntax error and supplies no contrary evidence. Therefore the 2.0.0 `CREATE SECRET` gap remains an applicable version-specific risk per the cited 2.0.1 release note, while exploitability through the current executor path was not demonstrated. The documented 2.0.1 secret and remote-path fixes are not observations of 2.0.1 runtime behavior; no alternate version was built. Practical mitigations remain the separately qualified version update, strict parser/allowlist authorization, and least-privilege boundaries described above; none is implemented or approved here. No remote-path traversal or endpoint access was attempted. SQLite remains default; this evidence does not authorize runtime exposure or establish production safety.
