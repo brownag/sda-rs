@@ -38,7 +38,7 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 | 7 | 13.7.1 | done | G39 controls; commits `135fd99`, `e3f4c9a`; boundary suites passed; parser-backed policy remains a blocker. |
 | 8 | 13.8.1 | partial | Scalar/result mapping verified; GeoPackage path work deferred until pinned G41 provisioning. |
 | 9 | 13.9.1 | done | G41 offline, hash-pinned provisioning; commits `d9911c9`, `b55a440`; boundary suites passed. |
-| 10 | 13.10.1 | blocked | Pinned DuckDB `allowed_paths` did not restrict Spatial `ST_Read`; outside synthetic file read succeeded. Read-only Spatial reader boundary is unproven. |
+| 10 | 13.10.1 | pending | Revised to a Rust-side read-only loader after direct DuckDB `ST_Read` bypassed `allowed_paths`; requires new micro-plan and approval. |
 | 11 | 13.11.1 | blocked | G42 depends on G40 task 13.10.1; do not benchmark until the restricted input boundary is resolved or explicitly descoped. |
 
 ## Task Reports
@@ -167,3 +167,4 @@ Plan: `planning/EXECUTION_PLAN_13.md`
 - Opening the GPKG with DuckDB `AccessMode::ReadOnly` and external access disabled failed at extension loading (`Loading external extensions is disabled through configuration`), not at a proven read-only GPKG reader boundary.
 - Conclusion: pinned engine-level single-file allowlisting and read-only GeoPackage reader behavior are not demonstrated; preserve BLOB/GEOMETRY rejection. Full G40 and dependent G42 remain blocked.
 - Reproducer and raw setup/results are recorded in `planning/tasks/13.10.1.todo.md`; no dependencies, network, or remote actions.
+- User chose a Rust-side read-only loader over DuckDB `ST_Read`: trusted canonical source only, validate with existing SQLite/GeoPackage helpers, then copy validated values into in-memory DuckDB; never place a file path in DuckDB SQL. The revised task spec is in `EXECUTION_PLAN_13.md`; new micro-plan required before implementation.
