@@ -1,0 +1,35 @@
+# State 15 — Parser-Backed DuckDB SQL Authorization
+
+Plan: `planning/EXECUTION_PLAN_15.md`
+
+## Baseline
+
+- Repository: `/home/andrew/workspace/sda-rs`
+- Branch: `feature/duckdb-feature1`; baseline HEAD `9c68514`.
+- Working tree was clean at plan intake. Existing worktrees are user/workflow-owned; do not modify or remove them.
+- Existing pin: `polyglot-sql = 0.14`; DuckDB `=1.20000.2`, bundled engine v2.0.0.
+- No new dependencies, pin changes, request routes, or runtime backend selection are authorized.
+- Prior verified baseline: `cargo fmt --check`; `cargo test` (75 unit + 30 integration); configured-SpatiaLite `cargo test` (75 + 30); `CARGO_NET_OFFLINE=true cargo test --offline --all-features` (79 unit + all integration targets); focused DuckDB security (5), execution (4), and result (4) contracts passed.
+- All test/probe work is local, offline, and synthetic. Shared Cargo suites run serially.
+
+## Decisions
+
+- Existing `polyglot-sql` parser is evaluated first; any new parser dependency requires separate explicit user approval.
+- Policy allows ordinary table reads and selected reviewed scalar/table functions; unknown functions and external-I/O sources are denied.
+- DuckDB remains internal-only and SQLite remains default.
+- Tasks execute serially; targeted validation per task, full default/SpatiaLite/all-features gates at the end.
+- Planning artifacts are tracked; use separate `docs(planning):` commits.
+- Worker model: `opencode-go/deepseek-v4.1-flash`; at most one escalation to `openai/gpt-6-luna`.
+
+## Wave Board
+
+| Wave | Task(s) | Status | Notes |
+|---|---|---|---|
+| 1 | 15.1.1 | pending | Parser feasibility; no implementation. |
+| 2 | 15.2.1 | pending | AST policy specification. |
+| 3 | 15.3.1 | pending | Parser-backed gate, contingent on feasibility and policy. |
+| 4 | 15.4.1 | pending | Adversarial qualification and policy/evidence update. |
+
+## Task Reports
+
+<!-- Append concise task reports after verified completion. -->
