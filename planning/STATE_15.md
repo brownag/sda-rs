@@ -25,7 +25,7 @@ Plan: `planning/EXECUTION_PLAN_15.md`
 
 | Wave | Task(s) | Status | Notes |
 |---|---|---|---|
-| 1 | 15.1.1 | pending | Parser feasibility; no implementation. |
+| 1 | 15.1.1 | done | Feasibility report completed; bounded parser evidence supports policy design only. |
 | 2 | 15.2.1 | pending | AST policy specification. |
 | 3 | 15.3.1 | pending | Parser-backed gate, contingent on feasibility and policy. |
 | 4 | 15.4.1 | pending | Adversarial qualification and policy/evidence update. |
@@ -33,3 +33,10 @@ Plan: `planning/EXECUTION_PLAN_15.md`
 ## Task Reports
 
 <!-- Append concise task reports after verified completion. -->
+
+## 15.1.1
+- Status: done; report `planning/reports/duckdb-parser-feasibility.md`.
+- Files: feasibility report and `planning/tasks/15.1.1.todo.md`.
+- Tests: offline parser probe passed; `cargo test --offline --features duckdb --test duckdb_security_contract -- --nocapture` (5 passed); `git diff --check` passed.
+- Deviations: disposable DuckDB rebuild could not complete because `/tmp` ran out of space; existing pinned contract/probe evidence used and limitation documented.
+- Gate: conditional parser reuse candidate; next task must inspect exact AST classification; no implementation authorization implied.
