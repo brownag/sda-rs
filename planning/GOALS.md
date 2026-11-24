@@ -1,16 +1,32 @@
 # Project Goals (`planning/GOALS.md`)
 
-Last Updated: 2026-11-22
-Source State: STATE_13.md (DuckDB qualification through G42)
+Last Updated: 2026-11-23
+Source State: STATE_14.md (DuckDB security integration assessment)
 
 ## Circled Goal (Active)
 
-- **[G39-EVIDENCE]** DuckDB security controls and bypass resistance have reproducible, pinned-version evidence, with enforceable guarantees distinguished from residual risks.
-  - Why now: Security evidence determines what can safely be exercised in G40 and benchmarked in G42. Prior missing documentation is not itself a blocker: run bounded direct-API and adversarial probes, then report positive, negative, or genuinely inconclusive results.
-  - Exit criteria: A reproducible matrix covers classifier bypasses, file and network surfaces, writes, extension loading/configuration, and resource-control mechanisms. Each entry records exact pinned versions, setup, commands, observed result, and scope limits. The verdict states which controls are enforced, which are bypassable, and what remains a production-enablement risk. No claim of exhaustive security from finite tests.
-  - First action: Inspect the current classifier, denial tests, DuckDB 2.0 security documentation/API, and existing probe harness; create an adversarial test matrix and run direct-Connection probes that bypass the classifier.
+- **[G50-PARSER-FEASIBILITY]** Parser feasibility for a fail-closed DuckDB SQL authorization gate is established against the pinned executor and its required SQL surface.
+  - Why now: Direct probes show that DuckDB accepts statements and setting changes the string classifier rejects. Parser feasibility is the root decision for a defensible authorization design and prevents premature dependency or implementation choices.
+  - Exit criteria: Assess `polyglot-sql` AST coverage for DuckDB statements, nested queries, function/table-function calls, identifiers, and temporary-table operations; run offline probes/tests for representative forms; document gaps and recommend reuse, a candidate parser, or a bounded non-parser alternative. No dependency or pin change without separate approval.
+  - First action: Map the executor's allowed SQL workflows to the AST and parser API already available through `polyglot-sql`, then add a small offline parser coverage matrix.
 
 ## Sequenced Goals (Dependency DAG)
+
+- **[G51-AUTHORIZATION-POLICY]** The DuckDB SQL authorization policy is specified as an explicit fail-closed allowlist over parsed statement and expression forms.
+  - Depends on: G50-PARSER-FEASIBILITY.
+  - Exit criteria: Define accepted statement types, DDL/temp-table lifecycle, relation and function/table-function policy, nested-query handling, and rejection behavior for settings, extension control, external I/O, and ambiguous syntax. Document supported-query compatibility and known parser limitations before implementation.
+
+- **[G52-PARSER-GATE]** The internal DuckDB executor validates SQL against the approved parsed-AST policy before execution while preserving the tested temporary-table workflow.
+  - Depends on: G51-AUTHORIZATION-POLICY.
+  - Exit criteria: Replace string-prefix authorization with AST validation; deny unrecognized or unsupported constructs by default; retain request-local execution and batch rollback contracts; add focused tests for allowed and denied statement/AST forms. Keep DuckDB unavailable to HTTP requests.
+
+- **[G53-ADVERSARIAL-QUALIFICATION]** The parser-backed gate is adversarially qualified against the pinned DuckDB engine and documented parser grammar.
+  - Depends on: G52-PARSER-GATE.
+  - Exit criteria: Test nested/compound statements, comments, quoted identifiers/literals, statement separators, setting/configuration syntax, dangerous functions/table functions, temp-table lifecycle, and parser/runtime disagreement. Record exact versions, reproduction commands, positive/negative findings, and remaining limits; finite tests are not an exhaustiveness proof.
+
+- **[G54-SECURITY-READINESS]** DuckDB integration readiness is reassessed using parser-gate evidence and all remaining security, version, lifecycle, import, and resource risks.
+  - Depends on: G53-ADVERSARIAL-QUALIFICATION, G41-IDENTITY, G40-EVIDENCE, G42-EVIDENCE.
+  - Exit criteria: Update the security policy and integration assessment with tested guarantees, residual risks, and a go/no-go recommendation. Keep SQLite as default; request-path selection, dependency/pin changes, and production exposure require separate explicit approval.
 
 - **[G40-EVIDENCE]** The private Rust-side GeoPackage loader has reproducible evidence for trusted-path handling, read-only behavior, metadata/CRS/SRID checks, geometry decoding, and SDA serialization.
   - Depends on: G39-EVIDENCE (security boundary and residual risks documented; does not require every residual risk to be eliminated to perform isolated internal qualification).
@@ -30,14 +46,14 @@ Source State: STATE_13.md (DuckDB qualification through G42)
 
 ## Independent Backlog
 
-- None currently. G37-EVIDENCE is a sequenced workstream depending only on current-pin identity research, not on G39/G40 closure.
+- None currently. G37-EVIDENCE remains independent of the parser authorization series except for exact pin identity.
 
 ## Deferred
 
 - **[G43-ENABLEMENT]** Expose DuckDB to requests or select it at runtime.
   - Trigger: Separate explicit approval after security, compatibility, deployment, and operational evidence is reviewed; outside Plan 13.
-- **[G39-REDESIGN]** Replace or supplement controls with parser/authorizer or OS isolation.
-  - Trigger: Investigation demonstrates a material bypass that cannot be acceptably bounded in the current internal qualification scope. The investigation must establish the observed bypass and alternatives first; do not stop merely because a stronger design has not yet been chosen.
+- **[G55-OS-ISOLATION]** Add process/OS isolation for DuckDB execution.
+  - Trigger: A threat-model review after G54 shows parser-backed authorization and DuckDB engine controls leave material risk that requires isolation. No sandbox design or deployment change is authorized by this goal list.
 
 ## Blocked / Pruned
 
@@ -50,7 +66,9 @@ Source State: STATE_13.md (DuckDB qualification through G42)
 
 ## Ranking Rationale
 
-- G39-EVIDENCE is circled because its results bound how G40 and G42 can safely be executed and what their claims mean. “Not previously verified” is a reason to probe, not a stop condition.
+- G50-PARSER-FEASIBILITY is circled because it decides whether existing parser infrastructure can support the authorization boundary; its answer unblocks policy design and avoids premature dependency/implementation work.
+- G51 -> G52 -> G53 -> G54 is the critical parser-backed authorization sequence. Each stage depends on evidence from the previous stage; G54 also depends on current identity, loader, and benchmark evidence.
+- G39-EVIDENCE is complete as Plan 14 security investigation; its direct probes established that settings and other SQL accepted by DuckDB differ from the interim executor classifier. The new sequence addresses the resulting design gap rather than repeating baseline probing.
 - G41-IDENTITY is a low-cost independent root and gates pinned semantic comparisons. The current DuckDB 1.2.0 / engine 2.0.0 pin was chosen for reproducibility and a matching Spatial artifact, not established as the newest or best pin.
 - G40-EVIDENCE follows the security probe but requires only bounded synthetic local inputs and can yield useful qualification evidence despite G39 residual risks.
 - G37-SEMANTICS is independent of executor security once the exact Spatial pin is known; parallelize only if test artifacts and files do not overlap.
