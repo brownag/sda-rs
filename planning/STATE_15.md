@@ -47,3 +47,11 @@ Plan: `planning/EXECUTION_PLAN_15.md`
 - Tests: documentation review; `git diff --check` passed.
 - Deviations: none.
 - Gate: AST completeness is unresolved because public DFS does not prove exhaustive child coverage; tasks 15.3.1 and 15.4.1 blocked pending explicit decision on verifiable traversal/upgrade guard or parser/API/scope change.
+
+## 15.3.1 — AST coverage evidence
+- Status: evidence complete; original parser-backed implementation remains blocked.
+- Files: `planning/reports/duckdb-ast-coverage.md`, `planning/tasks/15.3.1.todo.md`.
+- Tests: source/API inspection only; `git diff --check` passed; no compile probe or harness.
+- Finding: public `Expression` allows exhaustive matching and compile-time detection of added variants, but public DFS delegates to private generated child traversal; a downstream match cannot detect omitted child fields.
+- Finding: lockfile/locked builds expose dependency version changes for review but do not prove traversal completeness.
+- Decision needed: accept a maintained manual review/upgrade guard, authorize a verifiable traversal mechanism/parser API change, or stop the authorization implementation.
