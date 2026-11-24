@@ -657,9 +657,8 @@ fn execute_batch(
 }
 
 // DuckDB does not expose a SQLite-style authorizer in this pinned Rust API.
-// Until a parser-backed policy seam exists, accept only read-only SELECT and a
-// deliberately small temp-table grammar. Reject comments, quoted identifiers,
-// and compound statements rather than trying to classify ambiguous SQL.
+// This interim gate accepts only simple read-only SELECT and a deliberately
+// small temp-table grammar. It does not parse SQL; keep it internal-only.
 fn validate_statement(
     sql: &str,
     temp_tables: &mut std::collections::HashSet<String>,
@@ -671,11 +670,27 @@ fn validate_statement(
         && !normalized.contains("/*")
         && !normalized.contains('\'')
         && !normalized.contains('"')
-        && !normalized.contains('`');
+        && !normalized.contains('`')
+        && !normalized.contains('#')
+        && !normalized.contains('$');
     if !simple {
         return Err(ExecutorError::DuckDb(duckdb::Error::InvalidQuery));
     }
-    if upper.starts_with("SELECT ") || upper == "SELECT" {
+    if (upper.starts_with("SELECT ") || upper == "SELECT")
+        && !upper.contains(" ATTACH ")
+        && !upper.contains(" DETACH ")
+        && !upper.contains(" CREATE ")
+        && !upper.contains(" DROP ")
+        && !upper.contains(" INSERT ")
+        && !upper.contains(" UPDATE ")
+        && !upper.contains(" DELETE ")
+        && !upper.contains(" COPY ")
+        && !upper.contains(" INSTALL ")
+        && !upper.contains(" LOAD ")
+        && !upper.contains(" SET ")
+        && !upper.contains(" RESET ")
+        && !upper.contains(" PRAGMA ")
+    {
         return Ok(());
     }
     let create_prefix = if upper.starts_with("CREATE TEMP TABLE ") {

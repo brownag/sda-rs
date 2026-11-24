@@ -67,6 +67,23 @@ async fn rejects_untracked_temp_table_targets_and_compound_sql() {
         "DROP TABLE arbitrary",
         "SELECT 1; CREATE TABLE durable (id INTEGER)",
         "SELECT 1 -- comment",
+        "SELECT 1 # comment",
+        "SELECT 1 AS value$tag",
+        "SELECT 1; ATTACH ':memory:' AS probe",
+        "SELECT 1 /* comment */",
+        "SELECT 1; SET autoload_known_extensions = true",
+    ] {
+        assert!(run(&[sql]).await.is_err(), "accepted {sql}");
+    }
+}
+
+#[tokio::test]
+async fn rejects_mutating_keywords_inside_select_text() {
+    for sql in [
+        "SELECT 1 AS x ATTACH ':memory:' AS probe",
+        "SELECT 1 AS x SET autoload_known_extensions = true",
+        "SELECT 1 AS x CREATE TABLE durable (id INTEGER)",
+        "SELECT 1 AS x INSTALL spatial",
     ] {
         assert!(run(&[sql]).await.is_err(), "accepted {sql}");
     }
