@@ -19,10 +19,18 @@ Plan: `planning/EXECUTION_PLAN_16.md`
 ## Wave Board
 | Wave | Task(s) | Status | Notes |
 |---|---|---|---|
-| 1 | 16.1.1 | pending | Prove existing-crate recursive coverage and upgrade guard feasibility. |
-| 2 | 16.2.1 | pending | Implement local guard only if wave 1 proves feasibility; otherwise stop with alternatives. |
-| 3 | 16.3.1 | pending | Integrate/qualify only if prior guard is verified. |
+| 1 | 16.1.1 | done | Feasibility report recommends STOP: enum exhaustiveness works, recursive child coverage is not verifiable downstream. |
+| 2 | 16.2.1 | blocked | Pending user decision on parser/API or residual-risk approach; no implementation authorized. |
+| 3 | 16.3.1 | blocked | Guard not implemented/verified; depends on resolution of Wave 2 blocker. |
 
 ## Task Reports
 
 <!-- Append concise task reports after verified completion. -->
+
+## 16.1.1
+- Status: done; feasibility result blocks implementation pending user decision.
+- Files: `planning/reports/duckdb-ast-guard-feasibility.md`; `planning/tasks/16.1.1.todo.md`; this state update.
+- Evidence: offline isolated no-wildcard match probe failed with E0004 and 938+ uncovered variants; private traversal prevents downstream proof of recursive coverage.
+- Verification: `git diff --check` — passed.
+- Deviations: none; no source/dependency changes, implementation, or remote actions.
+- Gotcha: an exhaustive enum match does not detect omitted child traversal; Wave 2/3 remain blocked.
