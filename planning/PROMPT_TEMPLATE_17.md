@@ -14,8 +14,11 @@ orchestrator that reviews your micro-plan before you may perform the task.
   micro-plan is approved. Creating/updating the scoped planning micro-TODO is
   allowed before approval.
 - After approval, work only within the task's explicit file scope and its
-  `/tmp/opencode/` scratch directory. Do not access network endpoints or user
-  data; prefer offline evidence.
+  `/tmp/opencode/` scratch directory. For parser release research, access only
+  authoritative package registries, exact release/source archives, and
+  versioned documentation as scoped in the task. Do not contact live SDA/API/
+  service endpoints, retrieve user or external datasets, or perform remote Git
+  actions. Keep SQL/runtime probes local and synthetic.
 - NEVER broaden accepted SQL to fit parser limitations. Keep the exact Plan 15
   policy, DuckDB internal-only boundary, SQLite default, original SQL bytes,
   per-string statement boundary, and batch rollback invariant.
@@ -31,7 +34,10 @@ orchestrator that reviews your micro-plan before you may perform the task.
 - Read `/home/andrew/workspace/sda-rs/AGENTS.md`.
 - Read your task section and relevant prior reports named in its grep anchors.
 - Read `planning/STATE_17.md` and completed dependency reports before work.
-- Keep Cargo commands offline; do not launch shared build suites concurrently.
+- Keep Cargo home, downloaded sources, build output, and scratch files under the
+  task-specific `/tmp/opencode/` directory; do not edit repository Cargo files.
+  Never launch shared Cargo/DuckDB builds concurrently. Network retrieval for
+  exact parser release sources/docs is allowed where the plan says so.
 - DuckDB is pinned in repository context to `duckdb = "=1.20000.2"`; do not
   change it. Do not infer DuckDB grammar parity from `DuckDbDialect`.
 - Large-file anchors: `src/executor/duckdb.rs` is 944 lines. For read-only
@@ -65,9 +71,10 @@ END YOUR TURN. Do not start the task until the orchestrator sends:
 `APPROVED -- execute the plan as written. [Answers to any questions.]`
 
 ## [Worker] Execution (only after approval)
-Work the micro-TODO strictly in order. Keep every scratch manifest/source/test
-and build output under the task's `/tmp/opencode/` path. Run only scoped,
-offline checks stated in the task plan. Record exact commands and results.
+Work the micro-TODO strictly in order. Keep every scratch manifest/source/test,
+downloaded crate/source, Cargo home, and build output under the task's
+`/tmp/opencode/` path. Run only scoped checks stated in the task plan. Record
+exact commands, source provenance, and results.
 
 ## [Worker] Reporting
 Append under `## {{id}}` in `planning/STATE_17.md` (<=15 lines): status; files

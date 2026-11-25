@@ -16,16 +16,16 @@ Plan: `planning/EXECUTION_PLAN_17.md`
 - Evaluate exact `sqlparser` release/API and visitor only as a research candidate.
 - Preserve exact Plan 15 default-deny policy; do not expand policy to fit parser.
 - No production code, tests, Cargo dependency changes, parser/API replacement, engine pin changes, route or policy changes.
-- No network endpoints or user data; external documentation only if already available, cited with guarantees distinguished from assumptions.
+- No live SDA/API/service endpoints, user data, or external datasets. Exact package/source/documentation retrieval from authoritative sources is allowed; cite sources and distinguish documented guarantees from tested evidence.
 - Separate user approval is required for dependency addition, API/parser replacement, pin changes, and production authorization-gate work.
 
 ## Wave Board
 | Wave | Task(s) | Status | Notes |
 |---|---|---|---|
 | 1 | 17.1.1 | done | Criteria report verified; recursive coverage and runtime contingencies recorded. |
-| 2 | 17.2.1 | blocked | No exact `sqlparser` source/archive is cached; no network fetch allowed. |
-| 3 | 17.3.1 | blocked | Depends on verified exact release/API from Wave 2. |
-| 4 | 17.4.1 | blocked | Depends on completed visitor prototype from Wave 3. |
+| 2 | 17.2.1 | pending | Resumed with scoped authoritative release/source/documentation retrieval allowed. |
+| 3 | 17.3.1 | pending | Depends on verified exact release/API from Wave 2. |
+| 4 | 17.4.1 | pending | Depends on completed visitor prototype from Wave 3. |
 
 ## Task Reports
 
@@ -43,4 +43,5 @@ Plan: `planning/EXECUTION_PLAN_17.md`
 - Files changed: `planning/reports/duckdb-sqlparser-release-evidence.md`, `planning/STATE_17.md`.
 - Verification: offline cache searches found no source/archive; `Cargo.lock` has no `sqlparser` entry. No release was selected or compiled.
 - Deviations: stopped as required; no network access, repository Cargo changes, or scratch harness.
-- Residual risks: public API, visitor behavior, AST coverage, exact release provenance, and compile compatibility remain unverified. Resume only with exact release source available offline or new orchestrator direction.
+- Residual risks: public API, visitor behavior, AST coverage, exact release provenance, and compile compatibility remain unverified. This initial stop condition was superseded by the resumption decision below.
+- **2026-11-24 resumption decision:** User rejected the offline-only evidence limitation. Plan 17 and its worker template now allow retrieval of exact crate/source/versioned docs from authoritative sources, while keeping live SDA/API/service access, user/external data, runtime SQL external I/O, and remote Git actions prohibited. Task 17.2.1 must redo its micro-plan against the revised scope before execution.
