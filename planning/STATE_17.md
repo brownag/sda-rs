@@ -22,7 +22,7 @@ Plan: `planning/EXECUTION_PLAN_17.md`
 ## Wave Board
 | Wave | Task(s) | Status | Notes |
 |---|---|---|---|
-| 1 | 17.1.1 | pending | Freeze exact policy corpus and criteria. |
+| 1 | 17.1.1 | done | Criteria report verified; recursive coverage and runtime contingencies recorded. |
 | 2 | 17.2.1 | pending | Verify exact release/source/API, offline; depends on Wave 1. |
 | 3 | 17.3.1 | pending | Scratch visitor prototype and tests; depends on Wave 2. |
 | 4 | 17.4.1 | pending | DuckDB 2.0.0 differential evidence and final recommendation; depends on Wave 3. |
@@ -30,3 +30,10 @@ Plan: `planning/EXECUTION_PLAN_17.md`
 ## Task Reports
 
 <!-- Append concise task reports after verified completion. -->
+
+## 17.1.1
+- Status: complete; froze Plan 15 policy corpus and prototype acceptance criteria.
+- Files changed: `planning/reports/duckdb-sqlparser-prototype-criteria.md`, `planning/STATE_17.md`.
+- Verification: policy-row/case coverage and required-criteria check passed (17 uniquely traceable rows/cases); `git diff --check -- planning/reports/duckdb-sqlparser-prototype-criteria.md` passed.
+- Deviations: none. No code, tests, dependencies, scratch harness, or policy changed.
+- Residual risks: visitor completeness and ordinary relation resolution remain unproven; INSERT VALUES compatibility remains limited to the tested form.
