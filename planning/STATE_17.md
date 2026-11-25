@@ -24,8 +24,8 @@ Plan: `planning/EXECUTION_PLAN_17.md`
 |---|---|---|---|
 | 1 | 17.1.1 | done | Criteria report verified; recursive coverage and runtime contingencies recorded. |
 | 2 | 17.2.1 | done | Exact crate source/API, docs.rs 0.64.0 docs, checksum, and scratch `cargo check` verified; `cargo run` could not link because `/tmp` is full. |
-| 3 | 17.3.1 | blocked | Scratch tests/build cannot run while the required `/tmp/opencode/` filesystem is full. |
-| 4 | 17.4.1 | blocked | Depends on Wave 3; same `/tmp` capacity blocker. |
+| 3 | 17.3.1 | pending | Scratch-only visitor prototype; prior `/tmp` capacity blocker cleared by user. |
+| 4 | 17.4.1 | pending | Depends on completed visitor prototype from Wave 3. |
 
 ## Task Reports
 
@@ -45,3 +45,4 @@ Plan: `planning/EXECUTION_PLAN_17.md`
 - Deviations: probe execution remains incomplete; crates.io metadata endpoint returned HTTP 403, but docs.rs supplied exact-version docs. No repository Cargo/dependency/code/test changes.
 - Residual risks: prototype syntax/traversal behavior and DuckDB compatibility remain untested; production authorization suitability is not established.
 - **Execution blocker:** Waves 3–4 need scratch build/test output under `/tmp/opencode/`; stop until `/tmp` has adequate free space. The current task scratch is 184 MiB; the rest of the 55 GiB is outside this task's scope and was not deleted.
+- **2026-11-24 resumption:** User freed old `target/` directories; `/tmp` now has 29 GiB free. Wave 3 may proceed. Recheck capacity before the DuckDB differential task.
