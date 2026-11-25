@@ -23,13 +23,20 @@ Plan: `planning/EXECUTION_PLAN_17.md`
 | Wave | Task(s) | Status | Notes |
 |---|---|---|---|
 | 1 | 17.1.1 | done | Criteria report verified; recursive coverage and runtime contingencies recorded. |
-| 2 | 17.2.1 | done | Exact crate source/API, docs.rs 0.64.0 docs, checksum, and scratch `cargo check` verified; `cargo run` could not link because `/tmp` is full. |
-| 3 | 17.3.1 | pending | Scratch-only visitor prototype; prior `/tmp` capacity blocker cleared by user. |
+| 2 | 17.2.1 | done | Exact crate source/API, docs.rs 0.64.0 docs, checksum, and scratch `cargo check` verified; an earlier supplemental `cargo run` hit the then-full `/tmp`. |
+| 3 | 17.3.1 | done | Scratch visitor/tests pass; research-only, important coverage gaps remain. |
 | 4 | 17.4.1 | pending | Depends on completed visitor prototype from Wave 3. |
 
 ## Task Reports
 
 <!-- Append concise task reports after verified completion. -->
+
+## 17.3.1
+- Status: complete as bounded research prototype; not suitable as an authorization gate.
+- Files changed: `planning/reports/duckdb-sqlparser-visitor-prototype.md`, `planning/tasks/17.3.1.todo.md`, `planning/STATE_17.md`; scratch only under `/tmp/opencode/sda-rs-plan17-visitor/`.
+- Verification: scoped offline `cargo test` passed (2 integration tests; orchestrator rerun passed); scoped offline `cargo clippy --all-targets -- -D warnings` passed (orchestrator rerun passed); `git diff --check` passed.
+- Deviations: fail-closed defaults retained; CTAS, INSERT, DROP, joins, unknown relations and external functions not authorized. CTE test uses a narrow test-only exception, not general scope logic.
+- Residual risks: incomplete per-field visitor/source audit, C01 source correspondence, generic CTE/relation resolution, exhaustive future-node handling, batch lifecycle/rollback and DuckDB runtime compatibility remain unproven. No production or dependency authorization.
 
 ## 17.1.1
 - Status: complete; froze Plan 15 policy corpus and prototype acceptance criteria.
@@ -44,5 +51,5 @@ Plan: `planning/EXECUTION_PLAN_17.md`
 - Verification: crate SHA-256 recorded; exact-version `cargo check` passed; docs.rs 0.64.0 visitor and dialect pages retrieved and cited. `cargo run --offline` could not link because `/tmp` was full (55G used, under 1 MiB free).
 - Deviations: probe execution remains incomplete; crates.io metadata endpoint returned HTTP 403, but docs.rs supplied exact-version docs. No repository Cargo/dependency/code/test changes.
 - Residual risks: prototype syntax/traversal behavior and DuckDB compatibility remain untested; production authorization suitability is not established.
-- **Execution blocker:** Waves 3–4 need scratch build/test output under `/tmp/opencode/`; stop until `/tmp` has adequate free space. The current task scratch is 184 MiB; the rest of the 55 GiB is outside this task's scope and was not deleted.
+- **Historical execution blocker:** Waves 3–4 needed scratch build/test output under `/tmp/opencode/`; at the time, `/tmp` was full. No unrelated `/tmp` contents were deleted.
 - **2026-11-24 resumption:** User freed old `target/` directories; `/tmp` now has 29 GiB free. Wave 3 may proceed. Recheck capacity before the DuckDB differential task.
