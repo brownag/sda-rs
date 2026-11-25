@@ -23,9 +23,9 @@ Plan: `planning/EXECUTION_PLAN_17.md`
 | Wave | Task(s) | Status | Notes |
 |---|---|---|---|
 | 1 | 17.1.1 | done | Criteria report verified; recursive coverage and runtime contingencies recorded. |
-| 2 | 17.2.1 | pending | Verify exact release/source/API, offline; depends on Wave 1. |
-| 3 | 17.3.1 | pending | Scratch visitor prototype and tests; depends on Wave 2. |
-| 4 | 17.4.1 | pending | DuckDB 2.0.0 differential evidence and final recommendation; depends on Wave 3. |
+| 2 | 17.2.1 | blocked | No exact `sqlparser` source/archive is cached; no network fetch allowed. |
+| 3 | 17.3.1 | blocked | Depends on verified exact release/API from Wave 2. |
+| 4 | 17.4.1 | blocked | Depends on completed visitor prototype from Wave 3. |
 
 ## Task Reports
 
@@ -37,3 +37,10 @@ Plan: `planning/EXECUTION_PLAN_17.md`
 - Verification: policy-row/case coverage and required-criteria check passed (17 uniquely traceable rows/cases); `git diff --check -- planning/reports/duckdb-sqlparser-prototype-criteria.md` passed.
 - Deviations: none. No code, tests, dependencies, scratch harness, or policy changed.
 - Residual risks: visitor completeness and ordinary relation resolution remain unproven; INSERT VALUES compatibility remains limited to the tested form.
+
+## 17.2.1
+- Status: blocked; no exact `sqlparser` source or crate archive was available in the local Cargo cache.
+- Files changed: `planning/reports/duckdb-sqlparser-release-evidence.md`, `planning/STATE_17.md`.
+- Verification: offline cache searches found no source/archive; `Cargo.lock` has no `sqlparser` entry. No release was selected or compiled.
+- Deviations: stopped as required; no network access, repository Cargo changes, or scratch harness.
+- Residual risks: public API, visitor behavior, AST coverage, exact release provenance, and compile compatibility remain unverified. Resume only with exact release source available offline or new orchestrator direction.
