@@ -23,9 +23,9 @@ Plan: `planning/EXECUTION_PLAN_17.md`
 | Wave | Task(s) | Status | Notes |
 |---|---|---|---|
 | 1 | 17.1.1 | done | Criteria report verified; recursive coverage and runtime contingencies recorded. |
-| 2 | 17.2.1 | pending | Resumed with scoped authoritative release/source/documentation retrieval allowed. |
-| 3 | 17.3.1 | pending | Depends on verified exact release/API from Wave 2. |
-| 4 | 17.4.1 | pending | Depends on completed visitor prototype from Wave 3. |
+| 2 | 17.2.1 | done | Exact crate source/API, docs.rs 0.64.0 docs, checksum, and scratch `cargo check` verified; `cargo run` could not link because `/tmp` is full. |
+| 3 | 17.3.1 | blocked | Scratch tests/build cannot run while the required `/tmp/opencode/` filesystem is full. |
+| 4 | 17.4.1 | blocked | Depends on Wave 3; same `/tmp` capacity blocker. |
 
 ## Task Reports
 
@@ -39,9 +39,9 @@ Plan: `planning/EXECUTION_PLAN_17.md`
 - Residual risks: visitor completeness and ordinary relation resolution remain unproven; INSERT VALUES compatibility remains limited to the tested form.
 
 ## 17.2.1
-- Status: blocked; no exact `sqlparser` source or crate archive was available in the local Cargo cache.
-- Files changed: `planning/reports/duckdb-sqlparser-release-evidence.md`, `planning/STATE_17.md`.
-- Verification: offline cache searches found no source/archive; `Cargo.lock` has no `sqlparser` entry. No release was selected or compiled.
-- Deviations: stopped as required; no network access, repository Cargo changes, or scratch harness.
-- Residual risks: public API, visitor behavior, AST coverage, exact release provenance, and compile compatibility remain unverified. This initial stop condition was superseded by the resumption decision below.
-- **2026-11-24 resumption decision:** User rejected the offline-only evidence limitation. Plan 17 and its worker template now allow retrieval of exact crate/source/versioned docs from authoritative sources, while keeping live SDA/API/service access, user/external data, runtime SQL external I/O, and remote Git actions prohibited. Task 17.2.1 must redo its micro-plan against the revised scope before execution.
+- Status: complete with probe-run limitation; exact `sqlparser` 0.64.0 source/API, versioned docs, provenance, and compile check recorded.
+- Files changed: `planning/reports/duckdb-sqlparser-release-evidence.md`, `planning/STATE_17.md`; scratch only under `/tmp/opencode/sda-rs-plan17-release/`.
+- Verification: crate SHA-256 recorded; exact-version `cargo check` passed; docs.rs 0.64.0 visitor and dialect pages retrieved and cited. `cargo run --offline` could not link because `/tmp` was full (55G used, under 1 MiB free).
+- Deviations: probe execution remains incomplete; crates.io metadata endpoint returned HTTP 403, but docs.rs supplied exact-version docs. No repository Cargo/dependency/code/test changes.
+- Residual risks: prototype syntax/traversal behavior and DuckDB compatibility remain untested; production authorization suitability is not established.
+- **Execution blocker:** Waves 3–4 need scratch build/test output under `/tmp/opencode/`; stop until `/tmp` has adequate free space. The current task scratch is 184 MiB; the rest of the 55 GiB is outside this task's scope and was not deleted.
